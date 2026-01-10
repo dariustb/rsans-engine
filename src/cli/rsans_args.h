@@ -12,7 +12,7 @@ enum class CommandType {
     Full
 };
 
-struct CliOptions {
+struct Args {
     CommandType command = CommandType::None;
     std::string ffmpegPath = "ffmpeg";
 
@@ -23,6 +23,6 @@ struct CliOptions {
     struct FullOpts    { std::string input; std::string output; } full;
 };
 
-CliOptions parseArgs(int argc, char** argv);
+Args parseArgs(int argc, char** argv);
 
 #endif

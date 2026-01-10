@@ -9,8 +9,8 @@ namespace {
     const std::string APP_DESCRIPTION = "RSANS -- offline audio-aligned lyrics visualization engine";
 }
 
-CliOptions parseArgs(int argc, char** argv) {
-    CliOptions opts;
+Args parseArgs(int argc, char** argv) {
+    Args opts;
 
     CLI::App app{APP_DESCRIPTION};
 
