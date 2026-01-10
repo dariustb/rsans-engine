@@ -19,7 +19,7 @@ target_include_directories(test_rsans PUBLIC ./)
 
 target_sources(test_rsans
 	PRIVATE
-		rsans_speechtotext.t.cpp
+		rsans_core.t.cpp
 )
 
 gtest_discover_tests(test_rsans)
