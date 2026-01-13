@@ -14,19 +14,19 @@ int main(int argc, char** argv) {
 
         switch (args.command) {
         case CommandType::Analyze: {
-            std::string json = readFile(args.analyze.input);
-            std::string out  = tokenizeAudio(json);
+            const std::string json = readFile(args.analyze.input);
+            const std::string out  = tokenizeAudio(json);
             writeFile(args.analyze.output, out);
             break;
         }
         case CommandType::Rhyme: {
-            std::string json = readFile(args.rhyme.input);
-            std::string out  = detectRhymes(json);
+            const std::string json = readFile(args.rhyme.input);
+            const std::string out  = detectRhymes(json);
             writeFile(args.rhyme.output, out);
             break;
         }
         case CommandType::Export: {
-            std::string json = readFile(args.exportOpt.input);
+            const std::string json = readFile(args.exportOpt.input);
             const int code = exportVideo(json, args.exportOpt.output, args.ffmpegPath);
             return code;
         }
