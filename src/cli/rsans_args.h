@@ -7,7 +7,6 @@ enum class CommandType {
     None,
     Analyze,
     Rhyme,
-    Ass,
     Export,
     Full
 };
@@ -18,7 +17,6 @@ struct Args {
 
     struct AnalyzeOpts { std::string input; std::string output; } analyze;
     struct RhymeOpts   { std::string input; std::string output; } rhyme;
-    struct AssOpts     { std::string input; std::string output; } ass;
     struct ExportOpts  { std::string input; std::string output; } exportOpt;
     struct FullOpts    { std::string input; std::string output; } full;
 };

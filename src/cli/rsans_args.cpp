@@ -27,11 +27,6 @@ Args parseArgs(int argc, char** argv) {
     rhyme->add_option("input", opts.rhyme.input, "Input project JSON")->required();
     rhyme->add_option("-o,--out", opts.rhyme.output, "Output project JSON")->required();
 
-    // ass
-    CLI::App* ass = app.add_subcommand("ass", "Generate ASS subtitles");
-    ass->add_option("input", opts.ass.input, "Input project JSON")->required();
-    ass->add_option("-o,--out", opts.ass.output, "Output .ass file")->required();
-
     // export
     CLI::App* exportCmd = app.add_subcommand("export", "Render final video");
     exportCmd->add_option("input", opts.exportOpt.input, "Input project JSON")->required();
@@ -52,8 +47,6 @@ Args parseArgs(int argc, char** argv) {
         opts.command = CommandType::Analyze;
     } else if (rhyme->parsed()) {
         opts.command = CommandType::Rhyme;
-    } else if (ass->parsed()) {
-        opts.command = CommandType::Ass;
     } else if (exportCmd->parsed()) {
         opts.command = CommandType::Export;
     } else if (full->parsed()) {
