@@ -1,6 +1,8 @@
 add_library(rsans_core
-    rsans_core.cpp
-    rsans_engine.cpp
+    rsans_ass.cpp
+    rsans_export.cpp
+    rsans_rhyme.cpp
+    rsans_whisper.cpp
 )
 
 target_include_directories(rsans_core PUBLIC ./)
@@ -29,8 +31,18 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(dr_wav)
 
+# Fetch nlohmann's json (https://github.com/nlohmann/json)
+include(FetchContent)
+
+FetchContent_Declare(
+    nlohmann_json
+    URL https://github.com/nlohmann/json/archive/refs/tags/v3.12.0.zip
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
 target_link_libraries(rsans_core PUBLIC
     whisper
+    nlohmann_json::nlohmann_json
 )
 
 target_include_directories(rsans_core PUBLIC
