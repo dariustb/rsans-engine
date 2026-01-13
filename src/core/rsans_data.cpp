@@ -2,12 +2,15 @@
 
 #include <nlohmann/json.hpp>
 
+#include <vector>
+
 using json = nlohmann::json;
 
 ProjectData::ProjectData(const std::string& jsonContent) {
     const json j = json::parse(jsonContent);
 
-    audioPath = j["audioPath"].get<std::string>();
+    audio.path = j["audio"]["path"].get<std::string>();
+    audio.length = j["audio"]["length"].get<int>();
 
     video.width = j["video"]["width"].get<int>();
     video.height = j["video"]["height"].get<int>();
@@ -40,3 +43,15 @@ ProjectData::ProjectData(const std::string& jsonContent) {
         rhymeStyles[key] = style;
     }
 }
+
+ProjectData::ProjectData(ProjectData base, std::vector<Token>& newTokens)
+: ProjectData(std::move(base)){
+    tokens = std::move(newTokens);
+}
+
+ProjectData::ProjectData(ProjectData&& other) noexcept
+: audio(other.audio)
+, video(other.video)
+, layout(other.layout)
+, rhymeStyles(other.rhymeStyles)
+, tokens(other.tokens) {}

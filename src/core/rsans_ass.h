@@ -3,7 +3,9 @@
 
 #include <rsans_data.h>
 
-std::string generateAss(const std::string& jsonContent);
+#include <string>
+
+std::string generateAss(const ProjectData& data);
 
 // Helper functions for generateAss
 std::map<int, std::vector<Token>> groupTokensByLine(

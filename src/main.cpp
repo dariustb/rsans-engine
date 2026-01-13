@@ -27,14 +27,16 @@ int main(int argc, char** argv) {
         }
         case CommandType::Export: {
             const std::string json = readFile(args.exportOpt.input);
-            const int code = exportVideo(json, args.exportOpt.output, args.ffmpegPath);
+            const ProjectData data(json);
+            const int code = exportVideo(data, args.exportOpt.output, args.ffmpegPath);
             return code;
         }
         case CommandType::Full: {
             std::string json = readFile(args.full.input);
+            const ProjectData data(json);
             json = tokenizeAudio(json);
             json = detectRhymes(json);
-            const int code = exportVideo(json, args.full.output, args.ffmpegPath);
+            const int code = exportVideo(data, args.full.output, args.ffmpegPath);
             return code;
         }
         default:

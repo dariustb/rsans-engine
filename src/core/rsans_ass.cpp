@@ -3,7 +3,6 @@
 #include <rsans_data.h>
 
 #include <algorithm>
-#include <iostream>
 #include <sstream>
 
 
@@ -182,9 +181,7 @@ std::string buildEvents(const std::map<int, LineData>& linesData, double centerX
 }
 
 // TODO: Could this be a constructor to an ASS struct?
-std::string generateAss(const std::string& jsonContent) {
-    const ProjectData data(jsonContent);
-
+std::string generateAss(const ProjectData& data) {
     std::map<int, std::vector<Token>> lineTokens = groupTokensByLine(data.tokens);
 
     // TODO: maxEndMs should be replaced with a songLength that's explicit in the JSON
