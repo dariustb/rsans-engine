@@ -47,22 +47,4 @@ struct ProjectData {
     ProjectData(ProjectData&& other) noexcept;
 };
 
-// TODO: Move below structs back later to _ass.h
-
-// TODO: I don't think we need this
-struct TokenWithOffset {
-    Token token;
-    int columnOffset; // This can be derived: token.text.length()
-    double x;
-    double y;
-};
-
-// TODO: This can be contained into ASS struct constructor; it's only needed there
-struct LineData {
-    std::string lineText;
-    std::vector<TokenWithOffset> tokens;
-    double lineStartX;
-    double lineY;
-};
-
 #endif
