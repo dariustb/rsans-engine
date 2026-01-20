@@ -7,14 +7,11 @@
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
+#include <iostream>
 
 int exportVideo(const ProjectData& data,
                 const std::string& outputVideoPath,
                 const std::string& ffmpegPath) {
-
-    // Add buffer and convert to seconds
-    double durationSeconds = (data.audio.length + 1000) / 1000.0;
-
     // Generate ASS subtitles
     std::string assContent = generateAss(data);
 
@@ -34,15 +31,16 @@ int exportVideo(const ProjectData& data,
     std::ostringstream cmd;
     cmd << ffmpegPath << " -y ";
     cmd << "-f lavfi -i color=c=" << data.video.background << ":s=" << data.video.width << "x"
-        << data.video.height << ":d=" << durationSeconds << " ";
+        << data.video.height << ":d=" << data.audio.length << " ";
     cmd << "-i " << data.audio.path << " ";
     cmd << "-vf subtitles=" << tempAssFile << " ";
     cmd << "-c:v libx264 -c:a aac ";
     cmd << outputVideoPath;
-
+    
     // Execute ffmpeg
     int result = std::system(cmd.str().c_str());
-
+    std::cout << "~~~" << cmd.str() << std::endl;
+    
     if (result != 0) {
         throw std::runtime_error("ffmpeg command failed with exit code " +
                                  std::to_string(result));

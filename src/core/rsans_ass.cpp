@@ -195,7 +195,7 @@ std::string generateAss(const ProjectData& data) {
     const std::string scriptInfo = buildScriptInfo(data.video.width, data.video.height);
     const std::string styles = buildStyles(data.layout.fontName, data.layout.fontSize,
                                      data.rhymeStyles);
-    const std::string events = buildEvents(linesData, centerX, centerY, maxEndMs,
+    const std::string events = buildEvents(linesData, centerX, centerY, data.audio.length * 1000,
                                      data.layout.fontSize);
 
     return scriptInfo + styles + events;
