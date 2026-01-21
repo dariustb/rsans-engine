@@ -4,6 +4,14 @@
 #include <rsans_data.h>
 
 #include <string>
+#include <vector>
+
+struct Ass {
+    std::string text;
+
+    Ass() = delete;
+    Ass(const ProjectData& data);
+};
 
 // TODO: I don't think we need this
 struct TokenWithOffset {
