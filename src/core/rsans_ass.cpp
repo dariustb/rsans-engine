@@ -33,8 +33,7 @@ std::string formatTime(int ms) {
 }
 
 Ass::Ass(const ProjectData& data) {
-    // Populate lines and create mapping from lineIndex to lines position
-    std::map<int, int> lineIndexToPos;
+    // Populate lines
     std::string tokenLineStr;
     int lastLineIdx = -1;
     int minLineIdx = -1;
@@ -53,7 +52,6 @@ Ass::Ass(const ProjectData& data) {
             if (!tokenLineStr.empty()) {
                 lines.push_back(std::move(tokenLineStr));
             }
-            lineIndexToPos[token.lineIndex] = lines.size();
             tokenLineStr = token.text;
             lastLineIdx = token.lineIndex;
         } else {
@@ -119,8 +117,7 @@ Ass::Ass(const ProjectData& data) {
     for (const Token& token : data.tokens) {
         if (token.rhymeGroup.has_value()) {
             // Find the line this token belongs to
-            const int linePos = lineIndexToPos[token.lineIndex];
-            const std::string& lineText = lines[linePos];
+            const std::string& lineText = lines[token.lineIndex];
 
             // Find the position of the token within the line
             size_t tokenCharPos = lineText.find(token.text);
