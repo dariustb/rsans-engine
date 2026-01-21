@@ -11,9 +11,9 @@
 namespace  {
 
 int executeFfmpegBuild(const ProjectData& data,
-                       const std::string outputVideoPath,
-                       const std::string ffmpegPath,
-                       const std::string assPath) {
+                       const std::string& outputVideoPath,
+                       const std::string& ffmpegPath,
+                       const std::string& assPath) {
     // Build ffmpeg command
     std::ostringstream cmd;
     cmd << ffmpegPath << " -y ";
