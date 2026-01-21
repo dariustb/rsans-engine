@@ -9,6 +9,7 @@
 #include <stdexcept>
 
 namespace  {
+
 int executeFfmpegBuild(const ProjectData& data,
                        const std::string outputVideoPath,
                        const std::string ffmpegPath,
@@ -33,6 +34,7 @@ int executeFfmpegBuild(const ProjectData& data,
 
     return 0;
 }
+
 }
 
 int exportVideo(const ProjectData& data,
