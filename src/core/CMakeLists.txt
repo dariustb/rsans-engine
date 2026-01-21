@@ -42,6 +42,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(nlohmann_json)
 
 target_link_libraries(rsans_core PUBLIC
+    rsans_io
     whisper
     nlohmann_json::nlohmann_json
 )
