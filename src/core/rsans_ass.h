@@ -10,6 +10,18 @@ struct Ass {
 
     Ass() = delete;
     Ass(const ProjectData& data);
+
+  private:
+    struct LineInfo {
+        std::vector<std::string> lines;
+        int minLineIdx;
+        int maxLineIdx;
+    };
+
+    LineInfo buildLines(const std::vector<Token>& tokens);
+    void buildScriptInfo(std::ostringstream& ss, const ProjectData& data);
+    void buildStyles(std::ostringstream& ss, const ProjectData& data);
+    void buildEvents(std::ostringstream& ss, const ProjectData& data, const LineInfo& lineInfo);
 };
 
 #endif
