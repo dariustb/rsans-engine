@@ -40,13 +40,13 @@ int main(int argc, char** argv) {
             return code;
         }
         default:
-            std::cerr << "No command selected\n";
+            std::cerr << "No command selected" << std::endl;
             return 1;
         }
 
         return 0;
     } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << "\n";
+        std::cerr << "Error: " << e.what() << std::endl;
         return 1;
     }
 }
