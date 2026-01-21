@@ -13,7 +13,7 @@ int exportVideo(const ProjectData& data,
                 const std::string& outputVideoPath,
                 const std::string& ffmpegPath) {
     // Generate ASS subtitles
-    std::string assContent = generateAss(data);
+    const Ass AssSubtitles(data);
 
     // Write to temporary .ass file
     std::string tempAssFile = "lyrics.ass";
@@ -21,7 +21,7 @@ int exportVideo(const ProjectData& data,
     if (!assFile.is_open()) {
         throw std::runtime_error("Failed to create temporary .ass file");
     }
-    assFile << assContent;
+    assFile << AssSubtitles.text;
     assFile.close();
 
     // Remove '#' from background color for ffmpeg
