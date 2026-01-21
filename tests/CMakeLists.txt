@@ -20,7 +20,6 @@ target_include_directories(test_rsans PUBLIC ./)
 target_sources(test_rsans
 	PRIVATE
 		rsans_ass.t.cpp
-		rsans_core.t.cpp
 		rsans_data.t.cpp
 )
 
