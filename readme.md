@@ -34,7 +34,18 @@ cmake --install build --prefix ~/.local
 
 ## How to Use
 ```sh
-TBA
+# Analyze audio / tokenize lyrics
+rsans analyze project.json -o out.json
+
+# Detect rhymes in the lyrics 
+rsans rhyme project.json -o out.json
+
+# Export video based on project data
+rsans export project.json -o out.mp4
+
+# Full run of analyze -> detect -> export
+rsans full project.json -o out.mp4
+
 ```
 
 ## Output Format
@@ -63,6 +74,7 @@ cd build/tests
 ```
 
 ## Limitations
+- Audio is limited to English-only words
 - Requires reasonably clean, clearly spoken or sung audio
 - Lyrics must closely match the audio; large deviations reduce alignment quality
 - Word-level timing accuracy depends on the speech recognition model
