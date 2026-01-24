@@ -1,6 +1,9 @@
 #include <rsans_ass.h>
+
 #include <rsans_data.h>
+
 #include <gtest/gtest.h>
+
 #include <sstream>
 #include <vector>
 
@@ -25,6 +28,9 @@ ProjectData createTestProjectData(
             "fontName": "Arial",
             "fontSize": 48,
             "lineHeight": 60
+        },
+        "model": {
+            "path": "models/base.bin"
         },
         "rhymeStyles": {)";
 
@@ -55,7 +61,7 @@ TEST(AssTest, AssConstructorCreatesValidOutputGivenBasicTokens) {
     const Ass ass(data);
 
     // Then
-    EXPECT_FALSE(ass.text.empty());
+    ASSERT_FALSE(ass.text.empty());
     EXPECT_NE(ass.text.find("[Script Info]"), std::string::npos);
     EXPECT_NE(ass.text.find("[V4+ Styles]"), std::string::npos);
     EXPECT_NE(ass.text.find("[Events]"), std::string::npos);
@@ -193,7 +199,7 @@ TEST(AssTest, AssConstructorCreatesValidStructureGivenEmptyTokens) {
     const Ass ass(data);
 
     // Then
-    EXPECT_FALSE(ass.text.empty());
+    ASSERT_FALSE(ass.text.empty());
     EXPECT_NE(ass.text.find("[Script Info]"), std::string::npos);
     EXPECT_NE(ass.text.find("[V4+ Styles]"), std::string::npos);
     EXPECT_NE(ass.text.find("[Events]"), std::string::npos);

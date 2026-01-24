@@ -1,6 +1,11 @@
 #include <rsans_data.h>
+
 #include <gtest/gtest.h>
+#include <nlohmann/json.hpp>
+
 #include <sstream>
+
+using json = nlohmann::json;
 
 TEST(ProjectDataTest, ProjectDataConstructorParsesAudioConfigGivenValidJson) {
     // Given
@@ -11,6 +16,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesAudioConfigGivenValidJson) {
         },
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": []
     })";
@@ -33,6 +39,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesVideoConfigGivenValidJson) {
             "background": "#FFFFFF"
         },
         "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": []
     })";
@@ -56,6 +63,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesLayoutConfigGivenValidJson) {
             "fontSize": 36,
             "lineHeight": 50
         },
+        "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": []
     })";
@@ -75,6 +83,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesTokensGivenValidJson) {
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": [
             {
@@ -122,6 +131,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesRhymeGroupGivenTokenWithRhyme)
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
         "rhymeStyles": {"A": {"color": "#FF0000"}},
         "tokens": [
             {
@@ -150,6 +160,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesRhymeStylesGivenValidJson) {
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
         "rhymeStyles": {
             "A": {"color": "#FF0000"},
             "B": {"color": "#00FF00"}
@@ -172,6 +183,7 @@ TEST(ProjectDataTest, ProjectDataConstructorHandlesEmptyTokensGivenEmptyArray) {
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": []
     })";
@@ -189,6 +201,7 @@ TEST(ProjectDataTest, ProjectDataConstructorHandlesEmptyRhymeStylesGivenEmptyObj
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": []
     })";
@@ -206,6 +219,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMixedRhymeGroupsGivenTokens) {
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
         "rhymeStyles": {"A": {"color": "#FF0000"}},
         "tokens": [
             {
@@ -253,6 +267,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMultipleLinesGivenDifferentLin
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": [
             {
@@ -298,6 +313,7 @@ TEST(ProjectDataTest, ProjectDataConstructorReplacesTokensGivenBaseAndNewTokens)
         "audio": {"path": "original.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
         "rhymeStyles": {"A": {"color": "#FF0000"}},
         "tokens": [
             {
@@ -334,6 +350,7 @@ TEST(ProjectDataTest, ProjectDataMoveConstructorPreservesDataGivenSource) {
         "audio": {"path": "test.wav", "length": 42},
         "video": {"width": 1920, "height": 1080, "background": "#123456"},
         "layout": {"fontName": "Times", "fontSize": 32, "lineHeight": 40},
+        "model": {"path": "models/base.bin"},
         "rhymeStyles": {"X": {"color": "#ABCDEF"}},
         "tokens": [
             {
@@ -374,6 +391,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesLargeTokenArrayGivenManyTokens
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": [)";
 
@@ -406,6 +424,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesSpecialCharactersGivenUtf8Text
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": [
             {
@@ -442,6 +461,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesZeroValuesGivenValidJson) {
         "audio": {"path": "test.wav", "length": 0},
         "video": {"width": 0, "height": 0, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontSize": 0, "lineHeight": 0},
+        "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": [
             {
@@ -475,6 +495,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesNegativeLineIndexGivenValidJso
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": [
             {
@@ -501,6 +522,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMultipleRhymeStylesGivenComple
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
         "rhymeStyles": {
             "A": {"color": "#FF0000"},
             "B": {"color": "#00FF00"},
@@ -527,6 +549,7 @@ TEST(ProjectDataTest, ProjectDataConstructorPreservesTokenOrderGivenSequentialTo
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": [
             {"id": 3, "text": "third", "startMs": 0, "endMs": 100, "lineIndex": 0, "rhymeGroup": null},
@@ -543,4 +566,247 @@ TEST(ProjectDataTest, ProjectDataConstructorPreservesTokenOrderGivenSequentialTo
     EXPECT_EQ(data.tokens[0].id, 3);
     EXPECT_EQ(data.tokens[1].id, 1);
     EXPECT_EQ(data.tokens[2].id, 2);
+}
+
+TEST(ProjectDataTest, ToJsonProducesValidJsonGivenProjectData) {
+    // Given
+    const std::string inputJson = R"({
+        "audio": {"path": "test.wav", "length": 42},
+        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
+        "rhymeStyles": {},
+        "tokens": []
+    })";
+    const ProjectData data(inputJson);
+
+    // When
+    const std::string result = data.toJson();
+
+    // Then
+    EXPECT_NO_THROW(const json j = json::parse(result));
+}
+
+TEST(ProjectDataTest, ToJsonPreservesAudioConfigGivenProjectData) {
+    // Given
+    const std::string inputJson = R"({
+        "audio": {"path": "music.mp3", "length": 180.5},
+        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
+        "rhymeStyles": {},
+        "tokens": []
+    })";
+    const ProjectData data(inputJson);
+
+    // When
+    const std::string result = data.toJson();
+    const json j = json::parse(result);
+
+    // Then
+    EXPECT_EQ(j["audio"]["path"], "music.mp3");
+    EXPECT_EQ(j["audio"]["length"], 180.5);
+}
+
+TEST(ProjectDataTest, ToJsonPreservesVideoConfigGivenProjectData) {
+    // Given
+    const std::string inputJson = R"({
+        "audio": {"path": "test.wav", "length": 10},
+        "video": {"width": 1280, "height": 720, "background": "#FFFFFF"},
+        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
+        "rhymeStyles": {},
+        "tokens": []
+    })";
+    const ProjectData data(inputJson);
+
+    // When
+    const std::string result = data.toJson();
+    const json j = json::parse(result);
+
+    // Then
+    EXPECT_EQ(j["video"]["width"], 1280);
+    EXPECT_EQ(j["video"]["height"], 720);
+    EXPECT_EQ(j["video"]["background"], "#FFFFFF");
+}
+
+TEST(ProjectDataTest, ToJsonPreservesLayoutConfigGivenProjectData) {
+    // Given
+    const std::string inputJson = R"({
+        "audio": {"path": "test.wav", "length": 10},
+        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "layout": {"fontName": "Helvetica", "fontSize": 36, "lineHeight": 50},
+        "model": {"path": "models/base.bin"},
+        "rhymeStyles": {},
+        "tokens": []
+    })";
+    const ProjectData data(inputJson);
+
+    // When
+    const std::string result = data.toJson();
+    const json j = json::parse(result);
+
+    // Then
+    EXPECT_EQ(j["layout"]["fontName"], "Helvetica");
+    EXPECT_EQ(j["layout"]["fontSize"], 36);
+    EXPECT_EQ(j["layout"]["lineHeight"], 50);
+}
+
+TEST(ProjectDataTest, ToJsonPreservesModelPathGivenProjectData) {
+    // Given
+    const std::string inputJson = R"({
+        "audio": {"path": "test.wav", "length": 10},
+        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/whisper-large.bin"},
+        "rhymeStyles": {},
+        "tokens": []
+    })";
+    const ProjectData data(inputJson);
+
+    // When
+    const std::string result = data.toJson();
+    const json j = json::parse(result);
+
+    // Then
+    EXPECT_EQ(j["model"]["path"], "models/whisper-large.bin");
+}
+
+TEST(ProjectDataTest, ToJsonPreservesTokensGivenProjectDataWithTokens) {
+    // Given
+    const std::string inputJson = R"({
+        "audio": {"path": "test.wav", "length": 10},
+        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
+        "rhymeStyles": {},
+        "tokens": [
+            {"id": 1, "text": "hello", "startMs": 0, "endMs": 500, "lineIndex": 0, "rhymeGroup": null},
+            {"id": 2, "text": "world", "startMs": 500, "endMs": 1000, "lineIndex": 0, "rhymeGroup": null}
+        ]
+    })";
+    const ProjectData data(inputJson);
+
+    // When
+    const std::string result = data.toJson();
+    const json j = json::parse(result);
+
+    // Then
+    EXPECT_EQ(j["tokens"].size(), 2);
+    EXPECT_EQ(j["tokens"][0]["id"], 1);
+    EXPECT_EQ(j["tokens"][0]["text"], "hello");
+    EXPECT_EQ(j["tokens"][0]["startMs"], 0);
+    EXPECT_EQ(j["tokens"][0]["endMs"], 500);
+    EXPECT_EQ(j["tokens"][0]["lineIndex"], 0);
+    EXPECT_TRUE(j["tokens"][0]["rhymeGroup"].is_null());
+    EXPECT_EQ(j["tokens"][1]["id"], 2);
+    EXPECT_EQ(j["tokens"][1]["text"], "world");
+}
+
+TEST(ProjectDataTest, ToJsonPreservesRhymeGroupGivenTokenWithRhyme) {
+    // Given
+    const std::string inputJson = R"({
+        "audio": {"path": "test.wav", "length": 10},
+        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
+        "rhymeStyles": {"A": {"color": "#FF0000"}},
+        "tokens": [
+            {"id": 1, "text": "cat", "startMs": 0, "endMs": 500, "lineIndex": 0, "rhymeGroup": "A"}
+        ]
+    })";
+    const ProjectData data(inputJson);
+
+    // When
+    const std::string result = data.toJson();
+    const json j = json::parse(result);
+
+    // Then
+    EXPECT_EQ(j["tokens"][0]["rhymeGroup"], "A");
+}
+
+TEST(ProjectDataTest, ToJsonPreservesRhymeStylesGivenProjectDataWithStyles) {
+    // Given
+    const std::string inputJson = R"({
+        "audio": {"path": "test.wav", "length": 10},
+        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
+        "rhymeStyles": {
+            "A": {"color": "#FF0000"},
+            "B": {"color": "#00FF00"}
+        },
+        "tokens": []
+    })";
+    const ProjectData data(inputJson);
+
+    // When
+    const std::string result = data.toJson();
+    const json j = json::parse(result);
+
+    // Then
+    EXPECT_EQ(j["rhymeStyles"].size(), 2);
+    EXPECT_EQ(j["rhymeStyles"]["A"]["color"], "#FF0000");
+    EXPECT_EQ(j["rhymeStyles"]["B"]["color"], "#00FF00");
+}
+
+TEST(ProjectDataTest, ToJsonHandlesEmptyCollectionsGivenMinimalData) {
+    // Given
+    const std::string inputJson = R"({
+        "audio": {"path": "test.wav", "length": 10},
+        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
+        "rhymeStyles": {},
+        "tokens": []
+    })";
+    const ProjectData data(inputJson);
+
+    // When
+    const std::string result = data.toJson();
+    const json j = json::parse(result);
+
+    // Then
+    EXPECT_TRUE(j["tokens"].is_array());
+    EXPECT_EQ(j["tokens"].size(), 0);
+    EXPECT_TRUE(j["rhymeStyles"].is_object());
+    EXPECT_EQ(j["rhymeStyles"].size(), 0);
+}
+
+TEST(ProjectDataTest, ToJsonRoundTripPreservesDataGivenCompleteProjectData) {
+    // Given
+    const std::string inputJson = R"({
+        "audio": {"path": "song.wav", "length": 240},
+        "video": {"width": 3840, "height": 2160, "background": "#123456"},
+        "layout": {"fontName": "Roboto", "fontSize": 64, "lineHeight": 80},
+        "model": {"path": "models/large-v3.bin"},
+        "rhymeStyles": {
+            "X": {"color": "#AABBCC"},
+            "Y": {"color": "#DDEEFF"}
+        },
+        "tokens": [
+            {"id": 1, "text": "first", "startMs": 100, "endMs": 200, "lineIndex": 0, "rhymeGroup": "X"},
+            {"id": 2, "text": "second", "startMs": 200, "endMs": 400, "lineIndex": 1, "rhymeGroup": null}
+        ]
+    })";
+    const ProjectData original(inputJson);
+
+    // When
+    const std::string serialized = original.toJson();
+    const ProjectData restored(serialized);
+
+    // Then
+    EXPECT_EQ(restored.audio.path, original.audio.path);
+    EXPECT_EQ(restored.audio.length, original.audio.length);
+    EXPECT_EQ(restored.video.width, original.video.width);
+    EXPECT_EQ(restored.video.height, original.video.height);
+    EXPECT_EQ(restored.video.background, original.video.background);
+    EXPECT_EQ(restored.layout.fontName, original.layout.fontName);
+    EXPECT_EQ(restored.layout.fontSize, original.layout.fontSize);
+    EXPECT_EQ(restored.layout.lineHeight, original.layout.lineHeight);
+    EXPECT_EQ(restored.model.base, original.model.base);
+    EXPECT_EQ(restored.rhymeStyles.size(), original.rhymeStyles.size());
+    EXPECT_EQ(restored.tokens.size(), original.tokens.size());
+    EXPECT_EQ(restored.tokens[0].rhymeGroup.value(), original.tokens[0].rhymeGroup.value());
+    EXPECT_FALSE(restored.tokens[1].rhymeGroup.has_value());
 }

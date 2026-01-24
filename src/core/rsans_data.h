@@ -38,6 +38,11 @@ struct ProjectData {
         std::string color;
     };
 
+    struct ModelPaths {
+        // TODO: Add tiny/small/med/lg/turbo model support
+        std::string base;
+    } model;
+
     std::map<std::string, RhymeStyle> rhymeStyles;
     std::vector<Token> tokens;
 
@@ -45,6 +50,8 @@ struct ProjectData {
     ProjectData(const std::string& jsonContent);
     ProjectData(ProjectData base, std::vector<Token>& newTokens);
     ProjectData(ProjectData&& other) noexcept;
+
+    std::string toJson() const;
 };
 
 #endif

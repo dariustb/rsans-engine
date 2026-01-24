@@ -10,7 +10,7 @@ ProjectData::ProjectData(const std::string& jsonContent) {
     const json j = json::parse(jsonContent);
 
     audio.path = j["audio"]["path"].get<std::string>();
-    audio.length = j["audio"]["length"].get<int>();
+    audio.length = j["audio"]["length"].get<double>();
 
     video.width = j["video"]["width"].get<int>();
     video.height = j["video"]["height"].get<int>();
@@ -19,6 +19,8 @@ ProjectData::ProjectData(const std::string& jsonContent) {
     layout.fontName = j["layout"]["fontName"].get<std::string>();
     layout.fontSize = j["layout"]["fontSize"].get<int>();
     layout.lineHeight = j["layout"]["lineHeight"].get<int>();
+    
+    model.base = j["model"]["path"];
 
     for (const auto& tokenJson : j["tokens"]) {
         Token token;
@@ -55,3 +57,41 @@ ProjectData::ProjectData(ProjectData&& other) noexcept
 , layout(other.layout)
 , rhymeStyles(other.rhymeStyles)
 , tokens(other.tokens) {}
+
+std::string ProjectData::toJson() const {
+    json j;
+
+    j["audio"]["path"] = audio.path;
+    j["audio"]["length"] = audio.length;
+
+    j["video"]["width"] = video.width;
+    j["video"]["height"] = video.height;
+    j["video"]["background"] = video.background;
+
+    j["layout"]["fontName"] = layout.fontName;
+    j["layout"]["fontSize"] = layout.fontSize;
+    j["layout"]["lineHeight"] = layout.lineHeight;
+
+    j["model"]["path"] = model.base;
+
+    j["tokens"] = json::array();
+    for (const auto& token : tokens) {
+        json tokenJson;
+        tokenJson["id"] = token.id;
+        tokenJson["text"] = token.text;
+        tokenJson["startMs"] = token.startMs;
+        tokenJson["endMs"] = token.endMs;
+        tokenJson["lineIndex"] = token.lineIndex;
+        tokenJson["rhymeGroup"] = token.rhymeGroup.has_value()
+            ? json(token.rhymeGroup.value())
+            : json(nullptr);
+        j["tokens"].push_back(tokenJson);
+    }
+
+    j["rhymeStyles"] = json::object();
+    for (const auto& [key, style] : rhymeStyles) {
+        j["rhymeStyles"][key]["color"] = style.color;
+    }
+
+    return j.dump();
+}
