@@ -134,7 +134,7 @@ std::vector<Token> extractTokensFromAudio(
             tokenText.erase(tokenText.find_last_not_of(" \t\n\r") + 1);
 
             if (tokenText.empty() || tokenText == "[_BEG_]" ||
-                tokenText == "[_TT_" || tokenText[0] == '<') {
+                tokenText.rfind("[_TT_", 0) == 0 || tokenText[0] == '<') {
                 continue;
             }
 
