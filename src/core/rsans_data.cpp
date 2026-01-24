@@ -56,6 +56,7 @@ ProjectData::ProjectData(ProjectData&& other) noexcept
 , video(other.video)
 , layout(other.layout)
 , rhymeStyles(other.rhymeStyles)
+, model(other.model)
 , tokens(other.tokens) {}
 
 std::string ProjectData::toJson() const {
