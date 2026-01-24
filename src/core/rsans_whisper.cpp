@@ -149,6 +149,7 @@ std::vector<Token> extractTokensFromAudio(
             tokens.push_back(token);
         }
 
+        // TODO: The tokens and segments aren't separated enough here, so this doesn't work.
         ++lineIndex;
     }
 
