@@ -1,8 +1,16 @@
 #ifndef INCLUDED_RSANS_WHISPER
 #define INCLUDED_RSANS_WHISPER
 
-#include <string>
+#include <rsans_data.h>
 
-std::string tokenizeAudio(const std::string &projectJson);
+#include <string>
+#include <vector>
+
+ProjectData tokenizeAudio(const ProjectData& project);
+
+std::vector<Token> extractTokensFromAudio(
+    const std::string& audioPath,
+    const std::string& modelPath
+);
 
 #endif

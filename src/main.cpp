@@ -1,3 +1,4 @@
+#include "rsans_data.h"
 #include <rsans_args.h>
 #include <rsans_ass.h>
 #include <rsans_export.h>
@@ -15,12 +16,14 @@ int main(int argc, char** argv) {
         switch (args.command) {
         case CommandType::Analyze: {
             const std::string json = readFile(args.analyze.input);
-            const std::string out  = tokenizeAudio(json);
-            writeFile(args.analyze.output, out);
+            const ProjectData data(json);
+            const ProjectData tokenizedData = tokenizeAudio(data);
+            writeFile(args.analyze.output, tokenizedData.toJson());
             break;
         }
         case CommandType::Rhyme: {
             const std::string json = readFile(args.rhyme.input);
+            const ProjectData data(json);
             const std::string out  = detectRhymes(json);
             writeFile(args.rhyme.output, out);
             break;
@@ -34,7 +37,7 @@ int main(int argc, char** argv) {
         case CommandType::Full: {
             std::string json = readFile(args.full.input);
             const ProjectData data(json);
-            json = tokenizeAudio(json);
+            const ProjectData tokenizedData = tokenizeAudio(data);
             json = detectRhymes(json);
             const int code = exportVideo(data, args.full.output, args.ffmpegPath);
             return code;
