@@ -104,7 +104,7 @@ std::vector<Token> extractTokensFromAudio(
     wparams.print_realtime = false;
     wparams.print_timestamps = false;
     wparams.token_timestamps = true;
-    wparams.max_len = 1;
+    wparams.max_len = 0; // 0 disables the limit
     wparams.language = "en";
 
     if (whisper_full(ctx, wparams, audioData.data(), audioData.size()) != 0) {
@@ -149,7 +149,6 @@ std::vector<Token> extractTokensFromAudio(
             tokens.push_back(token);
         }
 
-        // TODO: The tokens and segments aren't separated enough here, so this doesn't work.
         ++lineIndex;
     }
 
