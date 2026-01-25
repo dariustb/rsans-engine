@@ -24,8 +24,8 @@ int main(int argc, char** argv) {
         case CommandType::Rhyme: {
             const std::string json = readFile(args.rhyme.input);
             const ProjectData data(json);
-            const std::string out  = detectRhymes(json);
-            writeFile(args.rhyme.output, out);
+            const ProjectData rhymedData = detectRhymes(data);
+            writeFile(args.rhyme.output, rhymedData.toJson());
             break;
         }
         case CommandType::Export: {
@@ -35,11 +35,11 @@ int main(int argc, char** argv) {
             return code;
         }
         case CommandType::Full: {
-            std::string json = readFile(args.full.input);
+            const std::string json = readFile(args.full.input);
             const ProjectData data(json);
             const ProjectData tokenizedData = tokenizeAudio(data);
-            json = detectRhymes(json);
-            const int code = exportVideo(data, args.full.output, args.ffmpegPath);
+            const ProjectData rhymedData = detectRhymes(tokenizedData);
+            const int code = exportVideo(rhymedData, args.full.output, args.ffmpegPath);
             return code;
         }
         default:

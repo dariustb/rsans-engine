@@ -22,6 +22,10 @@ ProjectData::ProjectData(const std::string& jsonContent) {
     
     model.base = j["model"]["path"];
 
+    if (j.contains("cmudict") && !j["cmudict"].is_null()) {
+        cmudict = j["cmudict"].get<std::string>();
+    }
+
     for (const auto& tokenJson : j["tokens"]) {
         Token token;
         token.id = tokenJson["id"].get<int>();
@@ -55,9 +59,10 @@ ProjectData::ProjectData(ProjectData&& other) noexcept
 : audio(other.audio)
 , video(other.video)
 , layout(other.layout)
-, rhymeStyles(other.rhymeStyles)
 , model(other.model)
-, tokens(other.tokens) {}
+, cmudict(std::move(other.cmudict))
+, rhymeStyles(std::move(other.rhymeStyles))
+, tokens(std::move(other.tokens)) {}
 
 std::string ProjectData::toJson() const {
     json j;
@@ -74,6 +79,12 @@ std::string ProjectData::toJson() const {
     j["layout"]["lineHeight"] = layout.lineHeight;
 
     j["model"]["path"] = model.base;
+
+    if (!cmudict.empty()) {
+        j["cmudict"] = cmudict;
+    } else {
+        j["cmudict"] = nullptr;
+    }
 
     j["tokens"] = json::array();
     for (const auto& token : tokens) {

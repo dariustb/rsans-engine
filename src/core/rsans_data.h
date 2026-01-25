@@ -43,6 +43,8 @@ struct ProjectData {
         std::string base;
     } model;
 
+    std::string cmudict;
+
     std::map<std::string, RhymeStyle> rhymeStyles;
     std::vector<Token> tokens;
 
