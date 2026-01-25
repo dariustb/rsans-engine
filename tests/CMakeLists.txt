@@ -21,6 +21,7 @@ target_sources(test_rsans
 	PRIVATE
 		rsans_ass.t.cpp
 		rsans_data.t.cpp
+		rsans_rhyme.t.cpp
 		rsans_whisper.t.cpp
 )
 
