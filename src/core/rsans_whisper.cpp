@@ -154,5 +154,41 @@ std::vector<Token> extractTokensFromAudio(
 
     whisper_free(ctx);
 
+    mergeContractions(tokens);
+
     return tokens;
+}
+
+void mergeContractions(std::vector<Token>& tokens) {
+    if (tokens.size() < 2) {
+        return;
+    }
+
+    std::vector<Token> merged;
+    merged.reserve(tokens.size());
+
+    size_t i = 0;
+    while (i < tokens.size()) {
+        Token current = tokens[i];
+
+        // Check if next token starts with apostrophe (contraction suffix)
+        if (i + 1 < tokens.size() && !tokens[i + 1].text.empty() &&
+            tokens[i + 1].text[0] == '\'') {
+            // Merge: concatenate text, use first start and second end
+            current.text += tokens[i + 1].text;
+            current.endMs = tokens[i + 1].endMs;
+            i += 2; // Skip both tokens
+        } else {
+            i += 1;
+        }
+
+        merged.push_back(current);
+    }
+
+    // Reassign sequential IDs
+    for (size_t j = 0; j < merged.size(); ++j) {
+        merged[j].id = static_cast<int>(j);
+    }
+
+    tokens = std::move(merged);
 }

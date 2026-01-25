@@ -13,4 +13,6 @@ std::vector<Token> extractTokensFromAudio(
     const std::string& modelPath
 );
 
+void mergeContractions(std::vector<Token>& tokens);
+
 #endif
