@@ -141,8 +141,8 @@ std::vector<Token> extractTokensFromAudio(
             Token token;
             token.id = tokenId++;
             token.text = tokenText;
-            token.startMs = static_cast<int>(tokenData.t0 / 10);
-            token.endMs = static_cast<int>(tokenData.t1 / 10);
+            token.startMs = static_cast<int>(tokenData.t0 * 10);
+            token.endMs = static_cast<int>(tokenData.t1 * 10);
             token.lineIndex = lineIndex;
             token.rhymeGroup = std::nullopt;
 
