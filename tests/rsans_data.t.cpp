@@ -15,7 +15,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesAudioConfigGivenValidJson) {
             "length": 42
         },
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": []
@@ -38,7 +38,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesVideoConfigGivenValidJson) {
             "height": 720,
             "background": "#FFFFFF"
         },
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": []
@@ -60,6 +60,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesLayoutConfigGivenValidJson) {
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {
             "fontName": "Helvetica",
+            "fontPath": "fonts/helvetica.ttf",
             "fontSize": 36,
             "lineHeight": 50
         },
@@ -82,7 +83,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesTokensGivenValidJson) {
     const std::string json = R"({
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": [
@@ -130,7 +131,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesRhymeGroupGivenTokenWithRhyme)
     const std::string json = R"({
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {"A": {"color": "#FF0000"}},
         "tokens": [
@@ -159,7 +160,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesRhymeStylesGivenValidJson) {
     const std::string json = R"({
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {
             "A": {"color": "#FF0000"},
@@ -182,7 +183,7 @@ TEST(ProjectDataTest, ProjectDataConstructorHandlesEmptyTokensGivenEmptyArray) {
     const std::string json = R"({
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": []
@@ -200,7 +201,7 @@ TEST(ProjectDataTest, ProjectDataConstructorHandlesEmptyRhymeStylesGivenEmptyObj
     const std::string json = R"({
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": []
@@ -218,7 +219,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMixedRhymeGroupsGivenTokens) {
     const std::string json = R"({
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {"A": {"color": "#FF0000"}},
         "tokens": [
@@ -266,7 +267,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMultipleLinesGivenDifferentLin
     const std::string json = R"({
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": [
@@ -312,7 +313,7 @@ TEST(ProjectDataTest, ProjectDataConstructorReplacesTokensGivenBaseAndNewTokens)
     const std::string json = R"({
         "audio": {"path": "original.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {"A": {"color": "#FF0000"}},
         "tokens": [
@@ -349,7 +350,7 @@ TEST(ProjectDataTest, ProjectDataMoveConstructorPreservesDataGivenSource) {
     const std::string json = R"({
         "audio": {"path": "test.wav", "length": 42},
         "video": {"width": 1920, "height": 1080, "background": "#123456"},
-        "layout": {"fontName": "Times", "fontSize": 32, "lineHeight": 40},
+        "layout": {"fontName": "Times", "fontPath": "fonts/times.ttf", "fontSize": 32, "lineHeight": 40},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {"X": {"color": "#ABCDEF"}},
         "tokens": [
@@ -390,7 +391,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesLargeTokenArrayGivenManyTokens
     json << R"({
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": [)";
@@ -423,7 +424,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesSpecialCharactersGivenUtf8Text
     const std::string json = R"({
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": [
@@ -460,7 +461,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesZeroValuesGivenValidJson) {
     const std::string json = R"({
         "audio": {"path": "test.wav", "length": 0},
         "video": {"width": 0, "height": 0, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 0, "lineHeight": 0},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 0, "lineHeight": 0},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": [
@@ -494,7 +495,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesNegativeLineIndexGivenValidJso
     const std::string json = R"({
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": [
@@ -521,7 +522,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMultipleRhymeStylesGivenComple
     const std::string json = R"({
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {
             "A": {"color": "#FF0000"},
@@ -548,7 +549,7 @@ TEST(ProjectDataTest, ProjectDataConstructorPreservesTokenOrderGivenSequentialTo
     const std::string json = R"({
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": [
@@ -573,7 +574,7 @@ TEST(ProjectDataTest, ToJsonProducesValidJsonGivenProjectData) {
     const std::string inputJson = R"({
         "audio": {"path": "test.wav", "length": 42},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": []
@@ -592,7 +593,7 @@ TEST(ProjectDataTest, ToJsonPreservesAudioConfigGivenProjectData) {
     const std::string inputJson = R"({
         "audio": {"path": "music.mp3", "length": 180.5},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": []
@@ -613,7 +614,7 @@ TEST(ProjectDataTest, ToJsonPreservesVideoConfigGivenProjectData) {
     const std::string inputJson = R"({
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1280, "height": 720, "background": "#FFFFFF"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": []
@@ -635,7 +636,7 @@ TEST(ProjectDataTest, ToJsonPreservesLayoutConfigGivenProjectData) {
     const std::string inputJson = R"({
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Helvetica", "fontSize": 36, "lineHeight": 50},
+        "layout": {"fontName": "Helvetica", "fontPath": "fonts/helvetica.ttf", "fontSize": 36, "lineHeight": 50},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": []
@@ -657,7 +658,7 @@ TEST(ProjectDataTest, ToJsonPreservesModelPathGivenProjectData) {
     const std::string inputJson = R"({
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/whisper-large.bin"},
         "rhymeStyles": {},
         "tokens": []
@@ -677,7 +678,7 @@ TEST(ProjectDataTest, ToJsonPreservesTokensGivenProjectDataWithTokens) {
     const std::string inputJson = R"({
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": [
@@ -708,7 +709,7 @@ TEST(ProjectDataTest, ToJsonPreservesRhymeGroupGivenTokenWithRhyme) {
     const std::string inputJson = R"({
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {"A": {"color": "#FF0000"}},
         "tokens": [
@@ -730,7 +731,7 @@ TEST(ProjectDataTest, ToJsonPreservesRhymeStylesGivenProjectDataWithStyles) {
     const std::string inputJson = R"({
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {
             "A": {"color": "#FF0000"},
@@ -755,7 +756,7 @@ TEST(ProjectDataTest, ToJsonHandlesEmptyCollectionsGivenMinimalData) {
     const std::string inputJson = R"({
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
         "tokens": []
@@ -778,7 +779,7 @@ TEST(ProjectDataTest, ToJsonRoundTripPreservesDataGivenCompleteProjectData) {
     const std::string inputJson = R"({
         "audio": {"path": "song.wav", "length": 240},
         "video": {"width": 3840, "height": 2160, "background": "#123456"},
-        "layout": {"fontName": "Roboto", "fontSize": 64, "lineHeight": 80},
+        "layout": {"fontName": "Roboto", "fontPath": "fonts/roboto.ttf", "fontSize": 64, "lineHeight": 80},
         "model": {"path": "models/large-v3.bin"},
         "rhymeStyles": {
             "X": {"color": "#AABBCC"},

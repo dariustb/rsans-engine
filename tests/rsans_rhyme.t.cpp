@@ -34,7 +34,7 @@ std::string createTestProjectJson(const std::vector<Token>& tokens, const std::s
     json << R"({
         "audio": { "path": "test.wav", "length": 10.5 },
         "video": { "width": 1920, "height": 1080, "background": "#000000" },
-        "layout": { "fontName": "Arial", "fontSize": 48, "lineHeight": 60 },
+        "layout": { "fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60 },
         "model": { "path": "models/base.bin" },)";
 
     if (!cmudictPath.empty()) {

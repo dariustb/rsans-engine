@@ -29,6 +29,7 @@ struct ProjectData {
     
     struct LayoutConfig {
         std::string fontName;
+        std::string fontPath;
         int fontSize;
         int lineHeight;
     } layout;

@@ -17,6 +17,7 @@ ProjectData::ProjectData(const std::string& jsonContent) {
     video.background = j["video"]["background"].get<std::string>();
 
     layout.fontName = j["layout"]["fontName"].get<std::string>();
+    layout.fontPath = j["layout"]["fontPath"].get<std::string>();
     layout.fontSize = j["layout"]["fontSize"].get<int>();
     layout.lineHeight = j["layout"]["lineHeight"].get<int>();
     
@@ -75,6 +76,7 @@ std::string ProjectData::toJson() const {
     j["video"]["background"] = video.background;
 
     j["layout"]["fontName"] = layout.fontName;
+    j["layout"]["fontPath"] = layout.fontPath;
     j["layout"]["fontSize"] = layout.fontSize;
     j["layout"]["lineHeight"] = layout.lineHeight;
 

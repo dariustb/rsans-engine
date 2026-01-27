@@ -93,11 +93,11 @@ void Ass::buildStyles(std::ostringstream& ss, const ProjectData& data) {
        << "Alignment, MarginL, MarginR, MarginV, Encoding\n";
 
     ss << "Style: Base," << data.layout.fontName << "," << data.layout.fontSize
-       << ",&H00606060,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,4,0,0,0,1\n";
+       << ",&H00606060,&H000000FF,&H00000000,&H0000FF00,0,0,0,0,100,100,0,0,3,5,0,7,0,0,0,1\n";
 
     for (const auto& [group, style] : data.rhymeStyles) {
         const std::string assColor = hexToAssColor(style.color);
-        ss << "Style: Rhyme_" << group << "," << data.layout.fontName << "," << data.layout.fontSize
+        ss << "Style: " << group << "," << data.layout.fontName << "," << data.layout.fontSize
            << "," << assColor << ",&H000000FF,&H00000000,&H00000000"
            << ",0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1\n";
     }
@@ -109,9 +109,8 @@ void Ass::buildEvents(std::ostringstream& ss, const ProjectData& data, const Lin
     ss << "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n";
 
     const double leftMargin = 50.0;
+    const double topMargin = 50.0;
     const double cellWidth = 30;
-    const double centerY = data.video.height / 2.0;
-    const double midLine = (lineInfo.minLineIdx + lineInfo.maxLineIdx) / 2.0;
 
     // Build base text from lines
     std::string baseText;
@@ -124,13 +123,13 @@ void Ass::buildEvents(std::ostringstream& ss, const ProjectData& data, const Lin
 
     const int audioLengthMs = data.audio.length * 1000;
     ss << "Dialogue: 1," << formatTime(0) << "," << formatTime(audioLengthMs)
-       << ",Base,,0,0,0,,{\\an4\\pos(" << leftMargin << "," << centerY << ")}"
+       << ",Base,,0,0,0,,{\\an7\\pos(" << leftMargin << "," << topMargin << ")}"
        << baseText << "\n";
 
     // Create rhyme highlight dialogues
     for (const Token& token : data.tokens) {
         if (token.rhymeGroup.has_value()) {
-            const std::string& lineText = lineInfo.lines[token.lineIndex];
+            const std::string& lineText = lineInfo.lines[token.lineIndex - lineInfo.minLineIdx];
             // FIXME: This will only find the first occurence of the word
             // May be bad if the word is used multiple times in a line
             const size_t tokenCharPos = lineText.find(token.text);
@@ -139,11 +138,11 @@ void Ass::buildEvents(std::ostringstream& ss, const ProjectData& data, const Lin
             const double boxWidth = token.text.length() * cellWidth;
             const double boxHeight = data.layout.fontSize + 12;
 
-            const double lineY = centerY + (token.lineIndex - midLine) * data.layout.lineHeight;
-            const double boxTop = lineY - boxHeight / 2.0;
+            const double lineY = topMargin + (token.lineIndex - lineInfo.minLineIdx) * data.layout.lineHeight;
+            const double boxTop = lineY - (boxHeight - data.layout.fontSize) / 2.0;
 
             ss << "Dialogue: 0," << formatTime(token.startMs) << ","
-               << formatTime(audioLengthMs) << ",Rhyme_"
+               << formatTime(audioLengthMs) << ","
                << token.rhymeGroup.value() << ",,0,0,0,,{\\an7\\pos("
                << tokenX << "," << boxTop << ")\\p1}"
                << "m 0 0 l " << boxWidth << " 0 " << boxWidth << " " << boxHeight

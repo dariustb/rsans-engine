@@ -26,6 +26,7 @@ ProjectData createTestProjectData(
         },
         "layout": {
             "fontName": "Arial",
+            "fontPath": "fonts/arial.ttf",
             "fontSize": 48,
             "lineHeight": 60
         },
@@ -99,13 +100,13 @@ TEST(AssTest, AssConstructorGeneratesBaseStyleGivenLayoutConfig) {
 }
 
 TEST(AssTest, AssConstructorGeneratesRhymeStylesGivenRhymeGroups) {
-    // Given: Tokens with rhyme group "A" and corresponding rhyme style
+    // Given: Tokens with rhyme group and corresponding rhyme style
     std::vector<Token> tokens = {
-        {1, "cat", 0, 500, 0, "A"},
-        {2, "hat", 500, 1000, 1, "A"}
+        {1, "cat", 0, 500, 0, "rhyme_0"},
+        {2, "hat", 500, 1000, 1, "rhyme_0"}
     };
     std::map<std::string, ProjectData::RhymeStyle> rhymeStyles = {
-        {"A", {"#FF0000"}}
+        {"rhyme_0", {"#FF0000"}}
     };
     const ProjectData data = createTestProjectData(tokens, rhymeStyles);
 
@@ -113,19 +114,19 @@ TEST(AssTest, AssConstructorGeneratesRhymeStylesGivenRhymeGroups) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("Style: Rhyme_A"), std::string::npos);
+    EXPECT_NE(ass.text.find("Style: rhyme_0"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorGeneratesMultipleRhymeStylesGivenMultipleGroups) {
-    // Given: Tokens with two different rhyme groups (A and B)
+    // Given: Tokens with two different rhyme groups
     std::vector<Token> tokens = {
-        {1, "cat", 0, 500, 0, "A"},
-        {2, "dog", 500, 1000, 1, "B"},
-        {3, "hat", 1000, 1500, 2, "A"}
+        {1, "cat", 0, 500, 0, "rhyme_0"},
+        {2, "dog", 500, 1000, 1, "rhyme_1"},
+        {3, "hat", 1000, 1500, 2, "rhyme_0"}
     };
     std::map<std::string, ProjectData::RhymeStyle> rhymeStyles = {
-        {"A", {"#FF0000"}},
-        {"B", {"#00FF00"}}
+        {"rhyme_0", {"#FF0000"}},
+        {"rhyme_1", {"#00FF00"}}
     };
     const ProjectData data = createTestProjectData(tokens, rhymeStyles);
 
@@ -133,8 +134,8 @@ TEST(AssTest, AssConstructorGeneratesMultipleRhymeStylesGivenMultipleGroups) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("Style: Rhyme_A"), std::string::npos);
-    EXPECT_NE(ass.text.find("Style: Rhyme_B"), std::string::npos);
+    EXPECT_NE(ass.text.find("Style: rhyme_0"), std::string::npos);
+    EXPECT_NE(ass.text.find("Style: rhyme_1"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorGeneratesBaseDialogueGivenTokens) {
@@ -174,11 +175,11 @@ TEST(AssTest, AssConstructorUsesLineSeparatorGivenMultipleLines) {
 TEST(AssTest, AssConstructorGeneratesRhymeDialoguesGivenRhymeTokens) {
     // Given
     std::vector<Token> tokens = {
-        {1, "cat", 0, 500, 0, "A"},
-        {2, "hat", 500, 1000, 1, "A"}
+        {1, "cat", 0, 500, 0, "rhyme_0"},
+        {2, "hat", 500, 1000, 1, "rhyme_0"}
     };
     std::map<std::string, ProjectData::RhymeStyle> rhymeStyles = {
-        {"A", {"#FF0000"}}
+        {"rhyme_0", {"#FF0000"}}
     };
     const ProjectData data = createTestProjectData(tokens, rhymeStyles);
 
@@ -187,7 +188,7 @@ TEST(AssTest, AssConstructorGeneratesRhymeDialoguesGivenRhymeTokens) {
 
     // Then
     EXPECT_NE(ass.text.find("Dialogue: 0,"), std::string::npos);
-    EXPECT_NE(ass.text.find(",Rhyme_A,"), std::string::npos);
+    EXPECT_NE(ass.text.find(",rhyme_0,"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorCreatesValidStructureGivenEmptyTokens) {
@@ -393,10 +394,10 @@ TEST(AssTest, AssConstructorPositionsLinesVerticallyGivenMultipleLines) {
 TEST(AssTest, AssConstructorConvertsColorsToAssFormatGivenRhymeStyles) {
     // Given
     std::vector<Token> tokens = {
-        {1, "red", 0, 500, 0, "RED"}
+        {1, "red", 0, 500, 0, "rhyme_0"}
     };
     std::map<std::string, ProjectData::RhymeStyle> rhymeStyles = {
-        {"RED", {"#FF0000"}}
+        {"rhyme_0", {"#FF0000"}}
     };
     const ProjectData data = createTestProjectData(tokens, rhymeStyles);
 
@@ -404,7 +405,7 @@ TEST(AssTest, AssConstructorConvertsColorsToAssFormatGivenRhymeStyles) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("Style: Rhyme_RED"), std::string::npos);
+    EXPECT_NE(ass.text.find("Style: rhyme_0"), std::string::npos);
     EXPECT_NE(ass.text.find("&H00"), std::string::npos);
 }
 
@@ -419,7 +420,7 @@ TEST(AssTest, AssConstructorIncludesAlignmentTagsGivenTokens) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("\\an4"), std::string::npos);
+    EXPECT_NE(ass.text.find("\\an7"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorUsesCorrectAlignmentGivenRhymeTokens) {
