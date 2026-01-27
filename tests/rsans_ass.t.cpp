@@ -25,8 +25,8 @@ ProjectData createTestProjectData(
             "background": "#000000"
         },
         "layout": {
-            "fontName": "Arial",
-            "fontPath": "fonts/arial.ttf",
+            "fontName": "DejaVu Sans Mono",
+            "fontPath": "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
             "fontSize": 48,
             "lineHeight": 60
         },
@@ -85,7 +85,7 @@ TEST(AssTest, AssConstructorGeneratesScriptInfoGivenVideoConfig) {
 }
 
 TEST(AssTest, AssConstructorGeneratesBaseStyleGivenLayoutConfig) {
-    // Given: Token with layout configuration (Arial font)
+    // Given: Token with layout configuration
     std::vector<Token> tokens = {
         {1, "test", 0, 100, 0, std::nullopt}
     };
@@ -96,7 +96,7 @@ TEST(AssTest, AssConstructorGeneratesBaseStyleGivenLayoutConfig) {
 
     // Then
     EXPECT_NE(ass.text.find("Style: Base"), std::string::npos);
-    EXPECT_NE(ass.text.find("Arial"), std::string::npos);
+    EXPECT_NE(ass.text.find("DejaVu Sans Mono"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorGeneratesRhymeStylesGivenRhymeGroups) {

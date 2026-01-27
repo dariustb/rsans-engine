@@ -1,6 +1,7 @@
 #include <rsans_ass.h>
 
 #include <rsans_data.h>
+#include <rsans_font.h>
 
 #include <sstream>
 
@@ -93,7 +94,7 @@ void Ass::buildStyles(std::ostringstream& ss, const ProjectData& data) {
        << "Alignment, MarginL, MarginR, MarginV, Encoding\n";
 
     ss << "Style: Base," << data.layout.fontName << "," << data.layout.fontSize
-       << ",&H00606060,&H000000FF,&H00000000,&H0000FF00,0,0,0,0,100,100,0,0,3,5,0,7,0,0,0,1\n";
+       << ",&H00606060,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1\n";
 
     for (const auto& [group, style] : data.rhymeStyles) {
         const std::string assColor = hexToAssColor(style.color);
@@ -110,7 +111,9 @@ void Ass::buildEvents(std::ostringstream& ss, const ProjectData& data, const Lin
 
     const double leftMargin = 50.0;
     const double topMargin = 50.0;
-    const double cellWidth = 30;
+
+    FTFont font(data.layout.fontPath, data.layout.fontSize);
+    const int fontHeight = font.getFontPixelHeight();
 
     // Build base text from lines
     std::string baseText;
@@ -134,12 +137,13 @@ void Ass::buildEvents(std::ostringstream& ss, const ProjectData& data, const Lin
             // May be bad if the word is used multiple times in a line
             const size_t tokenCharPos = lineText.find(token.text);
 
-            const double tokenX = leftMargin + (tokenCharPos * cellWidth);
-            const double boxWidth = token.text.length() * cellWidth;
-            const double boxHeight = data.layout.fontSize + 12;
+            const std::string textBeforeToken = lineText.substr(0, tokenCharPos);
+            const double tokenX = leftMargin + font.getStringPixelWidth(textBeforeToken);
+            const double boxWidth = font.getStringPixelWidth(token.text);
+            const double boxHeight = fontHeight + 0;
 
             const double lineY = topMargin + (token.lineIndex - lineInfo.minLineIdx) * data.layout.lineHeight;
-            const double boxTop = lineY - (boxHeight - data.layout.fontSize) / 2.0;
+            const double boxTop = lineY - (boxHeight - fontHeight) / 2.0;
 
             ss << "Dialogue: 0," << formatTime(token.startMs) << ","
                << formatTime(audioLengthMs) << ","
