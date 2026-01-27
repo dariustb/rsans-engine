@@ -67,9 +67,17 @@ int FTFont::getStringPixelWidth(const std::string& text) {
         if (FT_Load_Char(d_face, c, FT_LOAD_DEFAULT)) {
             continue;  // Skip characters that fail to load
         }
-        // advance.x is in 26.6 fixed-point format
-        totalWidth += d_face->glyph->advance.x >> 6;
+
+        int advance = d_face->glyph->advance.x;
+
+        // Compensate for space character width difference between FreeType and ASS
+        if (c == ' ') {
+            advance = (advance * 55) / 100;  // Reduce space width by 45%
+        }
+
+        totalWidth += advance;
     }
 
-    return totalWidth;
+    // Convert from 26.6 fixed-point to pixels with rounding
+    return (totalWidth + 32) >> 6;
 }

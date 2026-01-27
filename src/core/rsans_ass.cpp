@@ -101,6 +101,7 @@ void Ass::buildStyles(std::ostringstream& ss, const ProjectData& data) {
     for (const auto& [groupName, style] : data.rhymeStyles) {
         highlightStyle.name = groupName;
         highlightStyle.primaryColor = hexToAssColor(style.color);
+        highlightStyle.borderStyle = AssBorderStyle::OpaqueBox;
         ss << highlightStyle.toAssLine();
     }
     ss << "\n";
@@ -116,43 +117,89 @@ void Ass::buildEvents(std::ostringstream& ss, const ProjectData& data, const Lin
     FTFont font(data.layout.fontPath, data.layout.fontSize);
     const int fontHeight = font.getFontPixelHeight();
 
-    // Build base text from lines
-    std::string baseText;
-    for (const std::string& line : lineInfo.lines) {
-        if (!baseText.empty()) {
-            baseText += "\\N";
-        }
-        baseText += line;
+    const int audioLengthMs = data.audio.length * 1000;
+
+    // Build base text as separate dialogues per line with explicit positioning
+    for (size_t i = 0; i < lineInfo.lines.size(); ++i) {
+        const double lineY = topMargin + i * fontHeight;
+        ss << "Dialogue: 1," << formatTime(0) << "," << formatTime(audioLengthMs)
+           << ",Base,,0,0,0,,{\\an7\\pos(" << leftMargin << "," << lineY << ")\\q2}"
+           << lineInfo.lines[i] << "\n";
     }
 
-    const int audioLengthMs = data.audio.length * 1000;
-    ss << "Dialogue: 1," << formatTime(0) << "," << formatTime(audioLengthMs)
-       << ",Base,,0,0,0,,{\\an7\\pos(" << leftMargin << "," << topMargin << ")}"
-       << baseText << "\n";
-
     // Create rhyme highlight dialogues
+    // for (const Token& token : data.tokens) {
+    //     if (token.rhymeGroup.has_value()) {
+    //         const std::string& lineText = lineInfo.lines.at(token.lineIndex - lineInfo.minLineIdx);
+    //         // FIXME: This will only find the first occurence of the word
+    //         // May be bad if the word is used multiple times in a line
+    //         const size_t tokenCharPos = lineText.find(token.text);
+
+    //         const std::string textBeforeToken = lineText.substr(0, tokenCharPos);
+    //         const double tokenX = leftMargin + font.getStringPixelWidth(textBeforeToken);
+    //         const double boxWidth = font.getStringPixelWidth(token.text);
+    //         const double boxHeight = fontHeight + 0;
+
+    //         const double lineY = topMargin + (token.lineIndex - lineInfo.minLineIdx) * data.layout.lineHeight;
+    //         const double boxTop = lineY - (boxHeight - fontHeight) / 2.0;
+
+    //         ss << "Dialogue: 0," << formatTime(token.startMs) << ","
+    //            << formatTime(audioLengthMs) << ","
+    //            << token.rhymeGroup.value() << ",,0,0,0,,{\\an7\\pos("
+    //            << tokenX << "," << boxTop << ")\\p1}"
+    //            << "m 0 0 l " << boxWidth << " 0 " << boxWidth << " " << boxHeight
+    //            << " 0 " << boxHeight << "{\\p0}\n";
+    //     }
+    // }
+
+    buildRhymeHighlightsAsText(ss, data, lineInfo, font, leftMargin, topMargin, audioLengthMs);
+}
+
+void Ass::buildRhymeHighlightsAsText(
+    std::ostringstream& ss,
+    const ProjectData& data,
+    const LineInfo& lineInfo,
+    FTFont& font,
+    double leftMargin,
+    double topMargin,
+    int audioLengthMs)
+{
+    const int fontLineHeight = font.getFontPixelHeight();
+
     for (const Token& token : data.tokens) {
-        if (token.rhymeGroup.has_value()) {
-            const std::string& lineText = lineInfo.lines[token.lineIndex - lineInfo.minLineIdx];
-            // FIXME: This will only find the first occurence of the word
-            // May be bad if the word is used multiple times in a line
-            const size_t tokenCharPos = lineText.find(token.text);
-
-            const std::string textBeforeToken = lineText.substr(0, tokenCharPos);
-            const double tokenX = leftMargin + font.getStringPixelWidth(textBeforeToken);
-            const double boxWidth = font.getStringPixelWidth(token.text);
-            const double boxHeight = fontHeight + 0;
-
-            const double lineY = topMargin + (token.lineIndex - lineInfo.minLineIdx) * data.layout.lineHeight;
-            const double boxTop = lineY - (boxHeight - fontHeight) / 2.0;
-
-            ss << "Dialogue: 0," << formatTime(token.startMs) << ","
-               << formatTime(audioLengthMs) << ","
-               << token.rhymeGroup.value() << ",,0,0,0,,{\\an7\\pos("
-               << tokenX << "," << boxTop << ")\\p1}"
-               << "m 0 0 l " << boxWidth << " 0 " << boxWidth << " " << boxHeight
-               << " 0 " << boxHeight << "{\\p0}\n";
+        if (!token.rhymeGroup.has_value()) {
+            continue;
         }
+
+        const std::string& groupName = token.rhymeGroup.value();
+        const auto styleIt = data.rhymeStyles.find(groupName);
+        if (styleIt == data.rhymeStyles.end()) {
+            continue;
+        }
+
+        const std::string& lineText = lineInfo.lines.at(token.lineIndex - lineInfo.minLineIdx);
+        // FIXME: This will only find the first occurence of the word
+        // May be bad if the word is used multiple times in a line
+        const size_t tokenCharPos = lineText.find(token.text);
+
+        const std::string textBeforeToken = lineText.substr(0, tokenCharPos);
+        const double tokenX = leftMargin + font.getStringPixelWidth(textBeforeToken);
+        const double lineY = topMargin + (token.lineIndex - lineInfo.minLineIdx) * fontLineHeight;
+
+        // Use transparent text with colored border to emulate highlight
+        // \1a&HFF& = fully transparent text
+        // \3c = outline/border color (used as highlight color)
+        // \3a&H00& = fully opaque border
+        // \bord = border thickness for coverage
+        const std::string assColor = hexToAssColor(styleIt->second.color);
+        const int borderSize = 1;//fontHeight / 2;
+
+        ss << "Dialogue: 0," << formatTime(token.startMs) << ","
+           << formatTime(audioLengthMs) << "," << groupName << ",,0,0,0,,"
+           << "{\\an7\\pos(" << tokenX << "," << lineY << ")"
+           << "\\1a&HFF&\\3c" << assColor << "\\3a&H00&"
+           << "\\bord" << borderSize << "\\shad0}"
+           << token.text << "\n";
     }
 }
 
@@ -175,5 +222,23 @@ std::string AssStyle::toAssLine() const {
         << static_cast<int>(alignment) << ','
         << marginL << ',' << marginR << ',' << marginV << ','
         << encoding << '\n';
+    return oss.str();
+}
+
+AssDialogue::AssDialogue(int64_t startMs, int64_t endMs, std::string styleName, std::string text_)
+: startMs(startMs)
+, endMs(endMs)
+, style(std::move(styleName))
+, text(std::move(text_))
+{}
+
+std::string AssDialogue::toAssLine() const {
+    std::ostringstream oss;
+    oss << "Dialogue: " << layer << ','
+        << formatTime(startMs) << ',' << formatTime(endMs) << ','
+        << style << ',' << name << ','
+        << marginL << ',' << marginR << ',' << marginV << ','
+        << effect << ',' << text;
+
     return oss.str();
 }

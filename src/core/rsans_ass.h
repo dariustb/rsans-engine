@@ -4,6 +4,8 @@
 #include <rsans_data.h>
 
 #include <string>
+#include <sstream>
+#include <vector>
 
 struct Ass {
     std::string text;
@@ -22,6 +24,15 @@ struct Ass {
     void buildScriptInfo(std::ostringstream& ss, const ProjectData& data);
     void buildStyles(std::ostringstream& ss, const ProjectData& data);
     void buildEvents(std::ostringstream& ss, const ProjectData& data, const LineInfo& lineInfo);
+
+    void buildRhymeHighlightsAsText(
+        std::ostringstream& ss,
+        const ProjectData& data,
+        const LineInfo& lineInfo,
+        class FTFont& font,
+        double leftMargin,
+        double topMargin,
+        int audioLengthMs);
 };
 
 enum AssBorderStyle : int {
@@ -48,10 +59,10 @@ struct AssStyle {
     int         fontSize;
 
     // Colors as ASS format
-    std::string primaryColor   = "&H00FFFFFF"; // white
-    std::string secondaryColor = "&H000000FF"; // blue (karaoke)
-    std::string outlineColor   = "&H00000000"; // black
-    std::string backColor      = "&H00000000"; // transparent by default
+    std::string primaryColor   = "&H00000000";  // black
+    std::string secondaryColor = "&H00000000";
+    std::string outlineColor   = "&H00000000";
+    std::string backColor      = "&H00000000";  // transparent by default
 
     // Font styles
     bool isBold      = false;
@@ -67,7 +78,7 @@ struct AssStyle {
 
     // Border / shadow
     AssBorderStyle borderStyle = AssBorderStyle::Outline;
-    int  outlineWidth          = 2;
+    int  outlineWidth          = 0;
     int  shadowDepth           = 0;
 
     // Alignment and margins
@@ -76,12 +87,34 @@ struct AssStyle {
     int marginR            = 10;
     int marginV            = 10;
 
-    int encoding           = 1; // usually 1 (ANSI) or 0, depending on your use
+    int encoding           = 1;  // usually 1 (ANSI) or 0, depending on your use
 
     std::string toAssLine() const;
 
     AssStyle() = delete;
     AssStyle(const std::string styleName, const std::string fontName, const int fontSize);
 };
+
+struct AssDialogue {
+    int      layer   = 0;
+    int64_t  startMs = 0;  // start time in milliseconds
+    int64_t  endMs   = 0;  // end time in milliseconds
+
+    std::string style;
+    std::string name;  // usually empty
+
+    int marginL      = 0;  // in script units, zero-padded to 4 digits
+    int marginR      = 0;
+    int marginV      = 0;
+
+    std::string effect;  // usually empty
+    std::string text;    // raw ASS text, including any override tags
+
+    AssDialogue() = delete;
+    AssDialogue(int64_t startMs, int64_t endMs, std::string styleName, std::string text_);
+
+    std::string toAssLine() const;
+};
+
 
 #endif
