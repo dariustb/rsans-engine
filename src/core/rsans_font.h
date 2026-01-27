@@ -10,9 +10,6 @@ class FTFont {
   private:
     FT_Library d_library;
     FT_Face    d_face;
-
-    std::string d_fontPath;
-    int         d_fontSize;
   public:
     int getFontPixelHeight() const;
     int getStringPixelWidth(const std::string& text);
@@ -23,7 +20,7 @@ class FTFont {
     FTFont(FTFont&& other) noexcept;
     FTFont& operator=(FTFont&& other) noexcept;
 
-    FTFont(const std::string fontPath, int fontSize);
+    FTFont(const std::string& fontPath, int fontSize);
     ~FTFont();
 };
 

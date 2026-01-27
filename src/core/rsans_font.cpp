@@ -6,11 +6,9 @@
 #include <stdexcept>
 #include <utility>
 
-FTFont::FTFont(const std::string fontPath, int fontSize)
+FTFont::FTFont(const std::string& fontPath, int fontSize)
     : d_library(nullptr)
     , d_face(nullptr)
-    , d_fontPath(fontPath)
-    , d_fontSize(fontSize)
 {
     if (FT_Init_FreeType(&d_library)) {
         throw std::runtime_error("Failed to initialize FreeType library");
@@ -63,5 +61,15 @@ int FTFont::getFontPixelHeight() const {
 }
 
 int FTFont::getStringPixelWidth(const std::string& text) {
-    return 0;
+    int totalWidth = 0;
+
+    for (char c : text) {
+        if (FT_Load_Char(d_face, c, FT_LOAD_DEFAULT)) {
+            continue;  // Skip characters that fail to load
+        }
+        // advance.x is in 26.6 fixed-point format
+        totalWidth += d_face->glyph->advance.x >> 6;
+    }
+
+    return totalWidth;
 }
