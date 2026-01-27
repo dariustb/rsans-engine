@@ -93,14 +93,15 @@ void Ass::buildStyles(std::ostringstream& ss, const ProjectData& data) {
        << "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
        << "Alignment, MarginL, MarginR, MarginV, Encoding\n";
 
-    ss << "Style: Base," << data.layout.fontName << "," << data.layout.fontSize
-       << ",&H00606060,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1\n";
+    // Make Base style line
+    const AssStyle baseStyle("Base", data.layout.fontName, data.layout.fontSize);
+    ss << baseStyle.toAssLine();
 
-    for (const auto& [group, style] : data.rhymeStyles) {
-        const std::string assColor = hexToAssColor(style.color);
-        ss << "Style: " << group << "," << data.layout.fontName << "," << data.layout.fontSize
-           << "," << assColor << ",&H000000FF,&H00000000,&H00000000"
-           << ",0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1\n";
+    AssStyle highlightStyle = baseStyle;
+    for (const auto& [groupName, style] : data.rhymeStyles) {
+        highlightStyle.name = groupName;
+        highlightStyle.primaryColor = hexToAssColor(style.color);
+        ss << highlightStyle.toAssLine();
     }
     ss << "\n";
 }
@@ -153,4 +154,26 @@ void Ass::buildEvents(std::ostringstream& ss, const ProjectData& data, const Lin
                << " 0 " << boxHeight << "{\\p0}\n";
         }
     }
+}
+
+AssStyle::AssStyle(const std::string styleName, const std::string fontName, const int fontSize) 
+: name(styleName)
+, fontName(fontName)
+, fontSize(fontSize)
+{}
+
+std::string AssStyle::toAssLine() const {
+    std::ostringstream oss;
+    oss << "Style: " << name << ',' << fontName << ',' << fontSize << ','
+        << primaryColor << ',' << secondaryColor << ',' << outlineColor << ',' << backColor << ','
+        << (isBold ? -1 : 0) << ',' << (isItalic ? -1 : 0) << ',' // ASS: -1 = true, 0 = false
+        << (isUnderline ? -1 : 0) << ',' << (isStrikeOut ? -1 : 0) << ','
+        << scaleX << ',' << scaleY << ','
+        << spacing << ',' << angle << ','
+        << static_cast<int>(borderStyle) << ','
+        << outlineWidth << ',' << shadowDepth  << ','
+        << static_cast<int>(alignment) << ','
+        << marginL << ',' << marginR << ',' << marginV << ','
+        << encoding << '\n';
+    return oss.str();
 }
