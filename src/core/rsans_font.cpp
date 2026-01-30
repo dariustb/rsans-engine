@@ -38,8 +38,7 @@ FTFont::~FTFont() {
 FTFont::FTFont(FTFont&& other) noexcept
     : d_library(std::exchange(other.d_library, nullptr))
     , d_face(std::exchange(other.d_face, nullptr))
-{
-}
+{}
 
 FTFont& FTFont::operator=(FTFont&& other) noexcept {
     if (this != &other) {
@@ -58,26 +57,4 @@ FTFont& FTFont::operator=(FTFont&& other) noexcept {
 int FTFont::getFontPixelHeight() const {
     // FreeType metrics are in 26.6 fixed-point format, so shift right by 6
     return (d_face->size->metrics.ascender - d_face->size->metrics.descender) >> 6;
-}
-
-int FTFont::getStringPixelWidth(const std::string& text) {
-    int totalWidth = 0;
-
-    for (char c : text) {
-        if (FT_Load_Char(d_face, c, FT_LOAD_DEFAULT)) {
-            continue;  // Skip characters that fail to load
-        }
-
-        int advance = d_face->glyph->advance.x;
-
-        // Compensate for space character width difference between FreeType and ASS
-        if (c == ' ') {
-            advance = (advance * 55) / 100;  // Reduce space width by 45%
-        }
-
-        totalWidth += advance;
-    }
-
-    // Convert from 26.6 fixed-point to pixels with rounding
-    return (totalWidth + 32) >> 6;
 }
