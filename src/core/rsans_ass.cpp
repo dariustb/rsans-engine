@@ -3,9 +3,15 @@
 #include <rsans_data.h>
 #include <rsans_font.h>
 
+#include <ass/ass.h>
+
 #include <sstream>
+#include <stdexcept>
+#include <string>
 
 namespace {
+
+void silentAssLog(int, const char*, va_list, void*) {}
 
 // TODO: use id to index color in json and create a color swatch
 std::string hexToAssColor(const std::string& hexColor) {
@@ -32,7 +38,29 @@ std::string formatTime(int ms) {
 
 }
 
-Ass::Ass(const ProjectData& data) {
+Ass::Ass(const ProjectData& data)
+    : d_assLibrary(nullptr)
+    , d_assRenderer(nullptr)
+    , d_fontFamily(data.layout.fontName)
+    , d_fontSize(data.layout.fontSize)
+{
+    d_assLibrary = ass_library_init();
+    if (!d_assLibrary) {
+        throw std::runtime_error("Failed to initialize libass library");
+    }
+    ass_set_message_cb(d_assLibrary, silentAssLog, nullptr);
+
+    d_assRenderer = ass_renderer_init(d_assLibrary);
+    if (!d_assRenderer) {
+        ass_library_done(d_assLibrary);
+        throw std::runtime_error("Failed to initialize libass renderer");
+    }
+
+    ass_set_storage_size(d_assRenderer, 8192, 8192);
+    ass_set_frame_size(d_assRenderer, 8192, 8192);
+    ass_set_fonts(d_assRenderer, data.layout.fontPath.c_str(),
+                  d_fontFamily.c_str(), ASS_FONTPROVIDER_NONE, nullptr, 0);
+
     std::ostringstream ss;
 
     const LineInfo lineInfo = buildLines(data.tokens);
@@ -41,6 +69,15 @@ Ass::Ass(const ProjectData& data) {
     buildEvents(ss, data, lineInfo);
 
     text = ss.str();
+}
+
+Ass::~Ass() {
+    if (d_assRenderer) {
+        ass_renderer_done(d_assRenderer);
+    }
+    if (d_assLibrary) {
+        ass_library_done(d_assLibrary);
+    }
 }
 
 Ass::LineInfo Ass::buildLines(const std::vector<Token>& tokens) {
@@ -127,31 +164,6 @@ void Ass::buildEvents(std::ostringstream& ss, const ProjectData& data, const Lin
            << lineInfo.lines[i] << "\n";
     }
 
-    // Create rhyme highlight dialogues
-    // for (const Token& token : data.tokens) {
-    //     if (token.rhymeGroup.has_value()) {
-    //         const std::string& lineText = lineInfo.lines.at(token.lineIndex - lineInfo.minLineIdx);
-    //         // FIXME: This will only find the first occurence of the word
-    //         // May be bad if the word is used multiple times in a line
-    //         const size_t tokenCharPos = lineText.find(token.text);
-
-    //         const std::string textBeforeToken = lineText.substr(0, tokenCharPos);
-    //         const double tokenX = leftMargin + font.getStringPixelWidth(textBeforeToken);
-    //         const double boxWidth = font.getStringPixelWidth(token.text);
-    //         const double boxHeight = fontHeight + 0;
-
-    //         const double lineY = topMargin + (token.lineIndex - lineInfo.minLineIdx) * data.layout.lineHeight;
-    //         const double boxTop = lineY - (boxHeight - fontHeight) / 2.0;
-
-    //         ss << "Dialogue: 0," << formatTime(token.startMs) << ","
-    //            << formatTime(audioLengthMs) << ","
-    //            << token.rhymeGroup.value() << ",,0,0,0,,{\\an7\\pos("
-    //            << tokenX << "," << boxTop << ")\\p1}"
-    //            << "m 0 0 l " << boxWidth << " 0 " << boxWidth << " " << boxHeight
-    //            << " 0 " << boxHeight << "{\\p0}\n";
-    //     }
-    // }
-
     buildRhymeHighlightsAsText(ss, data, lineInfo, font, leftMargin, topMargin, audioLengthMs);
 }
 
@@ -183,7 +195,7 @@ void Ass::buildRhymeHighlightsAsText(
         const size_t tokenCharPos = lineText.find(token.text);
 
         const std::string textBeforeToken = lineText.substr(0, tokenCharPos);
-        const double tokenX = leftMargin + font.getStringPixelWidth(textBeforeToken);
+        const double tokenX = leftMargin + getStringWidth(textBeforeToken);
         const double lineY = topMargin + (token.lineIndex - lineInfo.minLineIdx) * fontLineHeight;
 
         // Use transparent text with colored border to emulate highlight
@@ -203,7 +215,61 @@ void Ass::buildRhymeHighlightsAsText(
     }
 }
 
-AssStyle::AssStyle(const std::string styleName, const std::string fontName, const int fontSize) 
+int Ass::renderAssWidth(const std::string& text) {
+    std::string script =
+        "[Script Info]\n"
+        "ScriptType: v4.00+\n"
+        "PlayResX: 8192\n"
+        "PlayResY: 8192\n\n"
+        "[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
+        "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
+        "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
+        "Alignment, MarginL, MarginR, MarginV, Encoding\n"
+        "Style: Default," + d_fontFamily + "," + std::to_string(d_fontSize) +
+        ",&H00FFFFFF,&H00000000,&H00000000,&H00000000,"
+        "0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1\n\n"
+        "[Events]\n"
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, "
+        "Effect, Text\n"
+        "Dialogue: 0,0:00:00.00,0:00:10.00,Default,,0,0,0,,"
+        "{\\an7\\pos(0,0)}" + text + "\n";
+
+    ASS_Track* track = ass_read_memory(
+        d_assLibrary,
+        const_cast<char*>(script.c_str()),
+        script.size(),
+        nullptr);
+
+    if (!track) {
+        return 0;
+    }
+
+    int detect_change = 0;
+    ASS_Image* img = ass_render_frame(d_assRenderer, track, 0, &detect_change);
+
+    int maxX = 0;
+    for (ASS_Image* cur = img; cur; cur = cur->next) {
+        if (cur->w > 0 && cur->h > 0) {
+            int right = cur->dst_x + cur->w;
+            if (right > maxX) {
+                maxX = right;
+            }
+        }
+    }
+
+    ass_free_track(track);
+    return maxX;
+}
+
+int Ass::getStringWidth(const std::string& text) {
+    const std::string sentinel = "|";  // Trailing spaces get removed in libass render
+    const int combined = renderAssWidth(text + sentinel);
+    const int sentinelWidth = renderAssWidth(sentinel);
+    return combined - sentinelWidth;
+}
+
+AssStyle::AssStyle(const std::string styleName, const std::string fontName, const int fontSize)
 : name(styleName)
 , fontName(fontName)
 , fontSize(fontSize)

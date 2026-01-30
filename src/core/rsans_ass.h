@@ -3,17 +3,31 @@
 
 #include <rsans_data.h>
 
-#include <string>
+#include <ass/ass.h>
+
 #include <sstream>
+#include <string>
 #include <vector>
 
 struct Ass {
     std::string text;
 
     Ass() = delete;
+    Ass(const Ass&) = delete;
+    Ass& operator=(const Ass&) = delete;
     Ass(const ProjectData& data);
+    ~Ass();
+
+    int getStringWidth(const std::string& text);
 
   private:
+    ASS_Library*  d_assLibrary;
+    ASS_Renderer* d_assRenderer;
+    std::string   d_fontFamily;
+    int           d_fontSize;
+
+    int renderAssWidth(const std::string& text);
+
     struct LineInfo {
         std::vector<std::string> lines;
         int minLineIdx;
@@ -87,7 +101,7 @@ struct AssStyle {
     int marginR            = 10;
     int marginV            = 10;
 
-    int encoding           = 1;  // usually 1 (ANSI) or 0, depending on your use
+    int encoding           = 1;  // usually 1 (ANSI) or 0
 
     std::string toAssLine() const;
 
