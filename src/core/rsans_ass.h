@@ -18,8 +18,6 @@ struct Ass {
     Ass(const ProjectData& data);
     ~Ass();
 
-    int getStringWidth(const std::string& text);
-
   private:
     ASS_Library*  d_assLibrary;
     ASS_Renderer* d_assRenderer;
@@ -33,6 +31,8 @@ struct Ass {
         int minLineIdx;
         int maxLineIdx;
     };
+
+    int getStringWidth(const std::string& text);
 
     LineInfo buildLines(const std::vector<Token>& tokens);
     void buildScriptInfo(std::ostringstream& ss, const ProjectData& data);
