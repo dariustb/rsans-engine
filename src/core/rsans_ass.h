@@ -19,14 +19,14 @@ struct Ass {
     ~Ass();
 
   private:
-    // TODO: const ProjectData& d_data;
+    const ProjectData& d_data;
     ASS_Library*  d_assLibrary;
     ASS_Renderer* d_assRenderer;
     std::string   d_fontFamily;
     int           d_fontSize;
 
-    int renderAssWidth(const std::string& text, const ProjectData& data);
-    int getStringWidth(const std::string& text, const ProjectData& data);
+    int renderAssWidth(const std::string& text);
+    int getStringWidth(const std::string& text);
 
     struct LineInfo {
         std::vector<std::string> lines;
@@ -35,12 +35,12 @@ struct Ass {
     };
     LineInfo buildLines(const std::vector<Token>& tokens);
     
-    void buildScriptInfo(std::ostringstream& ss, const ProjectData& data);
-    void buildStyleInfo(std::ostringstream& ss, const ProjectData& data);
-    void buildStyles(std::ostringstream& ss, const ProjectData& data);
-    void buildEventInfo(std::ostringstream& ss, const ProjectData& data);
-    void buildEvents(std::ostringstream& ss, const ProjectData& data, const LineInfo& lineInfo);
-    void buildHighlights(std::ostringstream& ss, const ProjectData& data, const LineInfo& lineInfo);
+    void buildScriptInfo(std::ostringstream& ss);
+    void buildStyleInfo(std::ostringstream& ss);
+    void buildStyles(std::ostringstream& ss);
+    void buildEventInfo(std::ostringstream& ss);
+    void buildEvents(std::ostringstream& ss, const LineInfo& lineInfo);
+    void buildHighlights(std::ostringstream& ss, const LineInfo& lineInfo);
 };
 
 enum AssBorderStyle : int {
