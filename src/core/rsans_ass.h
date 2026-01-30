@@ -19,34 +19,28 @@ struct Ass {
     ~Ass();
 
   private:
+    // TODO: const ProjectData& d_data;
     ASS_Library*  d_assLibrary;
     ASS_Renderer* d_assRenderer;
     std::string   d_fontFamily;
     int           d_fontSize;
 
-    int renderAssWidth(const std::string& text);
+    int renderAssWidth(const std::string& text, const ProjectData& data);
+    int getStringWidth(const std::string& text, const ProjectData& data);
 
     struct LineInfo {
         std::vector<std::string> lines;
         int minLineIdx;
         int maxLineIdx;
     };
-
-    int getStringWidth(const std::string& text);
-
     LineInfo buildLines(const std::vector<Token>& tokens);
+    
     void buildScriptInfo(std::ostringstream& ss, const ProjectData& data);
+    void buildStyleInfo(std::ostringstream& ss, const ProjectData& data);
     void buildStyles(std::ostringstream& ss, const ProjectData& data);
+    void buildEventInfo(std::ostringstream& ss, const ProjectData& data);
     void buildEvents(std::ostringstream& ss, const ProjectData& data, const LineInfo& lineInfo);
-
-    void buildRhymeHighlightsAsText(
-        std::ostringstream& ss,
-        const ProjectData& data,
-        const LineInfo& lineInfo,
-        class FTFont& font,
-        double leftMargin,
-        double topMargin,
-        int audioLengthMs);
+    void buildHighlights(std::ostringstream& ss, const ProjectData& data, const LineInfo& lineInfo);
 };
 
 enum AssBorderStyle : int {

@@ -56,8 +56,8 @@ Ass::Ass(const ProjectData& data)
         throw std::runtime_error("Failed to initialize libass renderer");
     }
 
-    ass_set_storage_size(d_assRenderer, 8192, 8192);
-    ass_set_frame_size(d_assRenderer, 8192, 8192);
+    ass_set_storage_size(d_assRenderer, data.video.width, data.video.height);
+    ass_set_frame_size(d_assRenderer, data.video.width, data.video.height);
     ass_set_fonts(d_assRenderer, data.layout.fontPath.c_str(),
                   d_fontFamily.c_str(), ASS_FONTPROVIDER_NONE, nullptr, 0);
 
@@ -65,8 +65,12 @@ Ass::Ass(const ProjectData& data)
 
     const LineInfo lineInfo = buildLines(data.tokens);
     buildScriptInfo(ss, data);
+    buildStyleInfo(ss, data);
     buildStyles(ss, data);
+    buildEventInfo(ss, data);
     buildEvents(ss, data, lineInfo);
+    buildHighlights(ss, data, lineInfo);
+
 
     text = ss.str();
 }
@@ -123,17 +127,20 @@ void Ass::buildScriptInfo(std::ostringstream& ss, const ProjectData& data) {
     ss << "PlayResY: " << data.video.height << "\n\n";
 }
 
-void Ass::buildStyles(std::ostringstream& ss, const ProjectData& data) {
+void Ass::buildStyleInfo(std::ostringstream& ss, const ProjectData& data) {
     ss << "[V4+ Styles]\n";
     ss << "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
        << "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
        << "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
        << "Alignment, MarginL, MarginR, MarginV, Encoding\n";
+}
 
+void Ass::buildStyles(std::ostringstream& ss, const ProjectData& data) {
     // Make Base style line
     const AssStyle baseStyle("Base", data.layout.fontName, data.layout.fontSize);
     ss << baseStyle.toAssLine();
 
+    // Make Highlight style lines
     AssStyle highlightStyle = baseStyle;
     for (const auto& [groupName, style] : data.rhymeStyles) {
         highlightStyle.name = groupName;
@@ -144,17 +151,18 @@ void Ass::buildStyles(std::ostringstream& ss, const ProjectData& data) {
     ss << "\n";
 }
 
-void Ass::buildEvents(std::ostringstream& ss, const ProjectData& data, const LineInfo& lineInfo) {
+void Ass::buildEventInfo(std::ostringstream& ss, const ProjectData& data) {
     ss << "[Events]\n";
     ss << "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n";
+}
 
+void Ass::buildEvents(std::ostringstream& ss, const ProjectData& data, const LineInfo& lineInfo) {
     const double leftMargin = 50.0;
     const double topMargin = 50.0;
+    const int audioLengthMs = data.audio.length * 1000;
 
     FTFont font(data.layout.fontPath, data.layout.fontSize);
     const int fontHeight = font.getFontPixelHeight();
-
-    const int audioLengthMs = data.audio.length * 1000;
 
     // Build base text as separate dialogues per line with explicit positioning
     for (size_t i = 0; i < lineInfo.lines.size(); ++i) {
@@ -163,19 +171,14 @@ void Ass::buildEvents(std::ostringstream& ss, const ProjectData& data, const Lin
            << ",Base,,0,0,0,,{\\an7\\pos(" << leftMargin << "," << lineY << ")\\q2}"
            << lineInfo.lines[i] << "\n";
     }
-
-    buildRhymeHighlightsAsText(ss, data, lineInfo, font, leftMargin, topMargin, audioLengthMs);
 }
 
-void Ass::buildRhymeHighlightsAsText(
-    std::ostringstream& ss,
-    const ProjectData& data,
-    const LineInfo& lineInfo,
-    FTFont& font,
-    double leftMargin,
-    double topMargin,
-    int audioLengthMs)
-{
+void Ass::buildHighlights(std::ostringstream& ss, const ProjectData& data, const LineInfo& lineInfo) {
+    const double leftMargin = 50.0;
+    const double topMargin = 50.0;
+    const int audioLengthMs = data.audio.length * 1000;
+
+    FTFont font(data.layout.fontPath, data.layout.fontSize);
     const int fontLineHeight = font.getFontPixelHeight();
 
     for (const Token& token : data.tokens) {
@@ -195,7 +198,7 @@ void Ass::buildRhymeHighlightsAsText(
         const size_t tokenCharPos = lineText.find(token.text);
 
         const std::string textBeforeToken = lineText.substr(0, tokenCharPos);
-        const double tokenX = leftMargin + getStringWidth(textBeforeToken);
+        const double tokenX = leftMargin + getStringWidth(textBeforeToken, data);
         const double lineY = topMargin + (token.lineIndex - lineInfo.minLineIdx) * fontLineHeight;
 
         // Use transparent text with colored border to emulate highlight
@@ -215,31 +218,23 @@ void Ass::buildRhymeHighlightsAsText(
     }
 }
 
-int Ass::renderAssWidth(const std::string& text) {
+int Ass::renderAssWidth(const std::string& text, const ProjectData& data) {
     // TODO: refactor other script setup functions and call them here instead
-    std::string script =
-        "[Script Info]\n"
-        "ScriptType: v4.00+\n"
-        "PlayResX: 8192\n"
-        "PlayResY: 8192\n\n"
-        "[V4+ Styles]\n"
-        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
-        "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
-        "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
-        "Alignment, MarginL, MarginR, MarginV, Encoding\n"
-        "Style: Default," + d_fontFamily + "," + std::to_string(d_fontSize) +
-        ",&H00FFFFFF,&H00000000,&H00000000,&H00000000,"
-        "0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1\n\n"
-        "[Events]\n"
-        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, "
-        "Effect, Text\n"
-        "Dialogue: 0,0:00:00.00,0:00:10.00,Default,,0,0,0,,"
-        "{\\an7\\pos(0,0)}" + text + "\n";
+    std::ostringstream oss;
+
+    buildScriptInfo(oss, data);
+    buildStyleInfo(oss, data);
+    buildStyles(oss, data);
+    buildEventInfo(oss, data);
+    
+    const std::string textDialogue =
+        "Dialogue: 0,0:00:00.00,0:00:10.00,Base,,0,0,0,,{\\an7\\pos(0,0)}" + text + "\n";
+    oss << textDialogue;
 
     ASS_Track* track = ass_read_memory(
         d_assLibrary,
-        const_cast<char*>(script.c_str()),
-        script.size(),
+        const_cast<char*>(oss.str().c_str()),
+        oss.str().size(),
         nullptr);
 
     if (!track) {
@@ -263,10 +258,10 @@ int Ass::renderAssWidth(const std::string& text) {
     return maxX;
 }
 
-int Ass::getStringWidth(const std::string& text) {
+int Ass::getStringWidth(const std::string& text, const ProjectData& data) {
     const std::string sentinel = "|";  // Trailing spaces get removed in libass render
-    const int combined = renderAssWidth(text + sentinel);
-    const int sentinelWidth = renderAssWidth(sentinel);
+    const int combined = renderAssWidth(text + sentinel, data);
+    const int sentinelWidth = renderAssWidth(sentinel, data);
     return combined - sentinelWidth;
 }
 
