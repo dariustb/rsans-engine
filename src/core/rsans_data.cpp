@@ -1,16 +1,38 @@
 #include <rsans_data.h>
 
 #include <nlohmann/json.hpp>
+#include <sndfile.h>
 
 #include <vector>
 
 using json = nlohmann::json;
 
+namespace {
+
+double getAudioDuration(const std::string& audioPath) {
+    SF_INFO info{};
+    SNDFILE* f = sf_open(audioPath.c_str(), SFM_READ, &info);
+    if (!f) return -1.0;
+
+    double seconds =
+        static_cast<double>(info.frames) / info.samplerate;
+
+    sf_close(f);
+    return seconds;
+}
+
+}
+
 ProjectData::ProjectData(const std::string& jsonContent) {
     const json j = json::parse(jsonContent);
 
     audio.path = j["audio"]["path"].get<std::string>();
-    audio.length = j["audio"]["length"].get<double>();
+    if (j["audio"]["length"].is_null()) {
+        audio.length = getAudioDuration(audio.path);
+    }
+    else {
+        audio.length = j["audio"]["length"].get<double>();
+    }
 
     video.width = j["video"]["width"].get<int>();
     video.height = j["video"]["height"].get<int>();

@@ -11,6 +11,7 @@ target_include_directories(rsans_core PUBLIC ./)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBASS REQUIRED IMPORTED_TARGET libass)
+pkg_check_modules(SNDFILE REQUIRED IMPORTED_TARGET sndfile)
 
 include(FetchContent)
 
@@ -53,6 +54,7 @@ target_link_libraries(rsans_core PUBLIC
     freetype
     nlohmann_json::nlohmann_json
     PkgConfig::LIBASS
+    PkgConfig::SNDFILE
     rsans_io
     whisper
 )
