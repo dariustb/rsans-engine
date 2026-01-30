@@ -216,6 +216,7 @@ void Ass::buildRhymeHighlightsAsText(
 }
 
 int Ass::renderAssWidth(const std::string& text) {
+    // TODO: refactor other script setup functions and call them here instead
     std::string script =
         "[Script Info]\n"
         "ScriptType: v4.00+\n"

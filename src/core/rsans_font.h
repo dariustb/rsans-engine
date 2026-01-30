@@ -6,6 +6,8 @@
 
 #include <string>
 
+// TODO: Use libass to get text pixel height instead,
+// then remove FreeType/FTFont class
 class FTFont {
   private:
     FT_Library d_library;
