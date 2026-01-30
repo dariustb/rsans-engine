@@ -4,7 +4,6 @@
 #include FT_FREETYPE_H
 
 #include <stdexcept>
-#include <utility>
 
 FTFont::FTFont(const std::string& fontPath, int fontSize)
     : d_library(nullptr)
@@ -33,25 +32,6 @@ FTFont::~FTFont() {
     if (d_library) {
         FT_Done_FreeType(d_library);
     }
-}
-
-FTFont::FTFont(FTFont&& other) noexcept
-    : d_library(std::exchange(other.d_library, nullptr))
-    , d_face(std::exchange(other.d_face, nullptr))
-{}
-
-FTFont& FTFont::operator=(FTFont&& other) noexcept {
-    if (this != &other) {
-        if (d_face) {
-            FT_Done_Face(d_face);
-        }
-        if (d_library) {
-            FT_Done_FreeType(d_library);
-        }
-        d_library = std::exchange(other.d_library, nullptr);
-        d_face = std::exchange(other.d_face, nullptr);
-    }
-    return *this;
 }
 
 int FTFont::getFontPixelHeight() const {

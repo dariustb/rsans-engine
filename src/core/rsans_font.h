@@ -16,8 +16,8 @@ class FTFont {
     FTFont() = delete;
     FTFont(const FTFont&) = delete;
     FTFont& operator=(const FTFont&) = delete;
-    FTFont(FTFont&& other) noexcept;
-    FTFont& operator=(FTFont&& other) noexcept;
+    FTFont(FTFont&& other) = delete;
+    FTFont& operator=(FTFont&& other) = delete;
 
     FTFont(const std::string& fontPath, int fontSize);
     ~FTFont();
