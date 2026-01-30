@@ -27,13 +27,10 @@ ProjectData::ProjectData(const std::string& jsonContent) {
     const json j = json::parse(jsonContent);
 
     audio.path = j["audio"]["path"].get<std::string>();
-    if (j["audio"]["length"].is_null()) {
-        audio.length = getAudioDuration(audio.path);
-    }
-    else {
-        audio.length = j["audio"]["length"].get<double>();
-    }
-
+    audio.length = j["audio"]["length"].is_null()
+        ? getAudioDuration(audio.path)
+        : j["audio"]["length"].get<double>();
+ 
     video.width = j["video"]["width"].get<int>();
     video.height = j["video"]["height"].get<int>();
     video.background = j["video"]["background"].get<std::string>();
