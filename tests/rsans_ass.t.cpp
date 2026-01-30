@@ -155,23 +155,6 @@ TEST(AssTest, AssConstructorGeneratesBaseDialogueGivenTokens) {
     EXPECT_NE(ass.text.find(",Base,"), std::string::npos);
 }
 
-TEST(AssTest, AssConstructorUsesLineSeparatorGivenMultipleLines) {
-    // Given
-    std::vector<Token> tokens = {
-        {1, "First", 0, 500, 0, std::nullopt},
-        {2, "line", 500, 1000, 0, std::nullopt},
-        {3, "Second", 1000, 1500, 1, std::nullopt},
-        {4, "line", 1500, 2000, 1, std::nullopt}
-    };
-    const ProjectData data = createTestProjectData(tokens);
-
-    // When
-    const Ass ass(data);
-
-    // Then
-    EXPECT_NE(ass.text.find("First line\\NSecond line"), std::string::npos);
-}
-
 TEST(AssTest, AssConstructorGeneratesRhymeDialoguesGivenRhymeTokens) {
     // Given
     std::vector<Token> tokens = {
@@ -235,7 +218,8 @@ TEST(AssTest, AssConstructorOmitsRhymeDialoguesGivenTokensWithoutRhymes) {
 
     // Then
     EXPECT_NE(ass.text.find("Dialogue: 1,"), std::string::npos);
-    EXPECT_NE(ass.text.find("Hello world\\Nno rhymes"), std::string::npos);
+    EXPECT_NE(ass.text.find("Hello world"), std::string::npos);
+    EXPECT_NE(ass.text.find("no rhymes"), std::string::npos);
 
     size_t pos = 0;
     int count = 0;
@@ -265,7 +249,8 @@ TEST(AssTest, AssConstructorHandlesMixedTokensGivenBothRhymeAndNonRhyme) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("The cat sat\\Non the mat"), std::string::npos);
+    EXPECT_NE(ass.text.find("The cat sat"), std::string::npos);
+    EXPECT_NE(ass.text.find("on the mat"), std::string::npos);
 
     size_t pos = 0;
     int count = 0;
@@ -353,7 +338,7 @@ TEST(AssTest, AssConstructorIncludesPositioningTagsGivenTokens) {
     EXPECT_NE(ass.text.find("\\pos("), std::string::npos);
 }
 
-TEST(AssTest, AssConstructorIncludesDrawingCommandsGivenRhymeTokens) {
+TEST(AssTest, AssConstructorIncludesHighlightFormattingGivenRhymeTokens) {
     // Given
     std::vector<Token> tokens = {
         {1, "test", 0, 100, 0, "A"}
@@ -367,9 +352,10 @@ TEST(AssTest, AssConstructorIncludesDrawingCommandsGivenRhymeTokens) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("\\p1}"), std::string::npos);  // Start drawing
-    EXPECT_NE(ass.text.find("{\\p0}"), std::string::npos);  // End drawing
-    EXPECT_NE(ass.text.find("m 0 0 l"), std::string::npos);  // Drawing commands
+    EXPECT_NE(ass.text.find("\\1a&HFF&"), std::string::npos);  // Fully trans text
+    EXPECT_NE(ass.text.find("\\3c"), std::string::npos);  // Outline/border color
+    EXPECT_NE(ass.text.find("\\3a&H00&"), std::string::npos);  // Opaque
+    EXPECT_NE(ass.text.find("\\bord"), std::string::npos);  // Border thickness setting
 }
 
 TEST(AssTest, AssConstructorPositionsLinesVerticallyGivenMultipleLines) {
@@ -388,7 +374,9 @@ TEST(AssTest, AssConstructorPositionsLinesVerticallyGivenMultipleLines) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("Line one\\NLine two\\NLine three"), std::string::npos);
+    EXPECT_NE(ass.text.find("Line one"), std::string::npos);
+    EXPECT_NE(ass.text.find("Line two"), std::string::npos);
+    EXPECT_NE(ass.text.find("Line three"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorConvertsColorsToAssFormatGivenRhymeStyles) {
