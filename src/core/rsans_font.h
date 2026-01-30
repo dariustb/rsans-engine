@@ -12,7 +12,6 @@ class FTFont {
     FT_Face    d_face;
   public:
     int getFontPixelHeight() const;
-    int getStringPixelWidth(const std::string& text);
 
     FTFont() = delete;
     FTFont(const FTFont&) = delete;
