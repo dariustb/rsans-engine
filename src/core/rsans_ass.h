@@ -9,7 +9,8 @@
 #include <string>
 #include <vector>
 
-struct Ass {
+class Ass {
+  public:
     std::string text;
 
     Ass() = delete;
