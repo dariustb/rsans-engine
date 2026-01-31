@@ -43,8 +43,6 @@ Ass::Ass(const ProjectData& data)
     , d_lineInfo(data.tokens)
     , d_assLibrary(nullptr)
     , d_assRenderer(nullptr)
-    , d_fontFamily(data.layout.fontName)
-    , d_fontSize(data.layout.fontSize)
 {
     // Init libass stuff
     d_assLibrary = ass_library_init();
@@ -61,7 +59,7 @@ Ass::Ass(const ProjectData& data)
     ass_set_storage_size(d_assRenderer, data.video.width, data.video.height);
     ass_set_frame_size(d_assRenderer, data.video.width, data.video.height);
     ass_set_fonts(d_assRenderer, data.layout.fontPath.c_str(),
-                  d_fontFamily.c_str(), ASS_FONTPROVIDER_NONE, nullptr, 0);
+    data.layout.fontName.c_str(), ASS_FONTPROVIDER_NONE, nullptr, 0);
 
     // Set up ASS file stuff
     std::ostringstream ss;

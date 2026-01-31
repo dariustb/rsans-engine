@@ -30,8 +30,6 @@ struct Ass {
     const ProjectData& d_data;
     ASS_Library*  d_assLibrary;
     ASS_Renderer* d_assRenderer;
-    std::string   d_fontFamily;
-    int           d_fontSize;
     
     int renderAssWidth(const std::string& text);
     int getStringWidth(const std::string& text);
