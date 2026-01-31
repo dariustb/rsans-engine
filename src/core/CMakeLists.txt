@@ -2,7 +2,6 @@ add_library(rsans_core
     rsans_ass.cpp
     rsans_data.cpp
     rsans_export.cpp
-    rsans_font.cpp
     rsans_rhyme.cpp
     rsans_whisper.cpp
 )
@@ -43,15 +42,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(nlohmann_json)
 
-# Fetch FreeType (v2.14.1 specifically)
-FetchContent_Declare(
-    freetype
-    URL https://download.savannah.gnu.org/releases/freetype/freetype-2.14.1.tar.gz
-)
-FetchContent_MakeAvailable(freetype)
-
 target_link_libraries(rsans_core PUBLIC
-    freetype
     nlohmann_json::nlohmann_json
     PkgConfig::LIBASS
     PkgConfig::SNDFILE
