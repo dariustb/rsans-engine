@@ -40,11 +40,13 @@ std::string formatTime(int ms) {
 
 Ass::Ass(const ProjectData& data)
     : d_data(data)
+    , d_lineInfo(data.tokens)
     , d_assLibrary(nullptr)
     , d_assRenderer(nullptr)
     , d_fontFamily(data.layout.fontName)
     , d_fontSize(data.layout.fontSize)
 {
+    // Init libass stuff
     d_assLibrary = ass_library_init();
     if (!d_assLibrary) {
         throw std::runtime_error("Failed to initialize libass library");
@@ -56,22 +58,19 @@ Ass::Ass(const ProjectData& data)
         ass_library_done(d_assLibrary);
         throw std::runtime_error("Failed to initialize libass renderer");
     }
-
     ass_set_storage_size(d_assRenderer, data.video.width, data.video.height);
     ass_set_frame_size(d_assRenderer, data.video.width, data.video.height);
     ass_set_fonts(d_assRenderer, data.layout.fontPath.c_str(),
                   d_fontFamily.c_str(), ASS_FONTPROVIDER_NONE, nullptr, 0);
 
+    // Set up ASS file stuff
     std::ostringstream ss;
-
-    const LineInfo lineInfo = buildLines(data.tokens);
     buildScriptInfo(ss);
     buildStyleInfo(ss);
     buildStyles(ss);
     buildEventInfo(ss);
-    buildEvents(ss, lineInfo);
-    buildHighlights(ss, lineInfo);
-
+    buildEvents(ss);
+    buildHighlights(ss);
 
     text = ss.str();
 }
@@ -85,25 +84,24 @@ Ass::~Ass() {
     }
 }
 
-Ass::LineInfo Ass::buildLines(const std::vector<Token>& tokens) {
-    LineInfo info;
-    info.minLineIdx = -1;
-    info.maxLineIdx = -1;
+Ass::LineInfo::LineInfo(const std::vector<Token>& tokens) {
+    minLineIdx = -1;
+    maxLineIdx = -1;
 
     std::string tokenLineStr;
     int lastLineIdx = -1;
 
     for (const Token& token : tokens) {
-        if (info.minLineIdx == -1 || token.lineIndex < info.minLineIdx) {
-            info.minLineIdx = token.lineIndex;
+        if (minLineIdx == -1 || token.lineIndex < minLineIdx) {
+            minLineIdx = token.lineIndex;
         }
-        if (info.maxLineIdx == -1 || token.lineIndex > info.maxLineIdx) {
-            info.maxLineIdx = token.lineIndex;
+        if (maxLineIdx == -1 || token.lineIndex > maxLineIdx) {
+            maxLineIdx = token.lineIndex;
         }
 
         if (token.lineIndex != lastLineIdx) {
             if (!tokenLineStr.empty()) {
-                info.lines.push_back(std::move(tokenLineStr));
+                lines.push_back(std::move(tokenLineStr));
             }
             tokenLineStr = token.text;
             lastLineIdx = token.lineIndex;
@@ -117,10 +115,8 @@ Ass::LineInfo Ass::buildLines(const std::vector<Token>& tokens) {
     }
 
     if (!tokenLineStr.empty()) {
-        info.lines.push_back(std::move(tokenLineStr));
+        lines.push_back(std::move(tokenLineStr));
     }
-
-    return info;
 }
 
 void Ass::buildScriptInfo(std::ostringstream& ss) {
@@ -160,7 +156,7 @@ void Ass::buildEventInfo(std::ostringstream& ss) {
     ss << "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n";
 }
 
-void Ass::buildEvents(std::ostringstream& ss, const LineInfo& lineInfo) {
+void Ass::buildEvents(std::ostringstream& ss) {
     const double leftMargin = 50.0;
     const double topMargin = 50.0;
     const int audioLengthMs = d_data.audio.length * 1000;
@@ -169,15 +165,15 @@ void Ass::buildEvents(std::ostringstream& ss, const LineInfo& lineInfo) {
     const int fontHeight = font.getFontPixelHeight();
 
     // Build base text as separate dialogues per line with explicit positioning
-    for (size_t i = 0; i < lineInfo.lines.size(); ++i) {
+    for (size_t i = 0; i < d_lineInfo.lines.size(); ++i) {
         const double lineY = topMargin + i * fontHeight;
         ss << "Dialogue: 1," << formatTime(0) << "," << formatTime(audioLengthMs)
            << ",Base,,0,0,0,,{\\an7\\pos(" << leftMargin << "," << lineY << ")\\q2}"
-           << lineInfo.lines[i] << "\n";
+           << d_lineInfo.lines[i] << "\n";
     }
 }
 
-void Ass::buildHighlights(std::ostringstream& ss, const LineInfo& lineInfo) {
+void Ass::buildHighlights(std::ostringstream& ss) {
     const double leftMargin = 50.0;
     const double topMargin = 50.0;
     const int audioLengthMs = d_data.audio.length * 1000;
@@ -196,14 +192,14 @@ void Ass::buildHighlights(std::ostringstream& ss, const LineInfo& lineInfo) {
             continue;
         }
 
-        const std::string& lineText = lineInfo.lines.at(token.lineIndex - lineInfo.minLineIdx);
+        const std::string& lineText = d_lineInfo.lines.at(token.lineIndex - d_lineInfo.minLineIdx);
         // FIXME: This will only find the first occurence of the word
         // May be bad if the word is used multiple times in a line
         const size_t tokenCharPos = lineText.find(token.text);
 
         const std::string textBeforeToken = lineText.substr(0, tokenCharPos);
         const double tokenX = leftMargin + getStringWidth(textBeforeToken);
-        const double lineY = topMargin + (token.lineIndex - lineInfo.minLineIdx) * fontLineHeight;
+        const double lineY = topMargin + (token.lineIndex - d_lineInfo.minLineIdx) * fontLineHeight;
 
         // Use transparent text with colored border to emulate highlight
         // \1a&HFF& = fully transparent text

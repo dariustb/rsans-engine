@@ -19,28 +19,30 @@ struct Ass {
     ~Ass();
 
   private:
+    struct LineInfo {
+        std::vector<std::string> lines;
+        int minLineIdx;
+        int maxLineIdx;
+
+        LineInfo() = delete;
+        LineInfo(const std::vector<Token>& tokens);
+    } const d_lineInfo;
     const ProjectData& d_data;
     ASS_Library*  d_assLibrary;
     ASS_Renderer* d_assRenderer;
     std::string   d_fontFamily;
     int           d_fontSize;
-
+    
     int renderAssWidth(const std::string& text);
     int getStringWidth(const std::string& text);
+    // int getFontHeight();
 
-    struct LineInfo {
-        std::vector<std::string> lines;
-        int minLineIdx;
-        int maxLineIdx;
-    };
-    LineInfo buildLines(const std::vector<Token>& tokens);
-    
     void buildScriptInfo(std::ostringstream& ss);
     void buildStyleInfo(std::ostringstream& ss);
     void buildStyles(std::ostringstream& ss);
     void buildEventInfo(std::ostringstream& ss);
-    void buildEvents(std::ostringstream& ss, const LineInfo& lineInfo);
-    void buildHighlights(std::ostringstream& ss, const LineInfo& lineInfo);
+    void buildEvents(std::ostringstream& ss);
+    void buildHighlights(std::ostringstream& ss);
 };
 
 enum AssBorderStyle : int {
