@@ -41,6 +41,7 @@ std::string formatTime(int ms) {
 Ass::Ass(const ProjectData& data)
     : d_data(data)
     , d_lineInfo(data.tokens)
+    , d_fontHeight(0)
     , d_assLibrary(nullptr)
     , d_assRenderer(nullptr)
 {
@@ -60,6 +61,8 @@ Ass::Ass(const ProjectData& data)
     ass_set_frame_size(d_assRenderer, data.video.width, data.video.height);
     ass_set_fonts(d_assRenderer, data.layout.fontPath.c_str(),
     data.layout.fontName.c_str(), ASS_FONTPROVIDER_NONE, nullptr, 0);
+
+    d_fontHeight = getFontHeight();
 
     // Set up ASS file stuff
     std::ostringstream ss;
@@ -159,12 +162,9 @@ void Ass::buildEvents(std::ostringstream& ss) {
     const double topMargin = 50.0;
     const int audioLengthMs = d_data.audio.length * 1000;
 
-    FTFont font(d_data.layout.fontPath, d_data.layout.fontSize);
-    const int fontHeight = font.getFontPixelHeight();
-
     // Build base text as separate dialogues per line with explicit positioning
     for (size_t i = 0; i < d_lineInfo.lines.size(); ++i) {
-        const double lineY = topMargin + i * fontHeight;
+        const double lineY = topMargin + i * d_fontHeight;
         ss << "Dialogue: 1," << formatTime(0) << "," << formatTime(audioLengthMs)
            << ",Base,,0,0,0,,{\\an7\\pos(" << leftMargin << "," << lineY << ")\\q2}"
            << d_lineInfo.lines[i] << "\n";
@@ -175,9 +175,6 @@ void Ass::buildHighlights(std::ostringstream& ss) {
     const double leftMargin = 50.0;
     const double topMargin = 50.0;
     const int audioLengthMs = d_data.audio.length * 1000;
-
-    FTFont font(d_data.layout.fontPath, d_data.layout.fontSize);
-    const int fontLineHeight = font.getFontPixelHeight();
 
     for (const Token& token : d_data.tokens) {
         if (!token.rhymeGroup.has_value()) {
@@ -197,7 +194,7 @@ void Ass::buildHighlights(std::ostringstream& ss) {
 
         const std::string textBeforeToken = lineText.substr(0, tokenCharPos);
         const double tokenX = leftMargin + getStringWidth(textBeforeToken);
-        const double lineY = topMargin + (token.lineIndex - d_lineInfo.minLineIdx) * fontLineHeight;
+        const double lineY = topMargin + (token.lineIndex - d_lineInfo.minLineIdx) * d_fontHeight;
 
         // Use transparent text with colored border to emulate highlight
         // \1a&HFF& = fully transparent text
@@ -261,6 +258,46 @@ int Ass::getStringWidth(const std::string& text) {
     const int combined = renderAssWidth(text + sentinel);
     const int sentinelWidth = renderAssWidth(sentinel);
     return combined - sentinelWidth;
+}
+
+int Ass::getFontHeight() {
+    std::ostringstream oss;
+
+    buildScriptInfo(oss);
+    buildStyleInfo(oss);
+    buildStyles(oss);
+    buildEventInfo(oss);
+
+    const std::string text = "Hg";  // chars uses the top and bottom of the glyph space
+    const std::string textDialogue =
+        "Dialogue: 0,0:00:00.00,0:00:10.00,Base,,0,0,0,,{\\an7\\pos(0,0)}" + text + "\n";
+    oss << textDialogue;
+
+    ASS_Track* track = ass_read_memory(
+        d_assLibrary,
+        const_cast<char*>(oss.str().c_str()),
+        oss.str().size(),
+        nullptr);
+
+    if (!track) {
+        return 0;
+    }
+
+    int detect_change = 0;
+    ASS_Image* img = ass_render_frame(d_assRenderer, track, 0, &detect_change);
+
+    int maxY = 0;
+    for (ASS_Image* cur = img; cur; cur = cur->next) {
+        if (cur->w > 0 && cur->h > 0) {
+            int bottom = cur->dst_y + cur->h;
+            if (bottom > maxY) {
+                maxY = bottom;
+            }
+        }
+    }
+
+    ass_free_track(track);
+    return maxY;
 }
 
 AssStyle::AssStyle(const std::string styleName, const std::string fontName, const int fontSize)

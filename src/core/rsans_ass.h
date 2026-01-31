@@ -19,6 +19,7 @@ struct Ass {
     ~Ass();
 
   private:
+    const ProjectData& d_data;
     struct LineInfo {
         std::vector<std::string> lines;
         int minLineIdx;
@@ -27,13 +28,13 @@ struct Ass {
         LineInfo() = delete;
         LineInfo(const std::vector<Token>& tokens);
     } const d_lineInfo;
-    const ProjectData& d_data;
     ASS_Library*  d_assLibrary;
     ASS_Renderer* d_assRenderer;
+    int d_fontHeight;
     
-    int renderAssWidth(const std::string& text);
+    int getFontHeight();
     int getStringWidth(const std::string& text);
-    // int getFontHeight();
+    int renderAssWidth(const std::string& text);
 
     void buildScriptInfo(std::ostringstream& ss);
     void buildStyleInfo(std::ostringstream& ss);
