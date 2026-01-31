@@ -108,7 +108,10 @@ Ass::LineInfo Ass::buildLines(const std::vector<Token>& tokens) {
             tokenLineStr = token.text;
             lastLineIdx = token.lineIndex;
         } else {
-            tokenLineStr += ' ';
+            // Put commas next to end of text for grammar
+            if (token.text != ",") {
+                tokenLineStr += ' ';
+            }
             tokenLineStr += token.text;
         }
     }
