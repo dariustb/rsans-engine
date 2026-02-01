@@ -40,23 +40,23 @@ std::string formatTime(int ms) {
 
 Ass::Ass(const ProjectData& data)
     : d_data(data)
-    , d_lineInfo(std::make_unique<LineInfo>(data.tokens))
+    , d_lineInfo_p(std::make_unique<LineInfo>(data.tokens))
     , d_fontHeight(0)
 {
     // Init libass stuff
-    d_assLibrary.reset(ass_library_init());
-    if (!d_assLibrary) {
+    d_library_p.reset(ass_library_init());
+    if (!d_library_p) {
         throw std::runtime_error("Failed to initialize libass library");
     }
-    ass_set_message_cb(d_assLibrary.get(), silentAssLog, nullptr);
+    ass_set_message_cb(d_library_p.get(), silentAssLog, nullptr);
 
-    d_assRenderer.reset(ass_renderer_init(d_assLibrary.get()));
-    if (!d_assRenderer) {
+    d_renderer_p.reset(ass_renderer_init(d_library_p.get()));
+    if (!d_renderer_p) {
         throw std::runtime_error("Failed to initialize libass renderer");
     }
-    ass_set_storage_size(d_assRenderer.get(), data.video.width, data.video.height);
-    ass_set_frame_size(d_assRenderer.get(), data.video.width, data.video.height);
-    ass_set_fonts(d_assRenderer.get(), data.layout.fontPath.c_str(),
+    ass_set_storage_size(d_renderer_p.get(), data.video.width, data.video.height);
+    ass_set_frame_size(d_renderer_p.get(), data.video.width, data.video.height);
+    ass_set_fonts(d_renderer_p.get(), data.layout.fontPath.c_str(),
     data.layout.fontName.c_str(), ASS_FONTPROVIDER_NONE, nullptr, 0);
 
     d_fontHeight = getFontHeight();
@@ -152,11 +152,11 @@ void Ass::buildEvents(std::ostringstream& ss) {
     const int audioLengthMs = d_data.audio.length * 1000;
 
     // Build base text as separate dialogues per line with explicit positioning
-    for (size_t i = 0; i < d_lineInfo->lines.size(); ++i) {
+    for (size_t i = 0; i < d_lineInfo_p->lines.size(); ++i) {
         const double lineY = topMargin + i * d_fontHeight;
         ss << "Dialogue: 1," << formatTime(0) << "," << formatTime(audioLengthMs)
            << ",Base,,0,0,0,,{\\an7\\pos(" << leftMargin << "," << lineY << ")\\q2}"
-           << d_lineInfo->lines[i] << "\n";
+           << d_lineInfo_p->lines[i] << "\n";
     }
 }
 
@@ -176,14 +176,14 @@ void Ass::buildHighlights(std::ostringstream& ss) {
             continue;
         }
 
-        const std::string& lineText = d_lineInfo->lines.at(token.lineIndex - d_lineInfo->minLineIdx);
+        const std::string& lineText = d_lineInfo_p->lines.at(token.lineIndex - d_lineInfo_p->minLineIdx);
         // FIXME: This will only find the first occurence of the word
         // May be bad if the word is used multiple times in a line
         const size_t tokenCharPos = lineText.find(token.text);
 
         const std::string textBeforeToken = lineText.substr(0, tokenCharPos);
         const double tokenX = leftMargin + getStringWidth(textBeforeToken);
-        const double lineY = topMargin + (token.lineIndex - d_lineInfo->minLineIdx) * d_fontHeight;
+        const double lineY = topMargin + (token.lineIndex - d_lineInfo_p->minLineIdx) * d_fontHeight;
 
         // Use transparent text with colored border to emulate highlight
         // \1a&HFF& = fully transparent text
@@ -216,7 +216,7 @@ int Ass::renderAssWidth(const std::string& text) {
     oss << textDialogue;
 
     ASS_Track* track = ass_read_memory(
-        d_assLibrary.get(),
+        d_library_p.get(),
         const_cast<char*>(oss.str().c_str()),
         oss.str().size(),
         nullptr);
@@ -226,7 +226,7 @@ int Ass::renderAssWidth(const std::string& text) {
     }
 
     int detect_change = 0;
-    ASS_Image* img = ass_render_frame(d_assRenderer.get(), track, 0, &detect_change);
+    ASS_Image* img = ass_render_frame(d_renderer_p.get(), track, 0, &detect_change);
 
     int maxX = 0;
     for (ASS_Image* cur = img; cur; cur = cur->next) {
@@ -263,7 +263,7 @@ int Ass::getFontHeight() {
     oss << textDialogue;
 
     ASS_Track* track = ass_read_memory(
-        d_assLibrary.get(),
+        d_library_p.get(),
         const_cast<char*>(oss.str().c_str()),
         oss.str().size(),
         nullptr);
@@ -273,7 +273,7 @@ int Ass::getFontHeight() {
     }
 
     int detect_change = 0;
-    ASS_Image* img = ass_render_frame(d_assRenderer.get(), track, 0, &detect_change);
+    ASS_Image* img = ass_render_frame(d_renderer_p.get(), track, 0, &detect_change);
 
     int maxY = 0;
     for (ASS_Image* cur = img; cur; cur = cur->next) {

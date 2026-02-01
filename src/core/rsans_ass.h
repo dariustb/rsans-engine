@@ -21,17 +21,17 @@ class Ass {
 
     const ProjectData& d_data;
 
-    std::unique_ptr<LineInfo> d_lineInfo;
+    std::unique_ptr<LineInfo> d_lineInfo_p;
 
-    struct AssLibraryDeleter {
+    struct LibraryDeleter {
         void operator()(ASS_Library* p) const { ass_library_done(p); }
     };
-    struct AssRendererDeleter {
+    struct RendererDeleter {
         void operator()(ASS_Renderer* p) const { ass_renderer_done(p); }
     };
 
-    std::unique_ptr<ASS_Library, AssLibraryDeleter>   d_assLibrary;
-    std::unique_ptr<ASS_Renderer, AssRendererDeleter>  d_assRenderer;
+    std::unique_ptr<ASS_Library, LibraryDeleter> d_library_p;
+    std::unique_ptr<ASS_Renderer, RendererDeleter> d_renderer_p;
 
     int d_fontHeight;
 
