@@ -115,7 +115,6 @@ int Ass::renderAssHeight() {
 }
 
 int Ass::renderAssWidth(const std::string& text) {
-    // TODO: refactor other script setup functions and call them here instead
     std::ostringstream oss;
 
     buildScriptInfo(oss);
