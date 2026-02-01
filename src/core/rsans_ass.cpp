@@ -4,6 +4,7 @@
 
 #include <ass/ass.h>
 
+#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -39,7 +40,7 @@ std::string formatTime(int ms) {
 
 Ass::Ass(const ProjectData& data)
     : d_data(data)
-    , d_lineInfo(data.tokens)
+    , d_lineInfo(std::make_unique<LineInfo>(data.tokens))
     , d_fontHeight(0)
     , d_assLibrary(nullptr)
     , d_assRenderer(nullptr)
@@ -138,15 +139,15 @@ void Ass::buildStyleInfo(std::ostringstream& ss) {
 
 void Ass::buildStyles(std::ostringstream& ss) {
     // Make Base style line
-    const AssStyle baseStyle("Base", d_data.layout.fontName, d_data.layout.fontSize);
+    const Style baseStyle("Base", d_data.layout.fontName, d_data.layout.fontSize);
     ss << baseStyle.toAssLine();
 
     // Make Highlight style lines
-    AssStyle highlightStyle = baseStyle;
+    Style highlightStyle = baseStyle;
     for (const auto& [groupName, style] : d_data.rhymeStyles) {
         highlightStyle.name = groupName;
         highlightStyle.primaryColor = hexToAssColor(style.color);
-        highlightStyle.borderStyle = AssBorderStyle::OpaqueBox;
+        highlightStyle.borderStyle = BorderStyle::OpaqueBox;
         ss << highlightStyle.toAssLine();
     }
     ss << "\n";
@@ -163,11 +164,11 @@ void Ass::buildEvents(std::ostringstream& ss) {
     const int audioLengthMs = d_data.audio.length * 1000;
 
     // Build base text as separate dialogues per line with explicit positioning
-    for (size_t i = 0; i < d_lineInfo.lines.size(); ++i) {
+    for (size_t i = 0; i < d_lineInfo->lines.size(); ++i) {
         const double lineY = topMargin + i * d_fontHeight;
         ss << "Dialogue: 1," << formatTime(0) << "," << formatTime(audioLengthMs)
            << ",Base,,0,0,0,,{\\an7\\pos(" << leftMargin << "," << lineY << ")\\q2}"
-           << d_lineInfo.lines[i] << "\n";
+           << d_lineInfo->lines[i] << "\n";
     }
 }
 
@@ -187,14 +188,14 @@ void Ass::buildHighlights(std::ostringstream& ss) {
             continue;
         }
 
-        const std::string& lineText = d_lineInfo.lines.at(token.lineIndex - d_lineInfo.minLineIdx);
+        const std::string& lineText = d_lineInfo->lines.at(token.lineIndex - d_lineInfo->minLineIdx);
         // FIXME: This will only find the first occurence of the word
         // May be bad if the word is used multiple times in a line
         const size_t tokenCharPos = lineText.find(token.text);
 
         const std::string textBeforeToken = lineText.substr(0, tokenCharPos);
         const double tokenX = leftMargin + getStringWidth(textBeforeToken);
-        const double lineY = topMargin + (token.lineIndex - d_lineInfo.minLineIdx) * d_fontHeight;
+        const double lineY = topMargin + (token.lineIndex - d_lineInfo->minLineIdx) * d_fontHeight;
 
         // Use transparent text with colored border to emulate highlight
         // \1a&HFF& = fully transparent text
@@ -300,13 +301,13 @@ int Ass::getFontHeight() {
     return maxY;
 }
 
-AssStyle::AssStyle(const std::string styleName, const std::string fontName, const int fontSize)
+Ass::Style::Style(const std::string styleName, const std::string fontName, const int fontSize)
 : name(styleName)
 , fontName(fontName)
 , fontSize(fontSize)
 {}
 
-std::string AssStyle::toAssLine() const {
+std::string Ass::Style::toAssLine() const {
     std::ostringstream oss;
     oss << "Style: " << name << ',' << fontName << ',' << fontSize << ','
         << primaryColor << ',' << secondaryColor << ',' << outlineColor << ',' << backColor << ','
@@ -322,20 +323,20 @@ std::string AssStyle::toAssLine() const {
     return oss.str();
 }
 
-AssDialogue::AssDialogue(int64_t startMs, int64_t endMs, std::string styleName, std::string text_)
+Ass::Dialogue::Dialogue(int64_t startMs, int64_t endMs, std::string styleName, std::string text_)
 : startMs(startMs)
 , endMs(endMs)
 , style(std::move(styleName))
 , text(std::move(text_))
 {}
 
-std::string AssDialogue::toAssLine() const {
+std::string Ass::Dialogue::toAssLine() const {
     std::ostringstream oss;
     oss << "Dialogue: " << layer << ','
         << formatTime(startMs) << ',' << formatTime(endMs) << ','
         << style << ',' << name << ','
         << marginL << ',' << marginR << ',' << marginV << ','
-        << effect << ',' << text;
+        << effect << ',' << text << '\n';
 
     return oss.str();
 }

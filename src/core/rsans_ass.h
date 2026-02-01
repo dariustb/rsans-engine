@@ -5,25 +5,30 @@
 
 #include <ass/ass.h>
 
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
 
 class Ass {
   private:
-    const ProjectData& d_data;
-    struct LineInfo {
-        std::vector<std::string> lines;
-        int minLineIdx;
-        int maxLineIdx;
+    enum BorderStyle: int;
+    enum Alignment: int;
 
-        LineInfo() = delete;
-        LineInfo(const std::vector<Token>& tokens);
-    } const d_lineInfo;
+    struct Style;
+    struct Dialogue;
+    struct LineInfo;
+
+    const ProjectData& d_data;
+
+    std::unique_ptr<LineInfo> d_lineInfo;
+
     ASS_Library*  d_assLibrary;
     ASS_Renderer* d_assRenderer;
-    std::ostringstream d_ss;
+
     int d_fontHeight;
+
+    std::ostringstream d_ss;
     
     int getFontHeight();
     int getStringWidth(const std::string& text);
@@ -47,12 +52,12 @@ class Ass {
     Ass& operator=(const Ass&) = delete;
 };
 
-enum AssBorderStyle : int {
+enum Ass::BorderStyle : int {
     Outline   = 1,
     OpaqueBox = 3
 };
 
-enum AssAlignment : int {
+enum Ass::Alignment : int {
     BottomLeft     = 1,
     BottomCenter   = 2,
     BottomRight    = 3,
@@ -64,7 +69,16 @@ enum AssAlignment : int {
     TopRight       = 9
 };
 
-struct AssStyle {
+struct Ass::LineInfo {
+    std::vector<std::string> lines;
+    int minLineIdx;
+    int maxLineIdx;
+
+    LineInfo() = delete;
+    LineInfo(const std::vector<Token>& tokens);
+};
+
+struct Ass::Style {
     // Required values
     std::string name;
     std::string fontName;
@@ -89,12 +103,12 @@ struct AssStyle {
     int  angle     = 0;
 
     // Border / shadow
-    AssBorderStyle borderStyle = AssBorderStyle::Outline;
+    BorderStyle borderStyle = BorderStyle::Outline;
     int  outlineWidth          = 0;
     int  shadowDepth           = 0;
 
     // Alignment and margins
-    AssAlignment alignment = AssAlignment::TopLeft;
+    Alignment alignment = Alignment::TopLeft;
     int marginL            = 10;
     int marginR            = 10;
     int marginV            = 10;
@@ -103,11 +117,11 @@ struct AssStyle {
 
     std::string toAssLine() const;
 
-    AssStyle() = delete;
-    AssStyle(const std::string styleName, const std::string fontName, const int fontSize);
+    Style() = delete;
+    Style(const std::string styleName, const std::string fontName, const int fontSize);
 };
 
-struct AssDialogue {
+struct Ass::Dialogue {
     int      layer   = 0;
     int64_t  startMs = 0;  // start time in milliseconds
     int64_t  endMs   = 0;  // end time in milliseconds
@@ -122,11 +136,10 @@ struct AssDialogue {
     std::string effect;  // usually empty
     std::string text;    // raw ASS text, including any override tags
 
-    AssDialogue() = delete;
-    AssDialogue(int64_t startMs, int64_t endMs, std::string styleName, std::string text_);
+    Dialogue() = delete;
+    Dialogue(int64_t startMs, int64_t endMs, std::string styleName, std::string text_);
 
     std::string toAssLine() const;
 };
-
 
 #endif
