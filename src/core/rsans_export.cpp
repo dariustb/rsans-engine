@@ -43,7 +43,7 @@ int exportVideo(const ProjectData& data,
     const Ass assSubtitles(data);
     const std::string assPath = "lyrics.ass";
     
-    writeFile(assPath, assSubtitles.text);
+    writeFile(assPath, assSubtitles.text());
 
     return executeFfmpegBuild(data, outputVideoPath, ffmpegPath, assPath);
 }

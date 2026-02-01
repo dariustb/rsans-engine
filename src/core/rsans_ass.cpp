@@ -1,7 +1,6 @@
 #include <rsans_ass.h>
 
 #include <rsans_data.h>
-#include <rsans_font.h>
 
 #include <ass/ass.h>
 
@@ -65,15 +64,12 @@ Ass::Ass(const ProjectData& data)
     d_fontHeight = getFontHeight();
 
     // Set up ASS file stuff
-    std::ostringstream ss;
-    buildScriptInfo(ss);
-    buildStyleInfo(ss);
-    buildStyles(ss);
-    buildEventInfo(ss);
-    buildEvents(ss);
-    buildHighlights(ss);
-
-    text = ss.str();
+    buildScriptInfo(d_ss);
+    buildStyleInfo(d_ss);
+    buildStyles(d_ss);
+    buildEventInfo(d_ss);
+    buildEvents(d_ss);
+    buildHighlights(d_ss);
 }
 
 Ass::~Ass() {
@@ -83,6 +79,10 @@ Ass::~Ass() {
     if (d_assLibrary) {
         ass_library_done(d_assLibrary);
     }
+}
+
+std::string Ass::text() const {
+    return d_ss.str();
 }
 
 Ass::LineInfo::LineInfo(const std::vector<Token>& tokens) {

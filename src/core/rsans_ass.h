@@ -10,15 +10,6 @@
 #include <vector>
 
 class Ass {
-  public:
-    std::string text;
-
-    Ass() = delete;
-    Ass(const Ass&) = delete;
-    Ass& operator=(const Ass&) = delete;
-    Ass(const ProjectData& data);
-    ~Ass();
-
   private:
     const ProjectData& d_data;
     struct LineInfo {
@@ -31,6 +22,7 @@ class Ass {
     } const d_lineInfo;
     ASS_Library*  d_assLibrary;
     ASS_Renderer* d_assRenderer;
+    std::ostringstream d_ss;
     int d_fontHeight;
     
     int getFontHeight();
@@ -43,6 +35,16 @@ class Ass {
     void buildEventInfo(std::ostringstream& ss);
     void buildEvents(std::ostringstream& ss);
     void buildHighlights(std::ostringstream& ss);
+
+  public:
+    std::string text() const;
+
+    Ass(const ProjectData& data);
+    ~Ass();
+    
+    Ass() = delete;
+    Ass(const Ass&) = delete;
+    Ass& operator=(const Ass&) = delete;
 };
 
 enum AssBorderStyle : int {

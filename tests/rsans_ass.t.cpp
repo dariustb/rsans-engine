@@ -62,10 +62,10 @@ TEST(AssTest, AssConstructorCreatesValidOutputGivenBasicTokens) {
     const Ass ass(data);
 
     // Then
-    ASSERT_FALSE(ass.text.empty());
-    EXPECT_NE(ass.text.find("[Script Info]"), std::string::npos);
-    EXPECT_NE(ass.text.find("[V4+ Styles]"), std::string::npos);
-    EXPECT_NE(ass.text.find("[Events]"), std::string::npos);
+    ASSERT_FALSE(ass.text().empty());
+    EXPECT_NE(ass.text().find("[Script Info]"), std::string::npos);
+    EXPECT_NE(ass.text().find("[V4+ Styles]"), std::string::npos);
+    EXPECT_NE(ass.text().find("[Events]"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorGeneratesScriptInfoGivenVideoConfig) {
@@ -79,9 +79,9 @@ TEST(AssTest, AssConstructorGeneratesScriptInfoGivenVideoConfig) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("PlayResX: 1920"), std::string::npos);
-    EXPECT_NE(ass.text.find("PlayResY: 1080"), std::string::npos);
-    EXPECT_NE(ass.text.find("ScriptType: v4.00+"), std::string::npos);
+    EXPECT_NE(ass.text().find("PlayResX: 1920"), std::string::npos);
+    EXPECT_NE(ass.text().find("PlayResY: 1080"), std::string::npos);
+    EXPECT_NE(ass.text().find("ScriptType: v4.00+"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorGeneratesBaseStyleGivenLayoutConfig) {
@@ -95,8 +95,8 @@ TEST(AssTest, AssConstructorGeneratesBaseStyleGivenLayoutConfig) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("Style: Base"), std::string::npos);
-    EXPECT_NE(ass.text.find("DejaVu Sans Mono"), std::string::npos);
+    EXPECT_NE(ass.text().find("Style: Base"), std::string::npos);
+    EXPECT_NE(ass.text().find("DejaVu Sans Mono"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorGeneratesRhymeStylesGivenRhymeGroups) {
@@ -114,7 +114,7 @@ TEST(AssTest, AssConstructorGeneratesRhymeStylesGivenRhymeGroups) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("Style: rhyme_0"), std::string::npos);
+    EXPECT_NE(ass.text().find("Style: rhyme_0"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorGeneratesMultipleRhymeStylesGivenMultipleGroups) {
@@ -134,8 +134,8 @@ TEST(AssTest, AssConstructorGeneratesMultipleRhymeStylesGivenMultipleGroups) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("Style: rhyme_0"), std::string::npos);
-    EXPECT_NE(ass.text.find("Style: rhyme_1"), std::string::npos);
+    EXPECT_NE(ass.text().find("Style: rhyme_0"), std::string::npos);
+    EXPECT_NE(ass.text().find("Style: rhyme_1"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorGeneratesBaseDialogueGivenTokens) {
@@ -150,9 +150,9 @@ TEST(AssTest, AssConstructorGeneratesBaseDialogueGivenTokens) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("Dialogue: 1,"), std::string::npos);
-    EXPECT_NE(ass.text.find("Hello world"), std::string::npos);
-    EXPECT_NE(ass.text.find(",Base,"), std::string::npos);
+    EXPECT_NE(ass.text().find("Dialogue: 1,"), std::string::npos);
+    EXPECT_NE(ass.text().find("Hello world"), std::string::npos);
+    EXPECT_NE(ass.text().find(",Base,"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorGeneratesRhymeDialoguesGivenRhymeTokens) {
@@ -170,8 +170,8 @@ TEST(AssTest, AssConstructorGeneratesRhymeDialoguesGivenRhymeTokens) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("Dialogue: 0,"), std::string::npos);
-    EXPECT_NE(ass.text.find(",rhyme_0,"), std::string::npos);
+    EXPECT_NE(ass.text().find("Dialogue: 0,"), std::string::npos);
+    EXPECT_NE(ass.text().find(",rhyme_0,"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorCreatesValidStructureGivenEmptyTokens) {
@@ -183,10 +183,10 @@ TEST(AssTest, AssConstructorCreatesValidStructureGivenEmptyTokens) {
     const Ass ass(data);
 
     // Then
-    ASSERT_FALSE(ass.text.empty());
-    EXPECT_NE(ass.text.find("[Script Info]"), std::string::npos);
-    EXPECT_NE(ass.text.find("[V4+ Styles]"), std::string::npos);
-    EXPECT_NE(ass.text.find("[Events]"), std::string::npos);
+    ASSERT_FALSE(ass.text().empty());
+    EXPECT_NE(ass.text().find("[Script Info]"), std::string::npos);
+    EXPECT_NE(ass.text().find("[V4+ Styles]"), std::string::npos);
+    EXPECT_NE(ass.text().find("[Events]"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorCreatesValidOutputGivenSingleToken) {
@@ -200,7 +200,7 @@ TEST(AssTest, AssConstructorCreatesValidOutputGivenSingleToken) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("Solo"), std::string::npos);
+    EXPECT_NE(ass.text().find("Solo"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorOmitsRhymeDialoguesGivenTokensWithoutRhymes) {
@@ -217,13 +217,13 @@ TEST(AssTest, AssConstructorOmitsRhymeDialoguesGivenTokensWithoutRhymes) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("Dialogue: 1,"), std::string::npos);
-    EXPECT_NE(ass.text.find("Hello world"), std::string::npos);
-    EXPECT_NE(ass.text.find("no rhymes"), std::string::npos);
+    EXPECT_NE(ass.text().find("Dialogue: 1,"), std::string::npos);
+    EXPECT_NE(ass.text().find("Hello world"), std::string::npos);
+    EXPECT_NE(ass.text().find("no rhymes"), std::string::npos);
 
     size_t pos = 0;
     int count = 0;
-    while ((pos = ass.text.find("Dialogue: 0,", pos)) != std::string::npos) {
+    while ((pos = ass.text().find("Dialogue: 0,", pos)) != std::string::npos) {
         ++count;
         pos += 12;
     }
@@ -249,12 +249,12 @@ TEST(AssTest, AssConstructorHandlesMixedTokensGivenBothRhymeAndNonRhyme) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("The cat sat"), std::string::npos);
-    EXPECT_NE(ass.text.find("on the mat"), std::string::npos);
+    EXPECT_NE(ass.text().find("The cat sat"), std::string::npos);
+    EXPECT_NE(ass.text().find("on the mat"), std::string::npos);
 
     size_t pos = 0;
     int count = 0;
-    while ((pos = ass.text.find("Dialogue: 0,", pos)) != std::string::npos) {
+    while ((pos = ass.text().find("Dialogue: 0,", pos)) != std::string::npos) {
         ++count;
         pos += 12;
     }
@@ -280,7 +280,7 @@ TEST(AssTest, AssConstructorHandlesDuplicateWordsGivenRepeatedTokensOnSameLine) 
     // may be positioned at the same X coordinate
     size_t pos = 0;
     int count = 0;
-    while ((pos = ass.text.find("Dialogue: 0,", pos)) != std::string::npos) {
+    while ((pos = ass.text().find("Dialogue: 0,", pos)) != std::string::npos) {
         ++count;
         pos += 12;
     }
@@ -301,7 +301,7 @@ TEST(AssTest, AssConstructorFormatsTimesCorrectlyGivenTokens) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("0:00:00.00"), std::string::npos);
+    EXPECT_NE(ass.text().find("0:00:00.00"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorUsesAudioLengthWhenCalculatingEndTime) {
@@ -315,9 +315,9 @@ TEST(AssTest, AssConstructorUsesAudioLengthWhenCalculatingEndTime) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("Dialogue: 1,0:00:00.00,"), std::string::npos);
+    EXPECT_NE(ass.text().find("Dialogue: 1,0:00:00.00,"), std::string::npos);
 
-    const bool hasValidTime = (ass.text.find("0:00:10") != std::string::npos);
+    const bool hasValidTime = (ass.text().find("0:00:10") != std::string::npos);
     EXPECT_TRUE(hasValidTime);
 }
 
@@ -335,7 +335,7 @@ TEST(AssTest, AssConstructorIncludesPositioningTagsGivenTokens) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("\\pos("), std::string::npos);
+    EXPECT_NE(ass.text().find("\\pos("), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorIncludesHighlightFormattingGivenRhymeTokens) {
@@ -352,10 +352,10 @@ TEST(AssTest, AssConstructorIncludesHighlightFormattingGivenRhymeTokens) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("\\1a&HFF&"), std::string::npos);  // Fully trans text
-    EXPECT_NE(ass.text.find("\\3c"), std::string::npos);  // Outline/border color
-    EXPECT_NE(ass.text.find("\\3a&H00&"), std::string::npos);  // Opaque
-    EXPECT_NE(ass.text.find("\\bord"), std::string::npos);  // Border thickness setting
+    EXPECT_NE(ass.text().find("\\1a&HFF&"), std::string::npos);  // Fully trans text
+    EXPECT_NE(ass.text().find("\\3c"), std::string::npos);  // Outline/border color
+    EXPECT_NE(ass.text().find("\\3a&H00&"), std::string::npos);  // Opaque
+    EXPECT_NE(ass.text().find("\\bord"), std::string::npos);  // Border thickness setting
 }
 
 TEST(AssTest, AssConstructorPositionsLinesVerticallyGivenMultipleLines) {
@@ -374,9 +374,9 @@ TEST(AssTest, AssConstructorPositionsLinesVerticallyGivenMultipleLines) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("Line one"), std::string::npos);
-    EXPECT_NE(ass.text.find("Line two"), std::string::npos);
-    EXPECT_NE(ass.text.find("Line three"), std::string::npos);
+    EXPECT_NE(ass.text().find("Line one"), std::string::npos);
+    EXPECT_NE(ass.text().find("Line two"), std::string::npos);
+    EXPECT_NE(ass.text().find("Line three"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorConvertsColorsToAssFormatGivenRhymeStyles) {
@@ -393,8 +393,8 @@ TEST(AssTest, AssConstructorConvertsColorsToAssFormatGivenRhymeStyles) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("Style: rhyme_0"), std::string::npos);
-    EXPECT_NE(ass.text.find("&H00"), std::string::npos);
+    EXPECT_NE(ass.text().find("Style: rhyme_0"), std::string::npos);
+    EXPECT_NE(ass.text().find("&H00"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorIncludesAlignmentTagsGivenTokens) {
@@ -408,7 +408,7 @@ TEST(AssTest, AssConstructorIncludesAlignmentTagsGivenTokens) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("\\an7"), std::string::npos);
+    EXPECT_NE(ass.text().find("\\an7"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorUsesCorrectAlignmentGivenRhymeTokens) {
@@ -425,5 +425,5 @@ TEST(AssTest, AssConstructorUsesCorrectAlignmentGivenRhymeTokens) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text.find("\\an7"), std::string::npos);
+    EXPECT_NE(ass.text().find("\\an7"), std::string::npos);
 }
