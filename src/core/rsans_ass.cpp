@@ -74,39 +74,91 @@ std::string Ass::text() const {
     return d_ss.str();
 }
 
-Ass::LineInfo::LineInfo(const std::vector<Token>& tokens) {
-    minLineIdx = -1;
-    maxLineIdx = -1;
+int Ass::getFontHeight() {
+    std::ostringstream oss;
 
-    std::string tokenLineStr;
-    int lastLineIdx = -1;
+    buildScriptInfo(oss);
+    buildStyleInfo(oss);
+    buildStyles(oss);
+    buildEventInfo(oss);
 
-    for (const Token& token : tokens) {
-        if (minLineIdx == -1 || token.lineIndex < minLineIdx) {
-            minLineIdx = token.lineIndex;
-        }
-        if (maxLineIdx == -1 || token.lineIndex > maxLineIdx) {
-            maxLineIdx = token.lineIndex;
-        }
+    const std::string text = "Hg";  // chars uses the top and bottom of the glyph space
+    const std::string textDialogue =
+        "Dialogue: 0,0:00:00.00,0:00:10.00,Base,,0,0,0,,{\\an7\\pos(0,0)}" + text + "\n";
+    oss << textDialogue;
 
-        if (token.lineIndex != lastLineIdx) {
-            if (!tokenLineStr.empty()) {
-                lines.push_back(std::move(tokenLineStr));
+    ASS_Track* track = ass_read_memory(
+        d_library_p.get(),
+        const_cast<char*>(oss.str().c_str()),
+        oss.str().size(),
+        nullptr);
+
+    if (!track) {
+        return 0;
+    }
+
+    int detect_change = 0;
+    ASS_Image* img = ass_render_frame(d_renderer_p.get(), track, 0, &detect_change);
+
+    int maxY = 0;
+    for (ASS_Image* cur = img; cur; cur = cur->next) {
+        if (cur->w > 0 && cur->h > 0) {
+            int bottom = cur->dst_y + cur->h;
+            if (bottom > maxY) {
+                maxY = bottom;
             }
-            tokenLineStr = token.text;
-            lastLineIdx = token.lineIndex;
-        } else {
-            // Put commas next to end of text for grammar
-            if (token.text != ",") {
-                tokenLineStr += ' ';
-            }
-            tokenLineStr += token.text;
         }
     }
 
-    if (!tokenLineStr.empty()) {
-        lines.push_back(std::move(tokenLineStr));
+    ass_free_track(track);
+    return maxY;
+}
+
+int Ass::renderAssWidth(const std::string& text) {
+    // TODO: refactor other script setup functions and call them here instead
+    std::ostringstream oss;
+
+    buildScriptInfo(oss);
+    buildStyleInfo(oss);
+    buildStyles(oss);
+    buildEventInfo(oss);
+    
+    const std::string textDialogue =
+        "Dialogue: 0,0:00:00.00,0:00:10.00,Base,,0,0,0,,{\\an7\\pos(0,0)}" + text + "\n";
+    oss << textDialogue;
+
+    ASS_Track* track = ass_read_memory(
+        d_library_p.get(),
+        const_cast<char*>(oss.str().c_str()),
+        oss.str().size(),
+        nullptr);
+
+    if (!track) {
+        return 0;
     }
+
+    int detect_change = 0;
+    ASS_Image* img = ass_render_frame(d_renderer_p.get(), track, 0, &detect_change);
+
+    int maxX = 0;
+    for (ASS_Image* cur = img; cur; cur = cur->next) {
+        if (cur->w > 0 && cur->h > 0) {
+            int right = cur->dst_x + cur->w;
+            if (right > maxX) {
+                maxX = right;
+            }
+        }
+    }
+
+    ass_free_track(track);
+    return maxX;
+}
+
+int Ass::getStringWidth(const std::string& text) {
+    const std::string sentinel = "|";  // Trailing spaces get removed in libass render
+    const int combined = renderAssWidth(text + sentinel);
+    const int sentinelWidth = renderAssWidth(sentinel);
+    return combined - sentinelWidth;
 }
 
 void Ass::buildScriptInfo(std::ostringstream& ss) {
@@ -202,93 +254,6 @@ void Ass::buildHighlights(std::ostringstream& ss) {
     }
 }
 
-int Ass::renderAssWidth(const std::string& text) {
-    // TODO: refactor other script setup functions and call them here instead
-    std::ostringstream oss;
-
-    buildScriptInfo(oss);
-    buildStyleInfo(oss);
-    buildStyles(oss);
-    buildEventInfo(oss);
-    
-    const std::string textDialogue =
-        "Dialogue: 0,0:00:00.00,0:00:10.00,Base,,0,0,0,,{\\an7\\pos(0,0)}" + text + "\n";
-    oss << textDialogue;
-
-    ASS_Track* track = ass_read_memory(
-        d_library_p.get(),
-        const_cast<char*>(oss.str().c_str()),
-        oss.str().size(),
-        nullptr);
-
-    if (!track) {
-        return 0;
-    }
-
-    int detect_change = 0;
-    ASS_Image* img = ass_render_frame(d_renderer_p.get(), track, 0, &detect_change);
-
-    int maxX = 0;
-    for (ASS_Image* cur = img; cur; cur = cur->next) {
-        if (cur->w > 0 && cur->h > 0) {
-            int right = cur->dst_x + cur->w;
-            if (right > maxX) {
-                maxX = right;
-            }
-        }
-    }
-
-    ass_free_track(track);
-    return maxX;
-}
-
-int Ass::getStringWidth(const std::string& text) {
-    const std::string sentinel = "|";  // Trailing spaces get removed in libass render
-    const int combined = renderAssWidth(text + sentinel);
-    const int sentinelWidth = renderAssWidth(sentinel);
-    return combined - sentinelWidth;
-}
-
-int Ass::getFontHeight() {
-    std::ostringstream oss;
-
-    buildScriptInfo(oss);
-    buildStyleInfo(oss);
-    buildStyles(oss);
-    buildEventInfo(oss);
-
-    const std::string text = "Hg";  // chars uses the top and bottom of the glyph space
-    const std::string textDialogue =
-        "Dialogue: 0,0:00:00.00,0:00:10.00,Base,,0,0,0,,{\\an7\\pos(0,0)}" + text + "\n";
-    oss << textDialogue;
-
-    ASS_Track* track = ass_read_memory(
-        d_library_p.get(),
-        const_cast<char*>(oss.str().c_str()),
-        oss.str().size(),
-        nullptr);
-
-    if (!track) {
-        return 0;
-    }
-
-    int detect_change = 0;
-    ASS_Image* img = ass_render_frame(d_renderer_p.get(), track, 0, &detect_change);
-
-    int maxY = 0;
-    for (ASS_Image* cur = img; cur; cur = cur->next) {
-        if (cur->w > 0 && cur->h > 0) {
-            int bottom = cur->dst_y + cur->h;
-            if (bottom > maxY) {
-                maxY = bottom;
-            }
-        }
-    }
-
-    ass_free_track(track);
-    return maxY;
-}
-
 Ass::Style::Style(const std::string styleName, const std::string fontName, const int fontSize)
 : name(styleName)
 , fontName(fontName)
@@ -327,4 +292,39 @@ std::string Ass::Dialogue::toAssLine() const {
         << effect << ',' << text << '\n';
 
     return oss.str();
+}
+
+Ass::LineInfo::LineInfo(const std::vector<Token>& tokens) {
+    minLineIdx = -1;
+    maxLineIdx = -1;
+
+    std::string tokenLineStr;
+    int lastLineIdx = -1;
+
+    for (const Token& token : tokens) {
+        if (minLineIdx == -1 || token.lineIndex < minLineIdx) {
+            minLineIdx = token.lineIndex;
+        }
+        if (maxLineIdx == -1 || token.lineIndex > maxLineIdx) {
+            maxLineIdx = token.lineIndex;
+        }
+
+        if (token.lineIndex != lastLineIdx) {
+            if (!tokenLineStr.empty()) {
+                lines.push_back(std::move(tokenLineStr));
+            }
+            tokenLineStr = token.text;
+            lastLineIdx = token.lineIndex;
+        } else {
+            // Put commas next to end of text for grammar
+            if (token.text != ",") {
+                tokenLineStr += ' ';
+            }
+            tokenLineStr += token.text;
+        }
+    }
+
+    if (!tokenLineStr.empty()) {
+        lines.push_back(std::move(tokenLineStr));
+    }
 }

@@ -38,8 +38,8 @@ class Ass {
     std::ostringstream d_ss;
     
     int getFontHeight();
-    int getStringWidth(const std::string& text);
     int renderAssWidth(const std::string& text);
+    int getStringWidth(const std::string& text);
 
     void buildScriptInfo(std::ostringstream& ss);
     void buildStyleInfo(std::ostringstream& ss);
