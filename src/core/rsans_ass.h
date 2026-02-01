@@ -37,7 +37,7 @@ class Ass {
 
     std::ostringstream d_ss;
     
-    int getFontHeight();
+    int renderAssHeight();
     int renderAssWidth(const std::string& text);
     int getStringWidth(const std::string& text);
 

@@ -59,7 +59,7 @@ Ass::Ass(const ProjectData& data)
     ass_set_fonts(d_renderer_p.get(), data.layout.fontPath.c_str(),
     data.layout.fontName.c_str(), ASS_FONTPROVIDER_NONE, nullptr, 0);
 
-    d_fontHeight = getFontHeight();
+    d_fontHeight = renderAssHeight();
 
     // Set up ASS file stuff
     buildScriptInfo(d_ss);
@@ -74,7 +74,7 @@ std::string Ass::text() const {
     return d_ss.str();
 }
 
-int Ass::getFontHeight() {
+int Ass::renderAssHeight() {
     std::ostringstream oss;
 
     buildScriptInfo(oss);
