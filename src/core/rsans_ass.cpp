@@ -42,24 +42,21 @@ Ass::Ass(const ProjectData& data)
     : d_data(data)
     , d_lineInfo(std::make_unique<LineInfo>(data.tokens))
     , d_fontHeight(0)
-    , d_assLibrary(nullptr)
-    , d_assRenderer(nullptr)
 {
     // Init libass stuff
-    d_assLibrary = ass_library_init();
+    d_assLibrary.reset(ass_library_init());
     if (!d_assLibrary) {
         throw std::runtime_error("Failed to initialize libass library");
     }
-    ass_set_message_cb(d_assLibrary, silentAssLog, nullptr);
+    ass_set_message_cb(d_assLibrary.get(), silentAssLog, nullptr);
 
-    d_assRenderer = ass_renderer_init(d_assLibrary);
+    d_assRenderer.reset(ass_renderer_init(d_assLibrary.get()));
     if (!d_assRenderer) {
-        ass_library_done(d_assLibrary);
         throw std::runtime_error("Failed to initialize libass renderer");
     }
-    ass_set_storage_size(d_assRenderer, data.video.width, data.video.height);
-    ass_set_frame_size(d_assRenderer, data.video.width, data.video.height);
-    ass_set_fonts(d_assRenderer, data.layout.fontPath.c_str(),
+    ass_set_storage_size(d_assRenderer.get(), data.video.width, data.video.height);
+    ass_set_frame_size(d_assRenderer.get(), data.video.width, data.video.height);
+    ass_set_fonts(d_assRenderer.get(), data.layout.fontPath.c_str(),
     data.layout.fontName.c_str(), ASS_FONTPROVIDER_NONE, nullptr, 0);
 
     d_fontHeight = getFontHeight();
@@ -71,15 +68,6 @@ Ass::Ass(const ProjectData& data)
     buildEventInfo(d_ss);
     buildEvents(d_ss);
     buildHighlights(d_ss);
-}
-
-Ass::~Ass() {
-    if (d_assRenderer) {
-        ass_renderer_done(d_assRenderer);
-    }
-    if (d_assLibrary) {
-        ass_library_done(d_assLibrary);
-    }
 }
 
 std::string Ass::text() const {
@@ -228,7 +216,7 @@ int Ass::renderAssWidth(const std::string& text) {
     oss << textDialogue;
 
     ASS_Track* track = ass_read_memory(
-        d_assLibrary,
+        d_assLibrary.get(),
         const_cast<char*>(oss.str().c_str()),
         oss.str().size(),
         nullptr);
@@ -238,7 +226,7 @@ int Ass::renderAssWidth(const std::string& text) {
     }
 
     int detect_change = 0;
-    ASS_Image* img = ass_render_frame(d_assRenderer, track, 0, &detect_change);
+    ASS_Image* img = ass_render_frame(d_assRenderer.get(), track, 0, &detect_change);
 
     int maxX = 0;
     for (ASS_Image* cur = img; cur; cur = cur->next) {
@@ -275,7 +263,7 @@ int Ass::getFontHeight() {
     oss << textDialogue;
 
     ASS_Track* track = ass_read_memory(
-        d_assLibrary,
+        d_assLibrary.get(),
         const_cast<char*>(oss.str().c_str()),
         oss.str().size(),
         nullptr);
@@ -285,7 +273,7 @@ int Ass::getFontHeight() {
     }
 
     int detect_change = 0;
-    ASS_Image* img = ass_render_frame(d_assRenderer, track, 0, &detect_change);
+    ASS_Image* img = ass_render_frame(d_assRenderer.get(), track, 0, &detect_change);
 
     int maxY = 0;
     for (ASS_Image* cur = img; cur; cur = cur->next) {

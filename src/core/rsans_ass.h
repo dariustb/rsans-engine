@@ -23,8 +23,15 @@ class Ass {
 
     std::unique_ptr<LineInfo> d_lineInfo;
 
-    ASS_Library*  d_assLibrary;
-    ASS_Renderer* d_assRenderer;
+    struct AssLibraryDeleter {
+        void operator()(ASS_Library* p) const { ass_library_done(p); }
+    };
+    struct AssRendererDeleter {
+        void operator()(ASS_Renderer* p) const { ass_renderer_done(p); }
+    };
+
+    std::unique_ptr<ASS_Library, AssLibraryDeleter>   d_assLibrary;
+    std::unique_ptr<ASS_Renderer, AssRendererDeleter>  d_assRenderer;
 
     int d_fontHeight;
 
@@ -44,12 +51,8 @@ class Ass {
   public:
     std::string text() const;
 
-    Ass(const ProjectData& data);
-    ~Ass();
-    
     Ass() = delete;
-    Ass(const Ass&) = delete;
-    Ass& operator=(const Ass&) = delete;
+    Ass(const ProjectData& data);
 };
 
 enum Ass::BorderStyle : int {
