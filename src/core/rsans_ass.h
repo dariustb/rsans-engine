@@ -29,6 +29,9 @@ class Ass {
     struct RendererDeleter {
         void operator()(ASS_Renderer* p) const { ass_renderer_done(p); }
     };
+    struct TrackDeleter {
+        void operator()(ASS_Track* p) const { ass_free_track(p); }
+    };
 
     std::unique_ptr<ASS_Library, LibraryDeleter> d_library_p;
     std::unique_ptr<ASS_Renderer, RendererDeleter> d_renderer_p;

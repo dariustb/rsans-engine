@@ -87,18 +87,18 @@ int Ass::renderAssHeight() {
         "Dialogue: 0,0:00:00.00,0:00:10.00,Base,,0,0,0,,{\\an7\\pos(0,0)}" + text + "\n";
     oss << textDialogue;
 
-    ASS_Track* track = ass_read_memory(
+    std::unique_ptr<ASS_Track, TrackDeleter> track(ass_read_memory(
         d_library_p.get(),
         const_cast<char*>(oss.str().c_str()),
         oss.str().size(),
-        nullptr);
+        nullptr));
 
     if (!track) {
         return 0;
     }
 
     int detect_change = 0;
-    ASS_Image* img = ass_render_frame(d_renderer_p.get(), track, 0, &detect_change);
+    ASS_Image* img = ass_render_frame(d_renderer_p.get(), track.get(), 0, &detect_change);
 
     int maxY = 0;
     for (ASS_Image* cur = img; cur; cur = cur->next) {
@@ -110,7 +110,6 @@ int Ass::renderAssHeight() {
         }
     }
 
-    ass_free_track(track);
     return maxY;
 }
 
@@ -126,18 +125,18 @@ int Ass::renderAssWidth(const std::string& text) {
         "Dialogue: 0,0:00:00.00,0:00:10.00,Base,,0,0,0,,{\\an7\\pos(0,0)}" + text + "\n";
     oss << textDialogue;
 
-    ASS_Track* track = ass_read_memory(
+    std::unique_ptr<ASS_Track, TrackDeleter> track(ass_read_memory(
         d_library_p.get(),
         const_cast<char*>(oss.str().c_str()),
         oss.str().size(),
-        nullptr);
+        nullptr));
 
     if (!track) {
         return 0;
     }
 
     int detect_change = 0;
-    ASS_Image* img = ass_render_frame(d_renderer_p.get(), track, 0, &detect_change);
+    ASS_Image* img = ass_render_frame(d_renderer_p.get(), track.get(), 0, &detect_change);
 
     int maxX = 0;
     for (ASS_Image* cur = img; cur; cur = cur->next) {
@@ -149,7 +148,6 @@ int Ass::renderAssWidth(const std::string& text) {
         }
     }
 
-    ass_free_track(track);
     return maxX;
 }
 
