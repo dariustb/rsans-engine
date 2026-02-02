@@ -64,15 +64,15 @@ enum Ass::BorderStyle : int {
 };
 
 enum Ass::Alignment : int {
-    BottomLeft     = 1,
-    BottomCenter   = 2,
-    BottomRight    = 3,
-    MiddleLeft     = 4,
-    MiddleCenter   = 5,
-    MiddleRight    = 6,
-    TopLeft        = 7,
-    TopCenter      = 8,
-    TopRight       = 9
+    BottomLeft   = 1,
+    BottomCenter = 2,
+    BottomRight  = 3,
+    MiddleLeft   = 4,
+    MiddleCenter = 5,
+    MiddleRight  = 6,
+    TopLeft      = 7,
+    TopCenter    = 8,
+    TopRight     = 9
 };
 
 struct Ass::LineInfo {
@@ -85,41 +85,34 @@ struct Ass::LineInfo {
 };
 
 struct Ass::Style {
-    // Required values
     std::string name;
     std::string fontName;
     int         fontSize;
 
-    // Colors as ASS format
     std::string primaryColor   = "&H00000000";  // black
     std::string secondaryColor = "&H00000000";
     std::string outlineColor   = "&H00000000";
     std::string backColor      = "&H00000000";  // transparent by default
 
-    // Font styles
     bool isBold      = false;
     bool isItalic    = false;
     bool isUnderline = false;
     bool isStrikeOut = false;
 
-    // Transform
-    int  scaleX    = 100;
-    int  scaleY    = 100;
-    int  spacing   = 0;
-    int  angle     = 0;
+    int  scaleX  = 100;
+    int  scaleY  = 100;
+    int  spacing = 0;
+    int  angle   = 0;
 
-    // Border / shadow
     BorderStyle borderStyle = BorderStyle::Outline;
     int  outlineWidth          = 0;
     int  shadowDepth           = 0;
 
-    // Alignment and margins
     Alignment alignment = Alignment::TopLeft;
-    int marginL            = 10;
-    int marginR            = 10;
-    int marginV            = 10;
-
-    int encoding           = 1;  // usually 1 (ANSI) or 0
+    int marginL  = 10;
+    int marginR  = 10;
+    int marginV  = 10;
+    int encoding = 1;  // usually 1 (ANSI) or 0
 
     std::string toAssLine() const;
 
@@ -135,9 +128,9 @@ struct Ass::Dialogue {
     std::string style;
     std::string name;  // usually empty
 
-    int marginL      = 0;  // in script units, zero-padded to 4 digits
-    int marginR      = 0;
-    int marginV      = 0;
+    int marginL = 0;  // in script units, zero-padded to 4 digits
+    int marginR = 0;
+    int marginV = 0;
 
     std::string effect;  // usually empty
     std::string text;    // raw ASS text, including any override tags
