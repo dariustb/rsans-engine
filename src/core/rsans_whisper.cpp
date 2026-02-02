@@ -133,6 +133,7 @@ std::vector<Token> extractTokensFromAudio(
             tokenText.erase(0, tokenText.find_first_not_of(" \t\n\r"));
             tokenText.erase(tokenText.find_last_not_of(" \t\n\r") + 1);
 
+            // This skips tokens with non-word text that Whisper creates sometimes
             if (tokenText.empty() || tokenText == "[_BEG_]" ||
                 tokenText.rfind("[_TT_", 0) == 0 || tokenText[0] == '<') {
                 continue;
