@@ -44,6 +44,7 @@ std::string createTestProjectJson(const std::vector<Token>& tokens, const std::s
     }
 
     json << R"("rhymeStyles": {},
+        "colorSwatch": [],
         "tokens": [)";
 
     for (size_t i = 0; i < tokens.size(); ++i) {
@@ -53,9 +54,9 @@ std::string createTestProjectJson(const std::vector<Token>& tokens, const std::s
              << ",\"startMs\":" << tokens[i].startMs
              << ",\"endMs\":" << tokens[i].endMs
              << ",\"lineIndex\":" << tokens[i].lineIndex
-             << ",\"rhymeGroup\":";
-        if (tokens[i].rhymeGroup.has_value()) {
-            json << "\"" << tokens[i].rhymeGroup.value() << "\"";
+             << ",\"rhymeIndex\":";
+        if (tokens[i].rhymeIndex.has_value()) {
+            json << tokens[i].rhymeIndex.value();
         } else {
             json << "null";
         }
@@ -452,9 +453,9 @@ TEST(DetectRhymesTest, DetectRhymesAssignsGroupGivenPerfectRhymes) {
     const ProjectData result = detectRhymes(input);
 
     // Then: Both tokens should have the same rhyme group
-    ASSERT_TRUE(result.tokens[0].rhymeGroup.has_value());
-    ASSERT_TRUE(result.tokens[1].rhymeGroup.has_value());
-    EXPECT_EQ(result.tokens[0].rhymeGroup.value(), result.tokens[1].rhymeGroup.value());
+    ASSERT_TRUE(result.tokens[0].rhymeIndex.has_value());
+    ASSERT_TRUE(result.tokens[1].rhymeIndex.has_value());
+    EXPECT_EQ(result.tokens[0].rhymeIndex.value(), result.tokens[1].rhymeIndex.value());
 }
 
 TEST(DetectRhymesTest, DetectRhymesAssignsNoGroupGivenNonRhymingWords) {
@@ -470,8 +471,8 @@ TEST(DetectRhymesTest, DetectRhymesAssignsNoGroupGivenNonRhymingWords) {
     const ProjectData result = detectRhymes(input);
 
     // Then: Neither token should have a rhyme group (singletons are filtered)
-    EXPECT_FALSE(result.tokens[0].rhymeGroup.has_value());
-    EXPECT_FALSE(result.tokens[1].rhymeGroup.has_value());
+    EXPECT_FALSE(result.tokens[0].rhymeIndex.has_value());
+    EXPECT_FALSE(result.tokens[1].rhymeIndex.has_value());
 }
 
 TEST(DetectRhymesTest, DetectRhymesMergesGroupsGivenAssonance) {
@@ -488,9 +489,9 @@ TEST(DetectRhymesTest, DetectRhymesMergesGroupsGivenAssonance) {
     const ProjectData result = detectRhymes(input);
 
     // Then: Both should be in same group via vowel matching
-    ASSERT_TRUE(result.tokens[0].rhymeGroup.has_value());
-    ASSERT_TRUE(result.tokens[1].rhymeGroup.has_value());
-    EXPECT_EQ(result.tokens[0].rhymeGroup.value(), result.tokens[1].rhymeGroup.value());
+    ASSERT_TRUE(result.tokens[0].rhymeIndex.has_value());
+    ASSERT_TRUE(result.tokens[1].rhymeIndex.has_value());
+    EXPECT_EQ(result.tokens[0].rhymeIndex.value(), result.tokens[1].rhymeIndex.value());
 }
 
 TEST(DetectRhymesTest, DetectRhymesDoesNotGroupGivenOnlyConsonanceMatch) {
@@ -507,8 +508,8 @@ TEST(DetectRhymesTest, DetectRhymesDoesNotGroupGivenOnlyConsonanceMatch) {
     const ProjectData result = detectRhymes(input);
 
     // Then: Should NOT be grouped (consonance alone is not enough)
-    EXPECT_FALSE(result.tokens[0].rhymeGroup.has_value());
-    EXPECT_FALSE(result.tokens[1].rhymeGroup.has_value());
+    EXPECT_FALSE(result.tokens[0].rhymeIndex.has_value());
+    EXPECT_FALSE(result.tokens[1].rhymeIndex.has_value());
 }
 
 TEST(DetectRhymesTest, DetectRhymesHandlesUnknownWordsGivenWordsNotInDict) {
@@ -524,8 +525,8 @@ TEST(DetectRhymesTest, DetectRhymesHandlesUnknownWordsGivenWordsNotInDict) {
     const ProjectData result = detectRhymes(input);
 
     // Then: Unknown word should have no rhyme group, known word is singleton so also none
-    EXPECT_FALSE(result.tokens[0].rhymeGroup.has_value());
-    EXPECT_FALSE(result.tokens[1].rhymeGroup.has_value());
+    EXPECT_FALSE(result.tokens[0].rhymeIndex.has_value());
+    EXPECT_FALSE(result.tokens[1].rhymeIndex.has_value());
 }
 
 TEST(DetectRhymesTest, DetectRhymesReturnsUnchangedDataGivenEmptyTokens) {
@@ -553,7 +554,7 @@ TEST(DetectRhymesTest, DetectRhymesReturnsUnchangedDataGivenSingleToken) {
     const ProjectData result = detectRhymes(input);
 
     // Then: Single token can't form a rhyme group
-    EXPECT_FALSE(result.tokens[0].rhymeGroup.has_value());
+    EXPECT_FALSE(result.tokens[0].rhymeIndex.has_value());
 }
 
 TEST(DetectRhymesTest, DetectRhymesNormalizesWordGivenPunctuation) {
@@ -569,9 +570,9 @@ TEST(DetectRhymesTest, DetectRhymesNormalizesWordGivenPunctuation) {
     const ProjectData result = detectRhymes(input);
 
     // Then: Should still detect rhyme after stripping punctuation
-    ASSERT_TRUE(result.tokens[0].rhymeGroup.has_value());
-    ASSERT_TRUE(result.tokens[1].rhymeGroup.has_value());
-    EXPECT_EQ(result.tokens[0].rhymeGroup.value(), result.tokens[1].rhymeGroup.value());
+    ASSERT_TRUE(result.tokens[0].rhymeIndex.has_value());
+    ASSERT_TRUE(result.tokens[1].rhymeIndex.has_value());
+    EXPECT_EQ(result.tokens[0].rhymeIndex.value(), result.tokens[1].rhymeIndex.value());
 }
 
 TEST(DetectRhymesTest, DetectRhymesAssignsMultipleGroupsGivenDistinctRhymeSets) {
@@ -589,14 +590,14 @@ TEST(DetectRhymesTest, DetectRhymesAssignsMultipleGroupsGivenDistinctRhymeSets) 
     const ProjectData result = detectRhymes(input);
 
     // Then: cat/hat should be one group, dog/log another
-    ASSERT_TRUE(result.tokens[0].rhymeGroup.has_value()); // cat
-    ASSERT_TRUE(result.tokens[1].rhymeGroup.has_value()); // dog
-    ASSERT_TRUE(result.tokens[2].rhymeGroup.has_value()); // hat
-    ASSERT_TRUE(result.tokens[3].rhymeGroup.has_value()); // log
+    ASSERT_TRUE(result.tokens[0].rhymeIndex.has_value()); // cat
+    ASSERT_TRUE(result.tokens[1].rhymeIndex.has_value()); // dog
+    ASSERT_TRUE(result.tokens[2].rhymeIndex.has_value()); // hat
+    ASSERT_TRUE(result.tokens[3].rhymeIndex.has_value()); // log
 
-    EXPECT_EQ(result.tokens[0].rhymeGroup.value(), result.tokens[2].rhymeGroup.value()); // cat = hat
-    EXPECT_EQ(result.tokens[1].rhymeGroup.value(), result.tokens[3].rhymeGroup.value()); // dog = log
-    EXPECT_NE(result.tokens[0].rhymeGroup.value(), result.tokens[1].rhymeGroup.value()); // cat != dog
+    EXPECT_EQ(result.tokens[0].rhymeIndex.value(), result.tokens[2].rhymeIndex.value()); // cat = hat
+    EXPECT_EQ(result.tokens[1].rhymeIndex.value(), result.tokens[3].rhymeIndex.value()); // dog = log
+    EXPECT_NE(result.tokens[0].rhymeIndex.value(), result.tokens[1].rhymeIndex.value()); // cat != dog
 }
 
 TEST(DetectRhymesTest, DetectRhymesHandlesThreeWayRhymeGivenThreeRhymingWords) {
@@ -613,14 +614,14 @@ TEST(DetectRhymesTest, DetectRhymesHandlesThreeWayRhymeGivenThreeRhymingWords) {
     const ProjectData result = detectRhymes(input);
 
     // Then: All three should be in the same group
-    ASSERT_TRUE(result.tokens[0].rhymeGroup.has_value());
-    ASSERT_TRUE(result.tokens[1].rhymeGroup.has_value());
-    ASSERT_TRUE(result.tokens[2].rhymeGroup.has_value());
-    EXPECT_EQ(result.tokens[0].rhymeGroup.value(), result.tokens[1].rhymeGroup.value());
-    EXPECT_EQ(result.tokens[1].rhymeGroup.value(), result.tokens[2].rhymeGroup.value());
+    ASSERT_TRUE(result.tokens[0].rhymeIndex.has_value());
+    ASSERT_TRUE(result.tokens[1].rhymeIndex.has_value());
+    ASSERT_TRUE(result.tokens[2].rhymeIndex.has_value());
+    EXPECT_EQ(result.tokens[0].rhymeIndex.value(), result.tokens[1].rhymeIndex.value());
+    EXPECT_EQ(result.tokens[1].rhymeIndex.value(), result.tokens[2].rhymeIndex.value());
 }
 
-TEST(DetectRhymesTest, DetectRhymesGroupNameStartsWithRhymePrefixGivenRhymingTokens) {
+TEST(DetectRhymesTest, DetectRhymesAssignsNonNegativeIndexGivenRhymingTokens) {
     // Given: Two rhyming words
     TempDictFile dictFile("cat K AE1 T\nhat HH AE1 T\n");
     std::vector<Token> tokens = {
@@ -632,7 +633,7 @@ TEST(DetectRhymesTest, DetectRhymesGroupNameStartsWithRhymePrefixGivenRhymingTok
     // When
     const ProjectData result = detectRhymes(input);
 
-    // Then: Group name should start with "rhyme_"
-    ASSERT_TRUE(result.tokens[0].rhymeGroup.has_value());
-    EXPECT_EQ(result.tokens[0].rhymeGroup.value().substr(0, 6), "rhyme_");
+    // Then: rhymeIndex should be a non-negative integer
+    ASSERT_TRUE(result.tokens[0].rhymeIndex.has_value());
+    EXPECT_GE(result.tokens[0].rhymeIndex.value(), 0);
 }

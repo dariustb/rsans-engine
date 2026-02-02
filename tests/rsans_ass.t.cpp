@@ -10,7 +10,7 @@
 // Helper function to create a basic ProjectData for testing
 ProjectData createTestProjectData(
     const std::vector<Token>& tokens,
-    const std::map<std::string, ProjectData::RhymeStyle>& rhymeStyles = {})
+    const std::vector<std::string>& colorHexValues = {})
 {
     // Create a minimal JSON with required fields
     std::ostringstream json;
@@ -33,16 +33,15 @@ ProjectData createTestProjectData(
         "model": {
             "path": "models/base.bin"
         },
-        "rhymeStyles": {)";
+        "rhymeStyles": {},
+        "colorSwatch": [)";
 
-    bool first = true;
-    for (const auto& [group, style] : rhymeStyles) {
-        if (!first) json << ",";
-        json << "\"" << group << "\": {\"color\": \"" << style.color << "\"}";
-        first = false;
+    for (size_t i = 0; i < colorHexValues.size(); ++i) {
+        if (i > 0) json << ",";
+        json << "\"" << colorHexValues[i] << "\"";
     }
 
-    json << R"(},
+    json << R"(],
         "tokens": []
     })";
 
@@ -100,15 +99,12 @@ TEST(AssTest, AssConstructorGeneratesBaseStyleGivenLayoutConfig) {
 }
 
 TEST(AssTest, AssConstructorGeneratesRhymeStylesGivenRhymeGroups) {
-    // Given: Tokens with rhyme group and corresponding rhyme style
+    // Given: Tokens with rhyme index and corresponding color in swatch
     std::vector<Token> tokens = {
-        {1, "cat", 0, 500, 0, "rhyme_0"},
-        {2, "hat", 500, 1000, 1, "rhyme_0"}
+        {1, "cat", 0, 500, 0, 0},
+        {2, "hat", 500, 1000, 1, 0}
     };
-    std::map<std::string, ProjectData::RhymeStyle> rhymeStyles = {
-        {"rhyme_0", {"#FF0000"}}
-    };
-    const ProjectData data = createTestProjectData(tokens, rhymeStyles);
+    const ProjectData data = createTestProjectData(tokens, {"#FF0000"});
 
     // When
     const Ass ass(data);
@@ -120,15 +116,11 @@ TEST(AssTest, AssConstructorGeneratesRhymeStylesGivenRhymeGroups) {
 TEST(AssTest, AssConstructorGeneratesMultipleRhymeStylesGivenMultipleGroups) {
     // Given: Tokens with two different rhyme groups
     std::vector<Token> tokens = {
-        {1, "cat", 0, 500, 0, "rhyme_0"},
-        {2, "dog", 500, 1000, 1, "rhyme_1"},
-        {3, "hat", 1000, 1500, 2, "rhyme_0"}
+        {1, "cat", 0, 500, 0, 0},
+        {2, "dog", 500, 1000, 1, 1},
+        {3, "hat", 1000, 1500, 2, 0}
     };
-    std::map<std::string, ProjectData::RhymeStyle> rhymeStyles = {
-        {"rhyme_0", {"#FF0000"}},
-        {"rhyme_1", {"#00FF00"}}
-    };
-    const ProjectData data = createTestProjectData(tokens, rhymeStyles);
+    const ProjectData data = createTestProjectData(tokens, {"#FF0000", "#00FF00"});
 
     // When
     const Ass ass(data);
@@ -158,13 +150,10 @@ TEST(AssTest, AssConstructorGeneratesBaseDialogueGivenTokens) {
 TEST(AssTest, AssConstructorGeneratesRhymeDialoguesGivenRhymeTokens) {
     // Given
     std::vector<Token> tokens = {
-        {1, "cat", 0, 500, 0, "rhyme_0"},
-        {2, "hat", 500, 1000, 1, "rhyme_0"}
+        {1, "cat", 0, 500, 0, 0},
+        {2, "hat", 500, 1000, 1, 0}
     };
-    std::map<std::string, ProjectData::RhymeStyle> rhymeStyles = {
-        {"rhyme_0", {"#FF0000"}}
-    };
-    const ProjectData data = createTestProjectData(tokens, rhymeStyles);
+    const ProjectData data = createTestProjectData(tokens, {"#FF0000"});
 
     // When
     const Ass ass(data);
@@ -234,16 +223,13 @@ TEST(AssTest, AssConstructorHandlesMixedTokensGivenBothRhymeAndNonRhyme) {
     // Given
     std::vector<Token> tokens = {
         {1, "The", 0, 200, 0, std::nullopt},
-        {2, "cat", 200, 500, 0, "A"},
+        {2, "cat", 200, 500, 0, 0},
         {3, "sat", 500, 800, 0, std::nullopt},
         {4, "on", 800, 1000, 1, std::nullopt},
         {5, "the", 1000, 1200, 1, std::nullopt},
-        {6, "mat", 1200, 1500, 1, "A"}
+        {6, "mat", 1200, 1500, 1, 0}
     };
-    std::map<std::string, ProjectData::RhymeStyle> rhymeStyles = {
-        {"A", {"#FF0000"}}
-    };
-    const ProjectData data = createTestProjectData(tokens, rhymeStyles);
+    const ProjectData data = createTestProjectData(tokens, {"#FF0000"});
 
     // When
     const Ass ass(data);
@@ -264,13 +250,10 @@ TEST(AssTest, AssConstructorHandlesMixedTokensGivenBothRhymeAndNonRhyme) {
 TEST(AssTest, AssConstructorHandlesDuplicateWordsGivenRepeatedTokensOnSameLine) {
     // Given: Duplicate word "love" appearing twice on the same line
     std::vector<Token> tokens = {
-        {1, "love", 0, 500, 0, "A"},
-        {2, "love", 500, 1000, 0, "A"}
+        {1, "love", 0, 500, 0, 0},
+        {2, "love", 500, 1000, 0, 0}
     };
-    std::map<std::string, ProjectData::RhymeStyle> rhymeStyles = {
-        {"A", {"#FF0000"}}
-    };
-    const ProjectData data = createTestProjectData(tokens, rhymeStyles);
+    const ProjectData data = createTestProjectData(tokens, {"#FF0000"});
 
     // When
     const Ass ass(data);
@@ -290,12 +273,9 @@ TEST(AssTest, AssConstructorHandlesDuplicateWordsGivenRepeatedTokensOnSameLine) 
 TEST(AssTest, AssConstructorFormatsTimesCorrectlyGivenTokens) {
     // Given
     std::vector<Token> tokens = {
-        {1, "test", 0, 100, 0, "A"}
+        {1, "test", 0, 100, 0, 0}
     };
-    std::map<std::string, ProjectData::RhymeStyle> rhymeStyles = {
-        {"A", {"#FF0000"}}
-    };
-    const ProjectData data = createTestProjectData(tokens);
+    const ProjectData data = createTestProjectData(tokens, {"#FF0000"});
 
     // When
     const Ass ass(data);
@@ -324,12 +304,9 @@ TEST(AssTest, AssConstructorUsesAudioLengthWhenCalculatingEndTime) {
 TEST(AssTest, AssConstructorIncludesPositioningTagsGivenTokens) {
     // Given
     std::vector<Token> tokens = {
-        {1, "test", 0, 100, 0, "A"}
+        {1, "test", 0, 100, 0, 0}
     };
-    std::map<std::string, ProjectData::RhymeStyle> rhymeStyles = {
-        {"A", {"#FF0000"}}
-    };
-    const ProjectData data = createTestProjectData(tokens, rhymeStyles);
+    const ProjectData data = createTestProjectData(tokens, {"#FF0000"});
 
     // When
     const Ass ass(data);
@@ -341,12 +318,9 @@ TEST(AssTest, AssConstructorIncludesPositioningTagsGivenTokens) {
 TEST(AssTest, AssConstructorIncludesHighlightFormattingGivenRhymeTokens) {
     // Given
     std::vector<Token> tokens = {
-        {1, "test", 0, 100, 0, "A"}
+        {1, "test", 0, 100, 0, 0}
     };
-    std::map<std::string, ProjectData::RhymeStyle> rhymeStyles = {
-        {"A", {"#FF0000"}}
-    };
-    const ProjectData data = createTestProjectData(tokens, rhymeStyles);
+    const ProjectData data = createTestProjectData(tokens, {"#FF0000"});
 
     // When
     const Ass ass(data);
@@ -382,12 +356,9 @@ TEST(AssTest, AssConstructorPositionsLinesVerticallyGivenMultipleLines) {
 TEST(AssTest, AssConstructorConvertsColorsToAssFormatGivenRhymeStyles) {
     // Given
     std::vector<Token> tokens = {
-        {1, "red", 0, 500, 0, "rhyme_0"}
+        {1, "red", 0, 500, 0, 0}
     };
-    std::map<std::string, ProjectData::RhymeStyle> rhymeStyles = {
-        {"rhyme_0", {"#FF0000"}}
-    };
-    const ProjectData data = createTestProjectData(tokens, rhymeStyles);
+    const ProjectData data = createTestProjectData(tokens, {"#FF0000"});
 
     // When
     const Ass ass(data);
@@ -414,12 +385,9 @@ TEST(AssTest, AssConstructorIncludesAlignmentTagsGivenTokens) {
 TEST(AssTest, AssConstructorUsesCorrectAlignmentGivenRhymeTokens) {
     // Given
     std::vector<Token> tokens = {
-        {1, "test", 0, 100, 0, "A"}
+        {1, "test", 0, 100, 0, 0}
     };
-    std::map<std::string, ProjectData::RhymeStyle> rhymeStyles = {
-        {"A", {"#FF0000"}}
-    };
-    const ProjectData data = createTestProjectData(tokens, rhymeStyles);
+    const ProjectData data = createTestProjectData(tokens, {"#FF0000"});
 
     // When
     const Ass ass(data);

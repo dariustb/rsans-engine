@@ -18,6 +18,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesAudioConfigGivenValidJson) {
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
+        "colorSwatch": [],
         "tokens": []
     })";
 
@@ -41,6 +42,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesVideoConfigGivenValidJson) {
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
+        "colorSwatch": [],
         "tokens": []
     })";
 
@@ -66,6 +68,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesLayoutConfigGivenValidJson) {
         },
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
+        "colorSwatch": [],
         "tokens": []
     })";
 
@@ -86,6 +89,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesTokensGivenValidJson) {
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
+        "colorSwatch": [],
         "tokens": [
             {
                 "id": 1,
@@ -93,7 +97,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesTokensGivenValidJson) {
                 "startMs": 0,
                 "endMs": 500,
                 "lineIndex": 0,
-                "rhymeGroup": null
+                "rhymeIndex": null
             },
             {
                 "id": 2,
@@ -101,7 +105,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesTokensGivenValidJson) {
                 "startMs": 500,
                 "endMs": 1000,
                 "lineIndex": 0,
-                "rhymeGroup": null
+                "rhymeIndex": null
             }
         ]
     })";
@@ -116,14 +120,14 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesTokensGivenValidJson) {
     EXPECT_EQ(data.tokens[0].startMs, 0);
     EXPECT_EQ(data.tokens[0].endMs, 500);
     EXPECT_EQ(data.tokens[0].lineIndex, 0);
-    EXPECT_FALSE(data.tokens[0].rhymeGroup.has_value());
+    EXPECT_FALSE(data.tokens[0].rhymeIndex.has_value());
 
     EXPECT_EQ(data.tokens[1].id, 2);
     EXPECT_EQ(data.tokens[1].text, "world");
     EXPECT_EQ(data.tokens[1].startMs, 500);
     EXPECT_EQ(data.tokens[1].endMs, 1000);
     EXPECT_EQ(data.tokens[1].lineIndex, 0);
-    EXPECT_FALSE(data.tokens[1].rhymeGroup.has_value());
+    EXPECT_FALSE(data.tokens[1].rhymeIndex.has_value());
 }
 
 TEST(ProjectDataTest, ProjectDataConstructorParsesRhymeGroupGivenTokenWithRhyme) {
@@ -134,6 +138,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesRhymeGroupGivenTokenWithRhyme)
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {"A": {"color": "#FF0000"}},
+        "colorSwatch": [],
         "tokens": [
             {
                 "id": 1,
@@ -141,7 +146,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesRhymeGroupGivenTokenWithRhyme)
                 "startMs": 0,
                 "endMs": 500,
                 "lineIndex": 0,
-                "rhymeGroup": "A"
+                "rhymeIndex": 0
             }
         ]
     })";
@@ -151,32 +156,10 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesRhymeGroupGivenTokenWithRhyme)
 
     // Then
     EXPECT_EQ(data.tokens.size(), 1);
-    EXPECT_TRUE(data.tokens[0].rhymeGroup.has_value());
-    EXPECT_EQ(data.tokens[0].rhymeGroup.value(), "A");
+    EXPECT_TRUE(data.tokens[0].rhymeIndex.has_value());
+    EXPECT_EQ(data.tokens[0].rhymeIndex.value(), 0);
 }
 
-TEST(ProjectDataTest, ProjectDataConstructorParsesRhymeStylesGivenValidJson) {
-    // Given
-    const std::string json = R"({
-        "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
-        "model": {"path": "models/base.bin"},
-        "rhymeStyles": {
-            "A": {"color": "#FF0000"},
-            "B": {"color": "#00FF00"}
-        },
-        "tokens": []
-    })";
-
-    // When
-    const ProjectData data(json);
-
-    // Then
-    EXPECT_EQ(data.rhymeStyles.size(), 2);
-    EXPECT_EQ(data.rhymeStyles.at("A").color, "#FF0000");
-    EXPECT_EQ(data.rhymeStyles.at("B").color, "#00FF00");
-}
 
 TEST(ProjectDataTest, ProjectDataConstructorHandlesEmptyTokensGivenEmptyArray) {
     // Given
@@ -186,6 +169,7 @@ TEST(ProjectDataTest, ProjectDataConstructorHandlesEmptyTokensGivenEmptyArray) {
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
+        "colorSwatch": [],
         "tokens": []
     })";
 
@@ -204,6 +188,7 @@ TEST(ProjectDataTest, ProjectDataConstructorHandlesEmptyRhymeStylesGivenEmptyObj
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
+        "colorSwatch": [],
         "tokens": []
     })";
 
@@ -222,6 +207,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMixedRhymeGroupsGivenTokens) {
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {"A": {"color": "#FF0000"}},
+        "colorSwatch": [],
         "tokens": [
             {
                 "id": 1,
@@ -229,7 +215,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMixedRhymeGroupsGivenTokens) {
                 "startMs": 0,
                 "endMs": 500,
                 "lineIndex": 0,
-                "rhymeGroup": "A"
+                "rhymeIndex": 0
             },
             {
                 "id": 2,
@@ -237,7 +223,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMixedRhymeGroupsGivenTokens) {
                 "startMs": 500,
                 "endMs": 700,
                 "lineIndex": 0,
-                "rhymeGroup": null
+                "rhymeIndex": null
             },
             {
                 "id": 3,
@@ -245,7 +231,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMixedRhymeGroupsGivenTokens) {
                 "startMs": 700,
                 "endMs": 1000,
                 "lineIndex": 0,
-                "rhymeGroup": "A"
+                "rhymeIndex": 0
             }
         ]
     })";
@@ -255,11 +241,11 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMixedRhymeGroupsGivenTokens) {
 
     // Then
     EXPECT_EQ(data.tokens.size(), 3);
-    EXPECT_TRUE(data.tokens[0].rhymeGroup.has_value());
-    EXPECT_EQ(data.tokens[0].rhymeGroup.value(), "A");
-    EXPECT_FALSE(data.tokens[1].rhymeGroup.has_value());
-    EXPECT_TRUE(data.tokens[2].rhymeGroup.has_value());
-    EXPECT_EQ(data.tokens[2].rhymeGroup.value(), "A");
+    EXPECT_TRUE(data.tokens[0].rhymeIndex.has_value());
+    EXPECT_EQ(data.tokens[0].rhymeIndex.value(), 0);
+    EXPECT_FALSE(data.tokens[1].rhymeIndex.has_value());
+    EXPECT_TRUE(data.tokens[2].rhymeIndex.has_value());
+    EXPECT_EQ(data.tokens[2].rhymeIndex.value(), 0);
 }
 
 TEST(ProjectDataTest, ProjectDataConstructorParsesMultipleLinesGivenDifferentLineIndices) {
@@ -270,6 +256,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMultipleLinesGivenDifferentLin
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
+        "colorSwatch": [],
         "tokens": [
             {
                 "id": 1,
@@ -277,7 +264,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMultipleLinesGivenDifferentLin
                 "startMs": 0,
                 "endMs": 500,
                 "lineIndex": 0,
-                "rhymeGroup": null
+                "rhymeIndex": null
             },
             {
                 "id": 2,
@@ -285,7 +272,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMultipleLinesGivenDifferentLin
                 "startMs": 500,
                 "endMs": 1000,
                 "lineIndex": 1,
-                "rhymeGroup": null
+                "rhymeIndex": null
             },
             {
                 "id": 3,
@@ -293,7 +280,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMultipleLinesGivenDifferentLin
                 "startMs": 1000,
                 "endMs": 1500,
                 "lineIndex": 2,
-                "rhymeGroup": null
+                "rhymeIndex": null
             }
         ]
     })";
@@ -316,6 +303,7 @@ TEST(ProjectDataTest, ProjectDataConstructorReplacesTokensGivenBaseAndNewTokens)
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {"A": {"color": "#FF0000"}},
+        "colorSwatch": [],
         "tokens": [
             {
                 "id": 1,
@@ -323,7 +311,7 @@ TEST(ProjectDataTest, ProjectDataConstructorReplacesTokensGivenBaseAndNewTokens)
                 "startMs": 0,
                 "endMs": 500,
                 "lineIndex": 0,
-                "rhymeGroup": null
+                "rhymeIndex": null
             }
         ]
     })";
@@ -342,7 +330,6 @@ TEST(ProjectDataTest, ProjectDataConstructorReplacesTokensGivenBaseAndNewTokens)
     EXPECT_EQ(data.audio.path, "original.wav");
     EXPECT_EQ(data.video.width, 1920);
     EXPECT_EQ(data.layout.fontName, "Arial");
-    EXPECT_EQ(data.rhymeStyles.size(), 1);
 }
 
 TEST(ProjectDataTest, ProjectDataMoveConstructorPreservesDataGivenSource) {
@@ -353,6 +340,7 @@ TEST(ProjectDataTest, ProjectDataMoveConstructorPreservesDataGivenSource) {
         "layout": {"fontName": "Times", "fontPath": "fonts/times.ttf", "fontSize": 32, "lineHeight": 40},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {"X": {"color": "#ABCDEF"}},
+        "colorSwatch": ["#ABCDEF"],
         "tokens": [
             {
                 "id": 99,
@@ -360,7 +348,7 @@ TEST(ProjectDataTest, ProjectDataMoveConstructorPreservesDataGivenSource) {
                 "startMs": 10,
                 "endMs": 20,
                 "lineIndex": 5,
-                "rhymeGroup": "X"
+                "rhymeIndex": 0
             }
         ]
     })";
@@ -378,11 +366,10 @@ TEST(ProjectDataTest, ProjectDataMoveConstructorPreservesDataGivenSource) {
     EXPECT_EQ(data.layout.fontName, "Times");
     EXPECT_EQ(data.layout.fontSize, 32);
     EXPECT_EQ(data.layout.lineHeight, 40);
-    EXPECT_EQ(data.rhymeStyles.size(), 1);
-    EXPECT_EQ(data.rhymeStyles.at("X").color, "#ABCDEF");
     EXPECT_EQ(data.tokens.size(), 1);
     EXPECT_EQ(data.tokens[0].id, 99);
     EXPECT_EQ(data.tokens[0].text, "moved");
+    EXPECT_EQ(data.colorSwatch.size(), 1);
 }
 
 TEST(ProjectDataTest, ProjectDataConstructorParsesLargeTokenArrayGivenManyTokens) {
@@ -394,6 +381,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesLargeTokenArrayGivenManyTokens
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
+        "colorSwatch": [],
         "tokens": [)";
 
     for (int i = 0; i < 100; ++i) {
@@ -404,7 +392,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesLargeTokenArrayGivenManyTokens
             "startMs": )" << (i * 100) << R"(,
             "endMs": )" << ((i + 1) * 100) << R"(,
             "lineIndex": 0,
-            "rhymeGroup": null
+            "rhymeIndex": null
         })";
     }
     json << "]}";
@@ -427,6 +415,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesSpecialCharactersGivenUtf8Text
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
+        "colorSwatch": [],
         "tokens": [
             {
                 "id": 1,
@@ -434,7 +423,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesSpecialCharactersGivenUtf8Text
                 "startMs": 0,
                 "endMs": 500,
                 "lineIndex": 0,
-                "rhymeGroup": null
+                "rhymeIndex": null
             },
             {
                 "id": 2,
@@ -442,7 +431,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesSpecialCharactersGivenUtf8Text
                 "startMs": 500,
                 "endMs": 1000,
                 "lineIndex": 0,
-                "rhymeGroup": null
+                "rhymeIndex": null
             }
         ]
     })";
@@ -464,6 +453,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesZeroValuesGivenValidJson) {
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 0, "lineHeight": 0},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
+        "colorSwatch": [],
         "tokens": [
             {
                 "id": 0,
@@ -471,7 +461,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesZeroValuesGivenValidJson) {
                 "startMs": 0,
                 "endMs": 0,
                 "lineIndex": 0,
-                "rhymeGroup": null
+                "rhymeIndex": null
             }
         ]
     })";
@@ -498,6 +488,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesNegativeLineIndexGivenValidJso
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
+        "colorSwatch": [],
         "tokens": [
             {
                 "id": 1,
@@ -505,7 +496,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesNegativeLineIndexGivenValidJso
                 "startMs": 0,
                 "endMs": 500,
                 "lineIndex": -1,
-                "rhymeGroup": null
+                "rhymeIndex": null
             }
         ]
     })";
@@ -517,32 +508,6 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesNegativeLineIndexGivenValidJso
     EXPECT_EQ(data.tokens[0].lineIndex, -1);
 }
 
-TEST(ProjectDataTest, ProjectDataConstructorParsesMultipleRhymeStylesGivenComplexJson) {
-    // Given
-    const std::string json = R"({
-        "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
-        "model": {"path": "models/base.bin"},
-        "rhymeStyles": {
-            "A": {"color": "#FF0000"},
-            "B": {"color": "#00FF00"},
-            "C": {"color": "#0000FF"},
-            "Group1": {"color": "#FFFF00"}
-        },
-        "tokens": []
-    })";
-
-    // When
-    const ProjectData data(json);
-
-    // Then
-    EXPECT_EQ(data.rhymeStyles.size(), 4);
-    EXPECT_EQ(data.rhymeStyles.at("A").color, "#FF0000");
-    EXPECT_EQ(data.rhymeStyles.at("B").color, "#00FF00");
-    EXPECT_EQ(data.rhymeStyles.at("C").color, "#0000FF");
-    EXPECT_EQ(data.rhymeStyles.at("Group1").color, "#FFFF00");
-}
 
 TEST(ProjectDataTest, ProjectDataConstructorPreservesTokenOrderGivenSequentialTokens) {
     // Given
@@ -552,10 +517,11 @@ TEST(ProjectDataTest, ProjectDataConstructorPreservesTokenOrderGivenSequentialTo
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
+        "colorSwatch": [],
         "tokens": [
-            {"id": 3, "text": "third", "startMs": 0, "endMs": 100, "lineIndex": 0, "rhymeGroup": null},
-            {"id": 1, "text": "first", "startMs": 100, "endMs": 200, "lineIndex": 0, "rhymeGroup": null},
-            {"id": 2, "text": "second", "startMs": 200, "endMs": 300, "lineIndex": 0, "rhymeGroup": null}
+            {"id": 3, "text": "third", "startMs": 0, "endMs": 100, "lineIndex": 0, "rhymeIndex": null},
+            {"id": 1, "text": "first", "startMs": 100, "endMs": 200, "lineIndex": 0, "rhymeIndex": null},
+            {"id": 2, "text": "second", "startMs": 200, "endMs": 300, "lineIndex": 0, "rhymeIndex": null}
         ]
     })";
 
@@ -577,6 +543,7 @@ TEST(ProjectDataTest, ToJsonProducesValidJsonGivenProjectData) {
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
+        "colorSwatch": [],
         "tokens": []
     })";
     const ProjectData data(inputJson);
@@ -596,6 +563,7 @@ TEST(ProjectDataTest, ToJsonPreservesAudioConfigGivenProjectData) {
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
+        "colorSwatch": [],
         "tokens": []
     })";
     const ProjectData data(inputJson);
@@ -617,6 +585,7 @@ TEST(ProjectDataTest, ToJsonPreservesVideoConfigGivenProjectData) {
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
+        "colorSwatch": [],
         "tokens": []
     })";
     const ProjectData data(inputJson);
@@ -639,6 +608,7 @@ TEST(ProjectDataTest, ToJsonPreservesLayoutConfigGivenProjectData) {
         "layout": {"fontName": "Helvetica", "fontPath": "fonts/helvetica.ttf", "fontSize": 36, "lineHeight": 50},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
+        "colorSwatch": [],
         "tokens": []
     })";
     const ProjectData data(inputJson);
@@ -661,6 +631,7 @@ TEST(ProjectDataTest, ToJsonPreservesModelPathGivenProjectData) {
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/whisper-large.bin"},
         "rhymeStyles": {},
+        "colorSwatch": [],
         "tokens": []
     })";
     const ProjectData data(inputJson);
@@ -681,9 +652,10 @@ TEST(ProjectDataTest, ToJsonPreservesTokensGivenProjectDataWithTokens) {
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
+        "colorSwatch": [],
         "tokens": [
-            {"id": 1, "text": "hello", "startMs": 0, "endMs": 500, "lineIndex": 0, "rhymeGroup": null},
-            {"id": 2, "text": "world", "startMs": 500, "endMs": 1000, "lineIndex": 0, "rhymeGroup": null}
+            {"id": 1, "text": "hello", "startMs": 0, "endMs": 500, "lineIndex": 0, "rhymeIndex": null},
+            {"id": 2, "text": "world", "startMs": 500, "endMs": 1000, "lineIndex": 0, "rhymeIndex": null}
         ]
     })";
     const ProjectData data(inputJson);
@@ -699,7 +671,7 @@ TEST(ProjectDataTest, ToJsonPreservesTokensGivenProjectDataWithTokens) {
     EXPECT_EQ(j["tokens"][0]["startMs"], 0);
     EXPECT_EQ(j["tokens"][0]["endMs"], 500);
     EXPECT_EQ(j["tokens"][0]["lineIndex"], 0);
-    EXPECT_TRUE(j["tokens"][0]["rhymeGroup"].is_null());
+    EXPECT_TRUE(j["tokens"][0]["rhymeIndex"].is_null());
     EXPECT_EQ(j["tokens"][1]["id"], 2);
     EXPECT_EQ(j["tokens"][1]["text"], "world");
 }
@@ -712,8 +684,9 @@ TEST(ProjectDataTest, ToJsonPreservesRhymeGroupGivenTokenWithRhyme) {
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {"A": {"color": "#FF0000"}},
+        "colorSwatch": [],
         "tokens": [
-            {"id": 1, "text": "cat", "startMs": 0, "endMs": 500, "lineIndex": 0, "rhymeGroup": "A"}
+            {"id": 1, "text": "cat", "startMs": 0, "endMs": 500, "lineIndex": 0, "rhymeIndex": 0}
         ]
     })";
     const ProjectData data(inputJson);
@@ -723,33 +696,9 @@ TEST(ProjectDataTest, ToJsonPreservesRhymeGroupGivenTokenWithRhyme) {
     const json j = json::parse(result);
 
     // Then
-    EXPECT_EQ(j["tokens"][0]["rhymeGroup"], "A");
+    EXPECT_EQ(j["tokens"][0]["rhymeIndex"], 0);
 }
 
-TEST(ProjectDataTest, ToJsonPreservesRhymeStylesGivenProjectDataWithStyles) {
-    // Given
-    const std::string inputJson = R"({
-        "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
-        "model": {"path": "models/base.bin"},
-        "rhymeStyles": {
-            "A": {"color": "#FF0000"},
-            "B": {"color": "#00FF00"}
-        },
-        "tokens": []
-    })";
-    const ProjectData data(inputJson);
-
-    // When
-    const std::string result = data.toJson();
-    const json j = json::parse(result);
-
-    // Then
-    EXPECT_EQ(j["rhymeStyles"].size(), 2);
-    EXPECT_EQ(j["rhymeStyles"]["A"]["color"], "#FF0000");
-    EXPECT_EQ(j["rhymeStyles"]["B"]["color"], "#00FF00");
-}
 
 TEST(ProjectDataTest, ToJsonHandlesEmptyCollectionsGivenMinimalData) {
     // Given
@@ -759,6 +708,7 @@ TEST(ProjectDataTest, ToJsonHandlesEmptyCollectionsGivenMinimalData) {
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "rhymeStyles": {},
+        "colorSwatch": [],
         "tokens": []
     })";
     const ProjectData data(inputJson);
@@ -785,9 +735,10 @@ TEST(ProjectDataTest, ToJsonRoundTripPreservesDataGivenCompleteProjectData) {
             "X": {"color": "#AABBCC"},
             "Y": {"color": "#DDEEFF"}
         },
+        "colorSwatch": ["#AABBCC", "#DDEEFF"],
         "tokens": [
-            {"id": 1, "text": "first", "startMs": 100, "endMs": 200, "lineIndex": 0, "rhymeGroup": "X"},
-            {"id": 2, "text": "second", "startMs": 200, "endMs": 400, "lineIndex": 1, "rhymeGroup": null}
+            {"id": 1, "text": "first", "startMs": 100, "endMs": 200, "lineIndex": 0, "rhymeIndex": 0},
+            {"id": 2, "text": "second", "startMs": 200, "endMs": 400, "lineIndex": 1, "rhymeIndex": null}
         ]
     })";
     const ProjectData original(inputJson);
@@ -808,6 +759,7 @@ TEST(ProjectDataTest, ToJsonRoundTripPreservesDataGivenCompleteProjectData) {
     EXPECT_EQ(restored.model.base, original.model.base);
     EXPECT_EQ(restored.rhymeStyles.size(), original.rhymeStyles.size());
     EXPECT_EQ(restored.tokens.size(), original.tokens.size());
-    EXPECT_EQ(restored.tokens[0].rhymeGroup.value(), original.tokens[0].rhymeGroup.value());
-    EXPECT_FALSE(restored.tokens[1].rhymeGroup.has_value());
+    EXPECT_EQ(restored.tokens[0].rhymeIndex.value(), original.tokens[0].rhymeIndex.value());
+    EXPECT_FALSE(restored.tokens[1].rhymeIndex.has_value());
+    EXPECT_EQ(restored.colorSwatch.size(), original.colorSwatch.size());
 }
