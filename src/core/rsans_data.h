@@ -13,6 +13,16 @@ struct Token {
     int endMs;
     int lineIndex;
     std::optional<std::string> rhymeGroup;
+
+    Token() = delete;
+    Token(
+        int id,
+        const std::string& text,
+        int startMs,
+        int endMs,
+        int lineIndex,
+        const std::optional<std::string>& rhymeGroup
+    );
 };
 
 struct ProjectData {

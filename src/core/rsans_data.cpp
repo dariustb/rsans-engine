@@ -1,8 +1,10 @@
+#include <optional>
 #include <rsans_data.h>
 
 #include <nlohmann/json.hpp>
 #include <sndfile.h>
 
+#include <string>
 #include <vector>
 
 using json = nlohmann::json;
@@ -22,6 +24,15 @@ double getAudioDuration(const std::string& audioPath) {
 }
 
 }
+
+Token::Token(int id, const std::string& text,int startMs, int endMs, int lineIndex, const std::optional<std::string>& rhymeGroup)
+: id(id)
+, text(text)
+, startMs(startMs)
+, endMs(endMs)
+, lineIndex(lineIndex)
+, rhymeGroup(rhymeGroup)
+{}
 
 ProjectData::ProjectData(const std::string& jsonContent) {
     const json j = json::parse(jsonContent);
@@ -46,19 +57,19 @@ ProjectData::ProjectData(const std::string& jsonContent) {
         cmudict = j["cmudict"].get<std::string>();
     }
 
-    for (const auto& tokenJson : j["tokens"]) {
-        Token token;
-        token.id = tokenJson["id"].get<int>();
-        token.text = tokenJson["text"].get<std::string>();
-        token.startMs = tokenJson["startMs"].get<int>();
-        token.endMs = tokenJson["endMs"].get<int>();
-        token.lineIndex = tokenJson["lineIndex"].get<int>();
+    for (const auto& tokenJson : j["tokens"]) {    
+        const std::optional<std::string> tokenRhymeGroup = tokenJson["rhymeGroup"].is_null()
+            ? std::optional<std::string>{}
+            : tokenJson["rhymeGroup"].get<std::string>();
 
-        if (tokenJson["rhymeGroup"].is_null()) {
-            token.rhymeGroup = std::nullopt;
-        } else {
-            token.rhymeGroup = tokenJson["rhymeGroup"].get<std::string>();
-        }
+        const Token token(
+            tokenJson["id"].get<int>(),
+            tokenJson["text"].get<std::string>(),
+            tokenJson["startMs"].get<int>(),
+            tokenJson["endMs"].get<int>(),
+            tokenJson["lineIndex"].get<int>(),
+            tokenRhymeGroup
+        );
 
         tokens.push_back(token);
     }
@@ -82,7 +93,8 @@ ProjectData::ProjectData(ProjectData&& other) noexcept
 , model(other.model)
 , cmudict(std::move(other.cmudict))
 , rhymeStyles(std::move(other.rhymeStyles))
-, tokens(std::move(other.tokens)) {}
+, tokens(std::move(other.tokens))
+{}
 
 std::string ProjectData::toJson() const {
     json j;
