@@ -12,7 +12,7 @@ struct Token {
     int startMs;
     int endMs;
     int lineIndex;
-    std::optional<std::string> rhymeGroup;
+    std::optional<int> rhymeIndex;
 
     Token() = delete;
     Token(
@@ -21,10 +21,25 @@ struct Token {
         int startMs,
         int endMs,
         int lineIndex,
-        const std::optional<std::string>& rhymeGroup
+        const std::optional<int>& rhymeIndex
     );
 };
 
+class Color {
+  private:
+    std::string d_hex;
+    std::string d_ass;
+
+    std::string toAss(const std::string& hexValue);
+  public:
+    std::string hex() const;
+    std::string ass() const;
+
+    Color() = delete;
+    Color(const std::string& hexValue);
+};
+
+// TODO: Should this stay a struct?
 struct ProjectData {
     struct AudioData {
         std::string path;
@@ -58,6 +73,8 @@ struct ProjectData {
 
     std::map<std::string, RhymeStyle> rhymeStyles;
     std::vector<Token> tokens;
+
+    std::vector<Color> colorSwatch;
 
     ProjectData() = delete;
     ProjectData(const std::string& jsonContent);

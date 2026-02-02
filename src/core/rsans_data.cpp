@@ -25,14 +25,30 @@ double getAudioDuration(const std::string& audioPath) {
 
 }
 
-Token::Token(int id, const std::string& text,int startMs, int endMs, int lineIndex, const std::optional<std::string>& rhymeGroup)
+Token::Token(int id, const std::string& text,int startMs, int endMs, int lineIndex, const std::optional<int>& rhymeIndex)
 : id(id)
 , text(text)
 , startMs(startMs)
 , endMs(endMs)
 , lineIndex(lineIndex)
-, rhymeGroup(rhymeGroup)
+, rhymeIndex(rhymeIndex)
 {}
+
+Color::Color(const std::string& hexValue)
+: d_hex(hexValue)
+, d_ass(toAss(hexValue))
+{}
+
+std::string Color::hex() const { return d_hex; }
+std::string Color::ass() const { return d_ass; }
+
+std::string Color::toAss(const std::string& hexValue) {
+    const std::string hex = hexValue.substr(1);
+    const std::string r = hex.substr(0, 2);
+    const std::string g = hex.substr(2, 2);
+    const std::string b = hex.substr(4, 2);
+    return "&H00" + b + g + r;
+}
 
 ProjectData::ProjectData(const std::string& jsonContent) {
     const json j = json::parse(jsonContent);
@@ -58,9 +74,9 @@ ProjectData::ProjectData(const std::string& jsonContent) {
     }
 
     for (const auto& tokenJson : j["tokens"]) {    
-        const std::optional<std::string> tokenRhymeGroup = tokenJson["rhymeGroup"].is_null()
-            ? std::optional<std::string>{}
-            : tokenJson["rhymeGroup"].get<std::string>();
+        const std::optional<int> tokenRhymeIndex = tokenJson["rhymeIndex"].is_null()
+            ? std::optional<int>{}
+            : tokenJson["rhymeIndex"].get<int>();
 
         const Token token(
             tokenJson["id"].get<int>(),
@@ -68,16 +84,15 @@ ProjectData::ProjectData(const std::string& jsonContent) {
             tokenJson["startMs"].get<int>(),
             tokenJson["endMs"].get<int>(),
             tokenJson["lineIndex"].get<int>(),
-            tokenRhymeGroup
+            tokenRhymeIndex
         );
 
         tokens.push_back(token);
     }
 
-    for (const auto& [key, value] : j["rhymeStyles"].items()) {
-        RhymeStyle style;
-        style.color = value["color"].get<std::string>();
-        rhymeStyles[key] = style;
+    for (const std::string& colorHex : j["colorSwatch"]) {
+        const Color color(colorHex);
+        colorSwatch.push_back(color);
     }
 }
 
@@ -94,6 +109,7 @@ ProjectData::ProjectData(ProjectData&& other) noexcept
 , cmudict(std::move(other.cmudict))
 , rhymeStyles(std::move(other.rhymeStyles))
 , tokens(std::move(other.tokens))
+, colorSwatch(std::move(other.colorSwatch))
 {}
 
 std::string ProjectData::toJson() const {
@@ -127,8 +143,8 @@ std::string ProjectData::toJson() const {
         tokenJson["startMs"] = token.startMs;
         tokenJson["endMs"] = token.endMs;
         tokenJson["lineIndex"] = token.lineIndex;
-        tokenJson["rhymeGroup"] = token.rhymeGroup.has_value()
-            ? json(token.rhymeGroup.value())
+        tokenJson["rhymeIndex"] = token.rhymeIndex.has_value()
+            ? json(token.rhymeIndex.value())
             : json(nullptr);
         j["tokens"].push_back(tokenJson);
     }
@@ -136,6 +152,11 @@ std::string ProjectData::toJson() const {
     j["rhymeStyles"] = json::object();
     for (const auto& [key, style] : rhymeStyles) {
         j["rhymeStyles"][key]["color"] = style.color;
+    }
+
+    j["colorSwatch"] = json::array();
+    for (const auto& color : colorSwatch) {
+        j["colorSwatch"].push_back(color.hex());
     }
 
     return j.dump();

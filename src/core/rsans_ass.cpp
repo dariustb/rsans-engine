@@ -13,15 +13,6 @@ namespace {
 
 void silentAssLog(int, const char*, va_list, void*) {}
 
-// TODO: use id to index color in json and create a color swatch
-std::string hexToAssColor(const std::string& hexColor) {
-    const std::string hex = hexColor.substr(1);
-    const std::string r = hex.substr(0, 2);
-    const std::string g = hex.substr(2, 2);
-    const std::string b = hex.substr(4, 2);
-    return "&H00" + b + g + r;
-}
-
 std::string formatTime(int ms) {
     const int cs = (ms / 10) % 100;
     const int sec = (ms / 1000) % 60;
@@ -34,6 +25,10 @@ std::string formatTime(int ms) {
         << (sec < 10 ? "0" : "") << sec << "."
         << (cs < 10 ? "0" : "") << cs;
     return oss.str();
+}
+
+std::string getGroupNameFromValue(int value) {
+    return "rhyme_" + std::to_string(value);
 }
 
 }
@@ -181,9 +176,10 @@ void Ass::buildStyles(std::ostringstream& ss) {
 
     // Make Highlight style lines
     Style highlightStyle = baseStyle;
-    for (const auto& [groupName, style] : d_data.rhymeStyles) {
-        highlightStyle.name = groupName;
-        highlightStyle.primaryColor = hexToAssColor(style.color);
+    int colorIndex = 0;
+    for (const Color& color : d_data.colorSwatch) {
+        highlightStyle.name = getGroupNameFromValue(colorIndex++);
+        highlightStyle.primaryColor = color.ass();
         highlightStyle.borderStyle = BorderStyle::OpaqueBox;
         ss << highlightStyle.toAssLine();
     }
@@ -215,17 +211,14 @@ void Ass::buildHighlights(std::ostringstream& ss) {
     const int audioLengthMs = d_data.audio.length * 1000;
 
     for (const Token& token : d_data.tokens) {
-        if (!token.rhymeGroup.has_value()) {
+        if (!token.rhymeIndex.has_value()) {
             continue;
         }
 
-        const std::string& groupName = token.rhymeGroup.value();
-        const auto styleIt = d_data.rhymeStyles.find(groupName);
-        if (styleIt == d_data.rhymeStyles.end()) {
-            continue;
-        }
-
+        const int colorIndex = token.rhymeIndex.value() % d_data.colorSwatch.size();
+        const std::string groupName = getGroupNameFromValue(colorIndex);
         const std::string& lineText = d_lineInfo_p->lines.at(token.lineIndex - d_lineInfo_p->minLineIdx);
+        
         // FIXME: This will only find the first occurence of the word
         // May be bad if the word is used multiple times in a line
         const size_t tokenCharPos = lineText.find(token.text);
@@ -239,13 +232,13 @@ void Ass::buildHighlights(std::ostringstream& ss) {
         // \3c = outline/border color (used as highlight color)
         // \3a&H00& = fully opaque border
         // \bord = border thickness for coverage
-        const std::string assColor = hexToAssColor(styleIt->second.color);
-        const int borderSize = 1;//fontHeight / 2;
+        const std::string highlightColor = d_data.colorSwatch.at(colorIndex).ass();
+        const int borderSize = 1;
 
         ss << "Dialogue: 0," << formatTime(token.startMs) << ","
            << formatTime(audioLengthMs) << "," << groupName << ",,0,0,0,,"
            << "{\\an7\\pos(" << tokenX << "," << lineY << ")"
-           << "\\1a&HFF&\\3c" << assColor << "\\3a&H00&"
+           << "\\1a&HFF&\\3c" << highlightColor << "\\3a&H00&"
            << "\\bord" << borderSize << "\\shad0}"
            << token.text << "\n";
     }

@@ -282,9 +282,8 @@ ProjectData detectRhymes(const ProjectData& project) {
             continue; // Skip singletons
         }
 
-        const std::string groupName = "rhyme_" + std::to_string(groupId);
         for (int tokenIdx : tokenIndices) {
-            result.tokens[tokenIdx].rhymeGroup = groupName;
+            result.tokens[tokenIdx].rhymeIndex = groupId;
         }
         groupId++;
     }
