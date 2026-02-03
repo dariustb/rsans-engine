@@ -57,11 +57,6 @@ struct ProjectData {
         int fontSize;
         int lineHeight;
     } layout;
-    
-    // TODO: Get rid of it!
-    struct RhymeStyle {
-        std::string color;
-    };
 
     struct ModelPaths {
         // TODO: Add tiny/small/med/lg/turbo model support
@@ -70,7 +65,6 @@ struct ProjectData {
 
     std::string cmudict;
 
-    std::map<std::string, RhymeStyle> rhymeStyles;
     std::vector<Token> tokens;
 
     std::vector<Color> colorSwatch;

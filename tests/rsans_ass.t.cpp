@@ -33,7 +33,6 @@ ProjectData createTestProjectData(
         "model": {
             "path": "models/base.bin"
         },
-        "rhymeStyles": {},
         "colorSwatch": [)";
 
     for (size_t i = 0; i < colorHexValues.size(); ++i) {
@@ -96,38 +95,6 @@ TEST(AssTest, AssConstructorGeneratesBaseStyleGivenLayoutConfig) {
     // Then
     EXPECT_NE(ass.text().find("Style: Base"), std::string::npos);
     EXPECT_NE(ass.text().find("DejaVu Sans Mono"), std::string::npos);
-}
-
-TEST(AssTest, AssConstructorGeneratesRhymeStylesGivenRhymeGroups) {
-    // Given: Tokens with rhyme index and corresponding color in swatch
-    std::vector<Token> tokens = {
-        {1, "cat", 0, 500, 0, 0},
-        {2, "hat", 500, 1000, 1, 0}
-    };
-    const ProjectData data = createTestProjectData(tokens, {"#FF0000"});
-
-    // When
-    const Ass ass(data);
-
-    // Then
-    EXPECT_NE(ass.text().find("Style: rhyme_0"), std::string::npos);
-}
-
-TEST(AssTest, AssConstructorGeneratesMultipleRhymeStylesGivenMultipleGroups) {
-    // Given: Tokens with two different rhyme groups
-    std::vector<Token> tokens = {
-        {1, "cat", 0, 500, 0, 0},
-        {2, "dog", 500, 1000, 1, 1},
-        {3, "hat", 1000, 1500, 2, 0}
-    };
-    const ProjectData data = createTestProjectData(tokens, {"#FF0000", "#00FF00"});
-
-    // When
-    const Ass ass(data);
-
-    // Then
-    EXPECT_NE(ass.text().find("Style: rhyme_0"), std::string::npos);
-    EXPECT_NE(ass.text().find("Style: rhyme_1"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorGeneratesBaseDialogueGivenTokens) {
@@ -351,21 +318,6 @@ TEST(AssTest, AssConstructorPositionsLinesVerticallyGivenMultipleLines) {
     EXPECT_NE(ass.text().find("Line one"), std::string::npos);
     EXPECT_NE(ass.text().find("Line two"), std::string::npos);
     EXPECT_NE(ass.text().find("Line three"), std::string::npos);
-}
-
-TEST(AssTest, AssConstructorConvertsColorsToAssFormatGivenRhymeStyles) {
-    // Given
-    std::vector<Token> tokens = {
-        {1, "red", 0, 500, 0, 0}
-    };
-    const ProjectData data = createTestProjectData(tokens, {"#FF0000"});
-
-    // When
-    const Ass ass(data);
-
-    // Then
-    EXPECT_NE(ass.text().find("Style: rhyme_0"), std::string::npos);
-    EXPECT_NE(ass.text().find("&H00"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorIncludesAlignmentTagsGivenTokens) {

@@ -107,7 +107,6 @@ ProjectData::ProjectData(ProjectData&& other) noexcept
 , layout(other.layout)
 , model(other.model)
 , cmudict(std::move(other.cmudict))
-, rhymeStyles(std::move(other.rhymeStyles))
 , tokens(std::move(other.tokens))
 , colorSwatch(std::move(other.colorSwatch))
 {}
@@ -147,11 +146,6 @@ std::string ProjectData::toJson() const {
             ? json(token.rhymeIndex.value())
             : json(nullptr);
         j["tokens"].push_back(tokenJson);
-    }
-
-    j["rhymeStyles"] = json::object();
-    for (const auto& [key, style] : rhymeStyles) {
-        j["rhymeStyles"][key]["color"] = style.color;
     }
 
     j["colorSwatch"] = json::array();

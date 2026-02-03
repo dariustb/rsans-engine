@@ -43,8 +43,7 @@ std::string createTestProjectJson(const std::vector<Token>& tokens, const std::s
         json << "\"cmudict\": null,";
     }
 
-    json << R"("rhymeStyles": {},
-        "colorSwatch": [],
+    json << R"("colorSwatch": [],
         "tokens": [)";
 
     for (size_t i = 0; i < tokens.size(); ++i) {

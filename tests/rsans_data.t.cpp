@@ -17,7 +17,6 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesAudioConfigGivenValidJson) {
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {},
         "colorSwatch": [],
         "tokens": []
     })";
@@ -41,7 +40,6 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesVideoConfigGivenValidJson) {
         },
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {},
         "colorSwatch": [],
         "tokens": []
     })";
@@ -67,7 +65,6 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesLayoutConfigGivenValidJson) {
             "lineHeight": 50
         },
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {},
         "colorSwatch": [],
         "tokens": []
     })";
@@ -88,7 +85,6 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesTokensGivenValidJson) {
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {},
         "colorSwatch": [],
         "tokens": [
             {
@@ -137,7 +133,6 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesRhymeGroupGivenTokenWithRhyme)
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {"A": {"color": "#FF0000"}},
         "colorSwatch": [],
         "tokens": [
             {
@@ -168,7 +163,6 @@ TEST(ProjectDataTest, ProjectDataConstructorHandlesEmptyTokensGivenEmptyArray) {
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {},
         "colorSwatch": [],
         "tokens": []
     })";
@@ -180,25 +174,6 @@ TEST(ProjectDataTest, ProjectDataConstructorHandlesEmptyTokensGivenEmptyArray) {
     EXPECT_EQ(data.tokens.size(), 0);
 }
 
-TEST(ProjectDataTest, ProjectDataConstructorHandlesEmptyRhymeStylesGivenEmptyObject) {
-    // Given
-    const std::string json = R"({
-        "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
-        "model": {"path": "models/base.bin"},
-        "rhymeStyles": {},
-        "colorSwatch": [],
-        "tokens": []
-    })";
-
-    // When
-    const ProjectData data(json);
-
-    // Then
-    EXPECT_EQ(data.rhymeStyles.size(), 0);
-}
-
 TEST(ProjectDataTest, ProjectDataConstructorParsesMixedRhymeGroupsGivenTokens) {
     // Given
     const std::string json = R"({
@@ -206,7 +181,6 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMixedRhymeGroupsGivenTokens) {
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {"A": {"color": "#FF0000"}},
         "colorSwatch": [],
         "tokens": [
             {
@@ -255,7 +229,6 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMultipleLinesGivenDifferentLin
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {},
         "colorSwatch": [],
         "tokens": [
             {
@@ -302,7 +275,6 @@ TEST(ProjectDataTest, ProjectDataConstructorReplacesTokensGivenBaseAndNewTokens)
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {"A": {"color": "#FF0000"}},
         "colorSwatch": [],
         "tokens": [
             {
@@ -339,7 +311,6 @@ TEST(ProjectDataTest, ProjectDataMoveConstructorPreservesDataGivenSource) {
         "video": {"width": 1920, "height": 1080, "background": "#123456"},
         "layout": {"fontName": "Times", "fontPath": "fonts/times.ttf", "fontSize": 32, "lineHeight": 40},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {"X": {"color": "#ABCDEF"}},
         "colorSwatch": ["#ABCDEF"],
         "tokens": [
             {
@@ -380,7 +351,6 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesLargeTokenArrayGivenManyTokens
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {},
         "colorSwatch": [],
         "tokens": [)";
 
@@ -414,7 +384,6 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesSpecialCharactersGivenUtf8Text
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {},
         "colorSwatch": [],
         "tokens": [
             {
@@ -452,7 +421,6 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesZeroValuesGivenValidJson) {
         "video": {"width": 0, "height": 0, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 0, "lineHeight": 0},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {},
         "colorSwatch": [],
         "tokens": [
             {
@@ -487,7 +455,6 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesNegativeLineIndexGivenValidJso
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {},
         "colorSwatch": [],
         "tokens": [
             {
@@ -516,7 +483,6 @@ TEST(ProjectDataTest, ProjectDataConstructorPreservesTokenOrderGivenSequentialTo
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {},
         "colorSwatch": [],
         "tokens": [
             {"id": 3, "text": "third", "startMs": 0, "endMs": 100, "lineIndex": 0, "rhymeIndex": null},
@@ -542,7 +508,6 @@ TEST(ProjectDataTest, ToJsonProducesValidJsonGivenProjectData) {
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {},
         "colorSwatch": [],
         "tokens": []
     })";
@@ -562,7 +527,6 @@ TEST(ProjectDataTest, ToJsonPreservesAudioConfigGivenProjectData) {
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {},
         "colorSwatch": [],
         "tokens": []
     })";
@@ -584,7 +548,6 @@ TEST(ProjectDataTest, ToJsonPreservesVideoConfigGivenProjectData) {
         "video": {"width": 1280, "height": 720, "background": "#FFFFFF"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {},
         "colorSwatch": [],
         "tokens": []
     })";
@@ -607,7 +570,6 @@ TEST(ProjectDataTest, ToJsonPreservesLayoutConfigGivenProjectData) {
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Helvetica", "fontPath": "fonts/helvetica.ttf", "fontSize": 36, "lineHeight": 50},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {},
         "colorSwatch": [],
         "tokens": []
     })";
@@ -630,7 +592,6 @@ TEST(ProjectDataTest, ToJsonPreservesModelPathGivenProjectData) {
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/whisper-large.bin"},
-        "rhymeStyles": {},
         "colorSwatch": [],
         "tokens": []
     })";
@@ -651,7 +612,6 @@ TEST(ProjectDataTest, ToJsonPreservesTokensGivenProjectDataWithTokens) {
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {},
         "colorSwatch": [],
         "tokens": [
             {"id": 1, "text": "hello", "startMs": 0, "endMs": 500, "lineIndex": 0, "rhymeIndex": null},
@@ -683,7 +643,6 @@ TEST(ProjectDataTest, ToJsonPreservesRhymeGroupGivenTokenWithRhyme) {
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {"A": {"color": "#FF0000"}},
         "colorSwatch": [],
         "tokens": [
             {"id": 1, "text": "cat", "startMs": 0, "endMs": 500, "lineIndex": 0, "rhymeIndex": 0}
@@ -707,7 +666,6 @@ TEST(ProjectDataTest, ToJsonHandlesEmptyCollectionsGivenMinimalData) {
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
-        "rhymeStyles": {},
         "colorSwatch": [],
         "tokens": []
     })";
@@ -720,8 +678,6 @@ TEST(ProjectDataTest, ToJsonHandlesEmptyCollectionsGivenMinimalData) {
     // Then
     EXPECT_TRUE(j["tokens"].is_array());
     EXPECT_EQ(j["tokens"].size(), 0);
-    EXPECT_TRUE(j["rhymeStyles"].is_object());
-    EXPECT_EQ(j["rhymeStyles"].size(), 0);
 }
 
 TEST(ProjectDataTest, ToJsonRoundTripPreservesDataGivenCompleteProjectData) {
@@ -731,10 +687,6 @@ TEST(ProjectDataTest, ToJsonRoundTripPreservesDataGivenCompleteProjectData) {
         "video": {"width": 3840, "height": 2160, "background": "#123456"},
         "layout": {"fontName": "Roboto", "fontPath": "fonts/roboto.ttf", "fontSize": 64, "lineHeight": 80},
         "model": {"path": "models/large-v3.bin"},
-        "rhymeStyles": {
-            "X": {"color": "#AABBCC"},
-            "Y": {"color": "#DDEEFF"}
-        },
         "colorSwatch": ["#AABBCC", "#DDEEFF"],
         "tokens": [
             {"id": 1, "text": "first", "startMs": 100, "endMs": 200, "lineIndex": 0, "rhymeIndex": 0},
@@ -757,7 +709,6 @@ TEST(ProjectDataTest, ToJsonRoundTripPreservesDataGivenCompleteProjectData) {
     EXPECT_EQ(restored.layout.fontSize, original.layout.fontSize);
     EXPECT_EQ(restored.layout.lineHeight, original.layout.lineHeight);
     EXPECT_EQ(restored.model.base, original.model.base);
-    EXPECT_EQ(restored.rhymeStyles.size(), original.rhymeStyles.size());
     EXPECT_EQ(restored.tokens.size(), original.tokens.size());
     EXPECT_EQ(restored.tokens[0].rhymeIndex.value(), original.tokens[0].rhymeIndex.value());
     EXPECT_FALSE(restored.tokens[1].rhymeIndex.has_value());
