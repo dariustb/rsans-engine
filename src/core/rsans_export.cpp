@@ -5,6 +5,7 @@
 #include <rsans_io.h>
 
 #include <cstdlib>
+#include <filesystem>
 #include <sstream>
 #include <stdexcept>
 
@@ -15,12 +16,13 @@ int executeFfmpegBuild(const ProjectData& data,
                        const std::string& ffmpegPath,
                        const std::string& assPath) {
     // Build ffmpeg command
+    std::filesystem::path fontPath(data.layout.fontPath);
     std::ostringstream cmd;
     cmd << ffmpegPath << " -y ";
     cmd << "-f lavfi -i color=c=" << data.video.background << ":s=" << data.video.width << "x"
         << data.video.height << ":d=" << data.audio.length << " ";
     cmd << "-i " << data.audio.path << " ";
-    cmd << "-vf subtitles=" << assPath << " ";
+    cmd << "-vf subtitles=" << assPath << ":fontsdir=" << fontPath.parent_path().string() << " ";
     cmd << "-c:v libx264 -c:a aac ";
     cmd << outputVideoPath;
     
