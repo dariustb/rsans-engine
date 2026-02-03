@@ -1,9 +1,9 @@
-#include <optional>
 #include <rsans_data.h>
 
 #include <nlohmann/json.hpp>
 #include <sndfile.h>
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -39,8 +39,13 @@ Color::Color(const std::string& hexValue)
 , d_ass(toAss(hexValue))
 {}
 
-std::string Color::hex() const { return d_hex; }
-std::string Color::ass() const { return d_ass; }
+std::string Color::hex() const {
+    return d_hex;
+}
+
+std::string Color::ass() const {
+    return d_ass;
+}
 
 std::string Color::toAss(const std::string& hexValue) {
     const std::string hex = hexValue.substr(1);

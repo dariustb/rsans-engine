@@ -1,7 +1,6 @@
 #ifndef INCLUDED_RSANS_DATA
 #define INCLUDED_RSANS_DATA
 
-#include <map>
 #include <optional>
 #include <string>
 #include <vector>
