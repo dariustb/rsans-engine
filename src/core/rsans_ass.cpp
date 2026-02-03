@@ -4,6 +4,9 @@
 
 #include <ass/ass.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -31,12 +34,28 @@ std::string getGroupNameFromValue(int value) {
     return "rhyme_" + std::to_string(value);
 }
 
+void getImageDimensions(const std::string& path, int& width, int& height) {
+    int channels = 0;
+
+    unsigned char* data = stbi_load(path.c_str(),
+                                     &width,
+                                     &height,
+                                     &channels,
+                                     0);
+
+    if (!data)
+        throw std::runtime_error("Failed to load image: " + path);
+
+    stbi_image_free(data);
+}
+
 }
 
 Ass::Ass(const ProjectData& data)
     : d_data(data)
     , d_lineInfo_p(std::make_unique<LineInfo>(data.tokens))
     , d_fontHeight(0)
+    , d_leftMargin(50.0)
 {
     // Init libass stuff
     d_library_p.reset(ass_library_init());
@@ -53,6 +72,11 @@ Ass::Ass(const ProjectData& data)
     ass_set_frame_size(d_renderer_p.get(), data.video.width, data.video.height);
     ass_set_fonts(d_renderer_p.get(), data.layout.fontPath.c_str(),
     data.layout.fontName.c_str(), ASS_FONTPROVIDER_NONE, nullptr, 0);
+
+    int mediaHeight = 0;
+    int mediaWidth  = 0;
+    getImageDimensions(d_data.header.media, mediaWidth, mediaHeight);
+    d_topMargin = 50 + static_cast<int>(mediaHeight * static_cast<double>(d_data.video.width) / mediaWidth);
 
     d_fontHeight = renderAssHeight();
 
@@ -192,22 +216,18 @@ void Ass::buildEventInfo(std::ostringstream& ss) {
 }
 
 void Ass::buildEvents(std::ostringstream& ss) {
-    const double leftMargin = 50.0;
-    const double topMargin = 50.0;
     const int audioLengthMs = d_data.audio.length * 1000;
 
     // Build base text as separate dialogues per line with explicit positioning
     for (size_t i = 0; i < d_lineInfo_p->lines.size(); ++i) {
-        const double lineY = topMargin + i * d_fontHeight;
+        const double lineY = d_topMargin + i * d_fontHeight;
         ss << "Dialogue: 1," << formatTime(0) << "," << formatTime(audioLengthMs)
-           << ",Base,,0,0,0,,{\\an7\\pos(" << leftMargin << "," << lineY << ")\\q2}"
+           << ",Base,,0,0,0,,{\\an7\\pos(" << d_leftMargin << "," << lineY << ")\\q2}"
            << d_lineInfo_p->lines[i] << "\n";
     }
 }
 
 void Ass::buildHighlights(std::ostringstream& ss) {
-    const double leftMargin = 50.0;
-    const double topMargin = 50.0;
     const int audioLengthMs = d_data.audio.length * 1000;
 
     for (const Token& token : d_data.tokens) {
@@ -224,8 +244,8 @@ void Ass::buildHighlights(std::ostringstream& ss) {
         const size_t tokenCharPos = lineText.find(token.text);
 
         const std::string textBeforeToken = lineText.substr(0, tokenCharPos);
-        const double tokenX = leftMargin + getStringWidth(textBeforeToken);
-        const double lineY = topMargin + (token.lineIndex - d_lineInfo_p->minLineIdx) * d_fontHeight;
+        const double tokenX = d_leftMargin + getStringWidth(textBeforeToken);
+        const double lineY = d_topMargin + (token.lineIndex - d_lineInfo_p->minLineIdx) * d_fontHeight;
 
         // Use transparent text with colored border to emulate highlight
         // \1a&HFF& = fully transparent text

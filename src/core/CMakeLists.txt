@@ -42,6 +42,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(nlohmann_json)
 
+# Fetch STB Image
+FetchContent_Declare(
+    stb
+    GIT_REPOSITORY https://github.com/nothings/stb.git
+    GIT_TAG        master
+)
+FetchContent_MakeAvailable(stb)
+
 target_link_libraries(rsans_core PUBLIC
     nlohmann_json::nlohmann_json
     PkgConfig::LIBASS
@@ -52,6 +60,7 @@ target_link_libraries(rsans_core PUBLIC
 
 target_include_directories(rsans_core PUBLIC
     ${dr_wav_SOURCE_DIR}
+    ${stb_SOURCE_DIR}
     ${whisper_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}
 )

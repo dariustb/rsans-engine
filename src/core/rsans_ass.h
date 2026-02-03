@@ -37,6 +37,8 @@ class Ass {
     std::unique_ptr<ASS_Renderer, RendererDeleter> d_renderer_p;
 
     int d_fontHeight;
+    double d_topMargin;
+    double d_leftMargin;
 
     std::ostringstream d_ss;
     
