@@ -39,7 +39,6 @@ class Color {
     Color(const std::string& hexValue);
 };
 
-// TODO: Should this stay a struct?
 struct ProjectData {
     struct AudioData {
         std::string path;
