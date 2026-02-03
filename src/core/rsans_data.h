@@ -39,6 +39,10 @@ class Color {
 };
 
 struct ProjectData {
+    struct HeaderData {
+        std::string media;
+    } header;
+
     struct AudioData {
         std::string path;
         double length;

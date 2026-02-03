@@ -58,6 +58,8 @@ std::string Color::toAss(const std::string& hexValue) {
 ProjectData::ProjectData(const std::string& jsonContent) {
     const json j = json::parse(jsonContent);
 
+    header.media = j["header"]["media"].get<std::string>();
+
     audio.path = j["audio"]["path"].get<std::string>();
     audio.length = j["audio"]["length"].is_null()
         ? getAudioDuration(audio.path)
@@ -107,7 +109,8 @@ ProjectData::ProjectData(ProjectData base, std::vector<Token>& newTokens)
 }
 
 ProjectData::ProjectData(ProjectData&& other) noexcept
-: audio(other.audio)
+: header(other.header)
+, audio(other.audio)
 , video(other.video)
 , layout(other.layout)
 , model(other.model)
@@ -118,6 +121,8 @@ ProjectData::ProjectData(ProjectData&& other) noexcept
 
 std::string ProjectData::toJson() const {
     json j;
+
+    j["header"]["media"] = header.media;
 
     j["audio"]["path"] = audio.path;
     j["audio"]["length"] = audio.length;
