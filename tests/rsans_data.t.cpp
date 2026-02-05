@@ -10,6 +10,7 @@ using json = nlohmann::json;
 TEST(ProjectDataTest, ProjectDataConstructorParsesAudioConfigGivenValidJson) {
     // Given
     const std::string json = R"({
+        "header": {"media": "test.jpg"},
         "audio": {
             "path": "test.wav",
             "length": 42
@@ -32,6 +33,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesAudioConfigGivenValidJson) {
 TEST(ProjectDataTest, ProjectDataConstructorParsesVideoConfigGivenValidJson) {
     // Given
     const std::string json = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
         "video": {
             "width": 1280,
@@ -56,6 +58,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesVideoConfigGivenValidJson) {
 TEST(ProjectDataTest, ProjectDataConstructorParsesLayoutConfigGivenValidJson) {
     // Given
     const std::string json = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {
@@ -81,6 +84,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesLayoutConfigGivenValidJson) {
 TEST(ProjectDataTest, ProjectDataConstructorParsesTokensGivenValidJson) {
     // Given
     const std::string json = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
@@ -129,6 +133,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesTokensGivenValidJson) {
 TEST(ProjectDataTest, ProjectDataConstructorParsesRhymeGroupGivenTokenWithRhyme) {
     // Given
     const std::string json = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
@@ -159,6 +164,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesRhymeGroupGivenTokenWithRhyme)
 TEST(ProjectDataTest, ProjectDataConstructorHandlesEmptyTokensGivenEmptyArray) {
     // Given
     const std::string json = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
@@ -177,6 +183,7 @@ TEST(ProjectDataTest, ProjectDataConstructorHandlesEmptyTokensGivenEmptyArray) {
 TEST(ProjectDataTest, ProjectDataConstructorParsesMixedRhymeGroupsGivenTokens) {
     // Given
     const std::string json = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
@@ -225,6 +232,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMixedRhymeGroupsGivenTokens) {
 TEST(ProjectDataTest, ProjectDataConstructorParsesMultipleLinesGivenDifferentLineIndices) {
     // Given
     const std::string json = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
@@ -271,6 +279,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMultipleLinesGivenDifferentLin
 TEST(ProjectDataTest, ProjectDataConstructorReplacesTokensGivenBaseAndNewTokens) {
     // Given
     const std::string json = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "original.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
@@ -307,6 +316,7 @@ TEST(ProjectDataTest, ProjectDataConstructorReplacesTokensGivenBaseAndNewTokens)
 TEST(ProjectDataTest, ProjectDataMoveConstructorPreservesDataGivenSource) {
     // Given
     const std::string json = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 42},
         "video": {"width": 1920, "height": 1080, "background": "#123456"},
         "layout": {"fontName": "Times", "fontPath": "fonts/times.ttf", "fontSize": 32, "lineHeight": 40},
@@ -347,6 +357,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesLargeTokenArrayGivenManyTokens
     // Given
     std::ostringstream json;
     json << R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
@@ -380,6 +391,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesLargeTokenArrayGivenManyTokens
 TEST(ProjectDataTest, ProjectDataConstructorParsesSpecialCharactersGivenUtf8Text) {
     // Given
     const std::string json = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
@@ -417,6 +429,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesSpecialCharactersGivenUtf8Text
 TEST(ProjectDataTest, ProjectDataConstructorParsesZeroValuesGivenValidJson) {
     // Given
     const std::string json = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 0},
         "video": {"width": 0, "height": 0, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 0, "lineHeight": 0},
@@ -451,6 +464,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesZeroValuesGivenValidJson) {
 TEST(ProjectDataTest, ProjectDataConstructorParsesNegativeLineIndexGivenValidJson) {
     // Given
     const std::string json = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
@@ -479,6 +493,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesNegativeLineIndexGivenValidJso
 TEST(ProjectDataTest, ProjectDataConstructorPreservesTokenOrderGivenSequentialTokens) {
     // Given
     const std::string json = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
@@ -504,6 +519,7 @@ TEST(ProjectDataTest, ProjectDataConstructorPreservesTokenOrderGivenSequentialTo
 TEST(ProjectDataTest, ToJsonProducesValidJsonGivenProjectData) {
     // Given
     const std::string inputJson = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 42},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
@@ -523,6 +539,7 @@ TEST(ProjectDataTest, ToJsonProducesValidJsonGivenProjectData) {
 TEST(ProjectDataTest, ToJsonPreservesAudioConfigGivenProjectData) {
     // Given
     const std::string inputJson = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "music.mp3", "length": 180.5},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
@@ -544,6 +561,7 @@ TEST(ProjectDataTest, ToJsonPreservesAudioConfigGivenProjectData) {
 TEST(ProjectDataTest, ToJsonPreservesVideoConfigGivenProjectData) {
     // Given
     const std::string inputJson = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1280, "height": 720, "background": "#FFFFFF"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
@@ -566,6 +584,7 @@ TEST(ProjectDataTest, ToJsonPreservesVideoConfigGivenProjectData) {
 TEST(ProjectDataTest, ToJsonPreservesLayoutConfigGivenProjectData) {
     // Given
     const std::string inputJson = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Helvetica", "fontPath": "fonts/helvetica.ttf", "fontSize": 36, "lineHeight": 50},
@@ -588,6 +607,7 @@ TEST(ProjectDataTest, ToJsonPreservesLayoutConfigGivenProjectData) {
 TEST(ProjectDataTest, ToJsonPreservesModelPathGivenProjectData) {
     // Given
     const std::string inputJson = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
@@ -608,6 +628,7 @@ TEST(ProjectDataTest, ToJsonPreservesModelPathGivenProjectData) {
 TEST(ProjectDataTest, ToJsonPreservesTokensGivenProjectDataWithTokens) {
     // Given
     const std::string inputJson = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
@@ -639,6 +660,7 @@ TEST(ProjectDataTest, ToJsonPreservesTokensGivenProjectDataWithTokens) {
 TEST(ProjectDataTest, ToJsonPreservesRhymeGroupGivenTokenWithRhyme) {
     // Given
     const std::string inputJson = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
@@ -662,6 +684,7 @@ TEST(ProjectDataTest, ToJsonPreservesRhymeGroupGivenTokenWithRhyme) {
 TEST(ProjectDataTest, ToJsonHandlesEmptyCollectionsGivenMinimalData) {
     // Given
     const std::string inputJson = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
         "video": {"width": 1920, "height": 1080, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
@@ -683,6 +706,7 @@ TEST(ProjectDataTest, ToJsonHandlesEmptyCollectionsGivenMinimalData) {
 TEST(ProjectDataTest, ToJsonRoundTripPreservesDataGivenCompleteProjectData) {
     // Given
     const std::string inputJson = R"({
+        "header": {"media": "test.jpg"},
         "audio": {"path": "song.wav", "length": 240},
         "video": {"width": 3840, "height": 2160, "background": "#123456"},
         "layout": {"fontName": "Roboto", "fontPath": "fonts/roboto.ttf", "fontSize": 64, "lineHeight": 80},

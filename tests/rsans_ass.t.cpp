@@ -4,17 +4,44 @@
 
 #include <gtest/gtest.h>
 
+#include <fstream>
 #include <sstream>
 #include <vector>
+
+namespace {
+
+std::string getTestImagePath() {
+    static std::string path;
+    if (!path.empty()) return path;
+
+    path = "/tmp/test_rsans_1x1.bmp";
+    const unsigned char bmp[] = {
+        0x42,0x4D,0x3A,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x36,0x00,0x00,0x00,
+        0x28,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x00,
+        0x18,0x00,0x00,0x00,0x00,0x00,0x04,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0xFF,0xFF,0xFF,0x00
+    };
+    std::ofstream f(path, std::ios::binary);
+    f.write(reinterpret_cast<const char*>(bmp), sizeof(bmp));
+    return path;
+}
+
+} // namespace
 
 // Helper function to create a basic ProjectData for testing
 ProjectData createTestProjectData(
     const std::vector<Token>& tokens,
     const std::vector<std::string>& colorHexValues = {})
 {
+    const std::string imagePath = getTestImagePath();
+
     // Create a minimal JSON with required fields
     std::ostringstream json;
     json << R"({
+        "header": {
+            "media": ")" << imagePath << R"("
+        },
         "audio": {
             "path": "test.wav",
             "length": 10.5
