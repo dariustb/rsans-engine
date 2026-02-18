@@ -1,3 +1,5 @@
+#include <iostream>
+#include <ostream>
 #include <rsans_ass.h>
 
 #include <rsans_data.h>
@@ -221,10 +223,16 @@ void Ass::buildEventInfo(std::ostringstream& ss) {
 }
 
 void Ass::buildHeaderLabel(std::ostringstream& ss) {
+    int mediaWidth, mediaHeight, mediaChannels;
+    stbi_info(d_data.header.media.c_str(), &mediaWidth, &mediaHeight, &mediaChannels);
+    
     const int audioLengthMs = d_data.audio.length * 1000;
-    // Dialogue: 3,0:00:00.00,0:01:15.38,HeaderLabel,,0,0,0,,{\an5\pos(540,620)\fs64}Ted Talk{\N}{\fs36}Jonwayne
+    const int centerOfVideoX = d_data.video.width / 2;
+    const double scale = static_cast<double>(d_data.video.width) / mediaWidth;
+    const int bottomOfMediaY = static_cast<int>(mediaHeight * scale);
+
     ss << "Dialogue: 3," << formatTime(0) << "," << formatTime(audioLengthMs)
-       << "," << "Title" << ",,0,0,0,,{\\an5\\pos(" << d_data.video.width / 2 << "," << "700" << ")\\fs64}" << d_data.header.title << "\n";
+       << "," << "Title" << ",,0,0,0,,{\\an5\\pos(" << centerOfVideoX << "," << bottomOfMediaY << ")\\fs64}" << d_data.header.title << "\n";
     //    << "{\\N}{\\fs36}" << d_data.header.artist << "\n";
 }
 
