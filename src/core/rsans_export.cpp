@@ -37,7 +37,7 @@ int executeFfmpegBuild(const ProjectData& data,
                        const std::string& ffmpegPath,
                        const std::string& assPath) {
     // Build ffmpeg command
-    std::filesystem::path fontPath(data.layout.fontPath);
+    const std::filesystem::path fontPath(data.layout.fontPath);
     std::ostringstream cmd;
     cmd << ffmpegPath << " -y ";
     cmd << "-f lavfi -i color=c=" << data.video.background << ":s=" << data.video.width << "x"
@@ -45,7 +45,8 @@ int executeFfmpegBuild(const ProjectData& data,
     cmd << "-i " << data.audio.path << " ";
     cmd << "-vf " << "\"movie=" << data.header.media << ","
         << "scale=" << data.video.width << ":-1"
-        << (isImageFile(data.header.media) ? "[cover];[0:v][cover]" : "[hdr];[0:v][hdr]") << "overlay=0:0,";
+        << (isImageFile(data.header.media) ? "[cover];[0:v][cover]" : "[hdr];[0:v][hdr]")
+        << "overlay=0:0,";
     cmd << "subtitles=" << assPath << ":fontsdir=" << fontPath.parent_path().string() << "\" ";
     cmd << "-c:v libx264 -c:a aac -shortest ";
     cmd << outputVideoPath;
