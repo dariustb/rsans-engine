@@ -85,6 +85,7 @@ Ass::Ass(const ProjectData& data)
     buildStyleInfo(d_ss);
     buildStyles(d_ss);
     buildEventInfo(d_ss);
+    buildHeaderLabel(d_ss);
     buildEvents(d_ss);
     buildHighlights(d_ss);
 }
@@ -94,17 +95,14 @@ std::string Ass::text() const {
 }
 
 int Ass::renderAssHeight() {
+    // Set temp ASS string for format info
+    const std::string glyphText = "Hg";  // chars use the top and bottom of the glyph space
     std::ostringstream oss;
-
     buildScriptInfo(oss);
     buildStyleInfo(oss);
     buildStyles(oss);
     buildEventInfo(oss);
-
-    const std::string text = "Hg";  // chars uses the top and bottom of the glyph space
-    const std::string textDialogue =
-        "Dialogue: 0,0:00:00.00,0:00:10.00,Base,,0,0,0,,{\\an7\\pos(0,0)}" + text + "\n";
-    oss << textDialogue;
+    oss << "Dialogue: 0,0:00:00.00,0:00:10.00,Base,,0,0,0,,{\\an7\\pos(0,0)}" + glyphText + "\n";
 
     std::unique_ptr<ASS_Track, TrackDeleter> track(ass_read_memory(
         d_library_p.get(),
@@ -198,6 +196,13 @@ void Ass::buildStyles(std::ostringstream& ss) {
     const Style baseStyle("Base", d_data.layout.fontName, d_data.layout.fontSize);
     ss << baseStyle.toAssLine();
 
+    // Make title & artist style lines
+    // TODO: Figure out how to support multiple fonts in the same video gen pass
+    const Style titleStyle("Title", d_data.layout.fontName, d_data.header.titleSize);
+    const Style artistStyle("Artist", d_data.header.fontName, d_data.header.artistSize);
+    ss << titleStyle.toAssLine();
+    ss << artistStyle.toAssLine();
+
     // Make Highlight style lines
     Style highlightStyle = baseStyle;
     int colorIndex = 0;
@@ -213,6 +218,14 @@ void Ass::buildStyles(std::ostringstream& ss) {
 void Ass::buildEventInfo(std::ostringstream& ss) {
     ss << "[Events]\n";
     ss << "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n";
+}
+
+void Ass::buildHeaderLabel(std::ostringstream& ss) {
+    const int audioLengthMs = d_data.audio.length * 1000;
+    // Dialogue: 3,0:00:00.00,0:01:15.38,HeaderLabel,,0,0,0,,{\an5\pos(540,620)\fs64}Ted Talk{\N}{\fs36}Jonwayne
+    ss << "Dialogue: 3," << formatTime(0) << "," << formatTime(audioLengthMs)
+       << "," << "Title" << ",,0,0,0,,{\\an5\\pos(" << d_data.video.width / 2 << "," << "700" << ")\\fs64}" << d_data.header.title << "\n";
+    //    << "{\\N}{\\fs36}" << d_data.header.artist << "\n";
 }
 
 void Ass::buildEvents(std::ostringstream& ss) {

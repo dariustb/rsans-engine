@@ -50,6 +50,7 @@ class Ass {
     void buildStyleInfo(std::ostringstream& ss);
     void buildStyles(std::ostringstream& ss);
     void buildEventInfo(std::ostringstream& ss);
+    void buildHeaderLabel(std::ostringstream& ss);
     void buildEvents(std::ostringstream& ss);
     void buildHighlights(std::ostringstream& ss);
 
