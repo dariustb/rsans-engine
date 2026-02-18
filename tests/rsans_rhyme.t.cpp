@@ -32,7 +32,7 @@ private:
 std::string createTestProjectJson(const std::vector<Token>& tokens, const std::string& cmudictPath = "") {
     std::ostringstream json;
     json << R"({
-        "header": {"media": "test.jpg"},
+        "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": { "path": "test.wav", "length": 10.5 },
         "video": { "width": 1920, "height": 1080, "background": "#000000" },
         "layout": { "fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60 },

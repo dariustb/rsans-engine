@@ -40,6 +40,12 @@ ProjectData createTestProjectData(
     std::ostringstream json;
     json << R"({
         "header": {
+            "fontName": "DejaVu Sans Mono",
+            "fontPath": "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+            "title": "Test Title",
+            "titleSize": 64,
+            "artist": "Test Artist",
+            "artistSize": 36,
             "media": ")" << imagePath << R"("
         },
         "audio": {
@@ -122,6 +128,37 @@ TEST(AssTest, AssConstructorGeneratesBaseStyleGivenLayoutConfig) {
     // Then
     EXPECT_NE(ass.text().find("Style: Base"), std::string::npos);
     EXPECT_NE(ass.text().find("DejaVu Sans Mono"), std::string::npos);
+}
+
+TEST(AssTest, AssConstructorGeneratesTitleAndArtistStylesGivenHeaderConfig) {
+    // Given
+    std::vector<Token> tokens = {
+        {1, "test", 0, 100, 0, std::nullopt}
+    };
+    const ProjectData data = createTestProjectData(tokens);
+
+    // When
+    const Ass ass(data);
+
+    // Then
+    EXPECT_NE(ass.text().find("Style: Title"), std::string::npos);
+    EXPECT_NE(ass.text().find("Style: Artist"), std::string::npos);
+}
+
+TEST(AssTest, AssConstructorGeneratesHeaderLabelDialogueGivenHeaderConfig) {
+    // Given
+    std::vector<Token> tokens = {
+        {1, "test", 0, 100, 0, std::nullopt}
+    };
+    const ProjectData data = createTestProjectData(tokens);
+
+    // When
+    const Ass ass(data);
+
+    // Then
+    EXPECT_NE(ass.text().find("Dialogue: 3,"), std::string::npos);
+    EXPECT_NE(ass.text().find("Test Title"), std::string::npos);
+    EXPECT_NE(ass.text().find(",Title,"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorGeneratesBaseDialogueGivenTokens) {
