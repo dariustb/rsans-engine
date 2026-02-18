@@ -40,6 +40,12 @@ class Color {
 
 struct ProjectData {
     struct HeaderData {
+        std::string fontName;
+        std::string fontPath;
+        std::string title;
+        int titleSize;
+        std::string artist;
+        int artistSize;
         std::string media;
     } header;
 

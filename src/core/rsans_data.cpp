@@ -58,13 +58,19 @@ std::string Color::toAss(const std::string& hexValue) {
 ProjectData::ProjectData(const std::string& jsonContent) {
     const json j = json::parse(jsonContent);
 
+    header.fontName = j["header"]["fontName"].get<std::string>();
+    header.fontPath = j["header"]["fontPath"].get<std::string>();
+    header.title = j["header"]["title"].get<std::string>();
+    header.titleSize = j["header"]["titleSize"].get<int>();
+    header.artist = j["header"]["artist"].get<std::string>();
+    header.artistSize = j["header"]["artistSize"].get<int>();
     header.media = j["header"]["media"].get<std::string>();
 
     audio.path = j["audio"]["path"].get<std::string>();
     audio.length = j["audio"]["length"].is_null()
         ? getAudioDuration(audio.path)
         : j["audio"]["length"].get<double>();
- 
+
     video.width = j["video"]["width"].get<int>();
     video.height = j["video"]["height"].get<int>();
     video.background = j["video"]["background"].get<std::string>();
@@ -122,6 +128,12 @@ ProjectData::ProjectData(ProjectData&& other) noexcept
 std::string ProjectData::toJson() const {
     json j;
 
+    j["header"]["fontName"] = header.fontName;
+    j["header"]["fontPath"] = header.fontPath;
+    j["header"]["title"] = header.title;
+    j["header"]["titleSize"] = header.titleSize;
+    j["header"]["artist"] = header.artist;
+    j["header"]["artistSize"] = header.artistSize;
     j["header"]["media"] = header.media;
 
     j["audio"]["path"] = audio.path;
