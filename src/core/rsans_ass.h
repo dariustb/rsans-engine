@@ -117,10 +117,10 @@ struct Ass::Style {
     int marginV  = 10;
     int encoding = 1;  // usually 1 (ANSI) or 0
 
-    std::string toAssLine() const;
-
     Style() = delete;
     Style(const std::string styleName, const std::string fontName, const int fontSize);
+    
+    std::string toAssLine() const;
 };
 
 struct Ass::Dialogue {
