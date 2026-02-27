@@ -180,16 +180,16 @@ int Ass::getStringWidth(const std::string& text) {
 }
 
 void Ass::buildScriptInfo(std::ostringstream& ss) {
-    ss << "[Script Info]\n";
-    ss << "Title: RSANS Generated ASS\n";
-    ss << "ScriptType: v4.00+\n";
-    ss << "PlayResX: " << d_data.video.width << "\n";
-    ss << "PlayResY: " << d_data.video.height << "\n\n";
+    ss << "[Script Info]\n"
+       << "Title: RSANS Generated ASS\n"
+       << "ScriptType: v4.00+\n"
+       << "PlayResX: " << d_data.video.width << "\n"
+       << "PlayResY: " << d_data.video.height << "\n\n";
 }
 
 void Ass::buildStyleInfo(std::ostringstream& ss) {
-    ss << "[V4+ Styles]\n";
-    ss << "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
+    ss << "[V4+ Styles]\n"
+       << "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
        << "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
        << "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
        << "Alignment, MarginL, MarginR, MarginV, Encoding\n";
@@ -257,11 +257,6 @@ void Ass::buildHighlights(std::ostringstream& ss) {
         const double tokenX = d_leftMargin + getStringWidth(textBeforeToken);
         const double lineY = d_topMargin + (token.lineIndex - d_lineInfo_p->minLineIdx) * d_fontHeight;
 
-        // Use transparent text with colored border to emulate highlight
-        // \1a&HFF& = fully transparent text
-        // \3c = outline/border color (used as highlight color)
-        // \3a&H00& = fully opaque border
-        // \bord = border thickness for coverage
         const std::string highlightColor = d_data.colorSwatch.at(colorIndex).ass();
         const int borderSize = 1;
 
