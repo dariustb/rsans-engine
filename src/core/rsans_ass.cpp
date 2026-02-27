@@ -16,6 +16,7 @@
 
 namespace {
 
+constexpr int VIDEO_START_TIME = 0;
 const std::string RENDER_TEMP_DIALOGUE =  "Dialogue: 0,0:00:00.00,0:00:10.00,Base,,0,0,0,,{\\an7\\pos(0,0)}";
 
 void silentAssLog(int, const char*, va_list, void*) {}
@@ -58,8 +59,6 @@ void getImageDimensions(const std::string& path, int& width, int& height) {
 Ass::Ass(const ProjectData& data)
     : d_data(data)
     , d_lineInfo_p(std::make_unique<LineInfo>(data.tokens))
-    , d_fontHeight(0)
-    , d_leftMargin(50.0)
 {
     // Init libass stuff
     d_library_p.reset(ass_library_init());
@@ -80,9 +79,10 @@ Ass::Ass(const ProjectData& data)
     int mediaHeight = 0;
     int mediaWidth  = 0;
     getImageDimensions(d_data.header.media, mediaWidth, mediaHeight);
-    d_topMargin = 50 + static_cast<int>(mediaHeight * static_cast<double>(d_data.video.width) / mediaWidth);
-
+    
     d_fontHeight = renderAssHeight();
+    d_leftMargin = 50.0;
+    d_topMargin  = 75.0 + static_cast<int>(mediaHeight * static_cast<double>(d_data.video.width) / mediaWidth);
 
     // Set up ASS file stuff
     buildScriptInfo(d_ss);
@@ -197,31 +197,29 @@ void Ass::buildStyleInfo(std::ostringstream& ss) {
 
 void Ass::buildStyles(std::ostringstream& ss) {
     // Make Base style line
-    const Style baseStyle("Base", d_data.layout.fontName, d_data.layout.fontSize);
-    ss << baseStyle.toAssLine();
+    ss << Style("Base", d_data.layout.fontName, d_data.layout.fontSize, Alignment::TopLeft).toAssLine();
 
     // Make title & artist style lines
     // TODO: Figure out how to support multiple fonts in the same video gen pass
-    const Style titleStyle("Title", d_data.layout.fontName, d_data.header.titleSize);
-    const Style artistStyle("Artist", d_data.layout.fontName, d_data.header.artistSize);
-    ss << titleStyle.toAssLine();
-    ss << artistStyle.toAssLine();
+    ss << Style("Title", d_data.layout.fontName, d_data.header.titleSize, Alignment::BottomCenter).toAssLine();
+    ss << Style("Artist", d_data.layout.fontName, d_data.header.artistSize, Alignment::TopCenter).toAssLine();
 
     // Make Highlight style lines
-    Style highlightStyle = baseStyle;
-    int colorIndex = 0;
-    for (const Color& color : d_data.colorSwatch) {
-        highlightStyle.name = getGroupNameFromValue(colorIndex++);
-        highlightStyle.primaryColor = color.ass();
-        highlightStyle.borderStyle = BorderStyle::OpaqueBox;
-        ss << highlightStyle.toAssLine();
+    for (int idx = 0; idx < d_data.colorSwatch.size(); idx++) {
+        Style highlight(getGroupNameFromValue(idx), d_data.layout.fontName, d_data.layout.fontSize, Alignment::TopLeft);
+        highlight.primaryColor = d_data.colorSwatch.at(idx).ass();
+        highlight.borderStyle = BorderStyle::OpaqueBox;
+        highlight.outlineColor = highlight.primaryColor;
+        highlight.outlineWidth = 1; // 1px border outline
+
+        ss << highlight.toAssLine();
     }
     ss << "\n";
 }
 
 void Ass::buildEventInfo(std::ostringstream& ss) {
-    ss << "[Events]\n";
-    ss << "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n";
+    ss << "[Events]\n"
+       << "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n";
 }
 
 void Ass::buildHeaderLabel(std::ostringstream& ss) {
@@ -229,25 +227,20 @@ void Ass::buildHeaderLabel(std::ostringstream& ss) {
     stbi_info(d_data.header.media.c_str(), &mediaWidth, &mediaHeight, &mediaChannels);
     
     const int audioLengthMs = d_data.audio.length * 1000;
-    const int centerOfVideoX = d_data.video.width / 2;
-    const double scale = static_cast<double>(d_data.video.width) / mediaWidth;
-    const int bottomOfMediaY = static_cast<int>(mediaHeight * scale);
+    const int centerOfVideoX = d_data.video.width / 2;  // TODO: posX/posY should be doubles in Dialogue
+    const int bottomOfMediaY = static_cast<int>(mediaHeight * (static_cast<double>(d_data.video.width) / mediaWidth));
 
-    ss << "Dialogue: " << HeaderText << "," << formatTime(0) << "," << formatTime(audioLengthMs)
-       << "," << "Title" << ",,0,0,0,,{\\an" << BottomCenter << "\\pos(" << centerOfVideoX << "," << bottomOfMediaY << ")}" << d_data.header.title << "\n";
-    ss << "Dialogue: " << HeaderText << "," << formatTime(0) << "," << formatTime(audioLengthMs)
-       << "," << "Artist" << ",,0,0,0,,{\\an" << TopCenter << "\\pos(" << centerOfVideoX << "," << bottomOfMediaY << ")}" << d_data.header.artist << "\n";
+    ss << Dialogue("Title", Layer::HeaderText, VIDEO_START_TIME, audioLengthMs, d_data.header.title, centerOfVideoX, bottomOfMediaY).toAssLine();
+    ss << Dialogue("Artist", Layer::HeaderText, VIDEO_START_TIME, audioLengthMs, d_data.header.artist, centerOfVideoX, bottomOfMediaY).toAssLine();
 }
 
 void Ass::buildEvents(std::ostringstream& ss) {
     const int audioLengthMs = d_data.audio.length * 1000;
 
     // Build base text as separate dialogues per line with explicit positioning
-    for (size_t i = 0; i < d_lineInfo_p->lines.size(); ++i) {
-        const double lineY = d_topMargin + i * d_fontHeight;
-        ss << "Dialogue: " << LyricText << "," << formatTime(0) << "," << formatTime(audioLengthMs)
-           << ",Base,,0,0,0,,{\\an" << TopLeft << "\\pos(" << d_leftMargin << "," << lineY << ")\\q2}"
-           << d_lineInfo_p->lines[i] << "\n";
+    for (int idx = 0; idx < d_lineInfo_p->lines.size(); ++idx) {
+        const double lineY = d_topMargin + idx * d_fontHeight;
+        ss << Dialogue("Base", Layer::LyricText, VIDEO_START_TIME, audioLengthMs, d_lineInfo_p->lines.at(idx), d_leftMargin, lineY).toAssLine();
     }
 }
 
@@ -279,19 +272,15 @@ void Ass::buildHighlights(std::ostringstream& ss) {
         const std::string highlightColor = d_data.colorSwatch.at(colorIndex).ass();
         const int borderSize = 1;
 
-        ss << "Dialogue: " << LyricHighlight << "," << formatTime(token.startMs) << ","
-           << formatTime(audioLengthMs) << "," << groupName << ",,0,0,0,,"
-           << "{\\an" << TopLeft << "\\pos(" << tokenX << "," << lineY << ")"
-           << "\\1a&HFF&\\3c" << highlightColor << "\\3a&H00&"
-           << "\\bord" << borderSize << "\\shad0}"
-           << token.text << "\n";
+        ss << Dialogue(groupName, Layer::LyricHighlight, token.startMs, audioLengthMs, token.text, tokenX, lineY).toAssLine();
     }
 }
 
-Ass::Style::Style(const std::string styleName, const std::string fontName, const int fontSize)
-: name(styleName)
-, fontName(fontName)
-, fontSize(fontSize)
+Ass::Style::Style(const std::string styleName, const std::string fontName, const int fontSize, const Alignment alignment)
+    : name(styleName)
+    , fontName(fontName)
+    , fontSize(fontSize)
+    , alignment(alignment)
 {}
 
 std::string Ass::Style::toAssLine() const {
@@ -310,20 +299,30 @@ std::string Ass::Style::toAssLine() const {
     return oss.str();
 }
 
-Ass::Dialogue::Dialogue(int64_t startMs, int64_t endMs, std::string styleName, std::string text_)
-: startMs(startMs)
-, endMs(endMs)
-, style(std::move(styleName))
-, text(std::move(text_))
+Ass::Dialogue::Dialogue(const std::string& styleName, const int layer, const int64_t startTime, const int64_t endTime,
+    const std::string text, const int posX, const int posY)
+    : styleName(styleName)
+    , layer(layer)
+    , startTime(startTime)
+    , endTime(endTime)
+    , text(text)
+    , posX(posX)
+    , posY(posY)
 {}
 
 std::string Ass::Dialogue::toAssLine() const {
     std::ostringstream oss;
     oss << "Dialogue: " << layer << ','
-        << formatTime(startMs) << ',' << formatTime(endMs) << ','
-        << style << ',' << name << ','
+        << formatTime(startTime) << ',' << formatTime(endTime) << ','
+        << styleName << ',' << name << ','
         << marginL << ',' << marginR << ',' << marginV << ','
-        << effect << ',' << text << '\n';
+        << effect << ',';
+
+    // Overrides tag
+    oss << "{"
+        << "\\pos(" << posX << ',' << posY << ")"
+        << "\\q" << textWrap 
+        << "}" << text << "\n";
 
     return oss.str();
 }

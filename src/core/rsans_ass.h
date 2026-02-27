@@ -15,6 +15,7 @@ class Ass {
     enum Layer: int;
     enum BorderStyle: int;
     enum Alignment: int;
+    enum TextWrap : int;
 
     struct Style;
     struct Dialogue;
@@ -86,6 +87,13 @@ enum Ass::Alignment : int {
     TopRight     = 9
 };
 
+enum Ass::TextWrap : int {
+    SmartWrap = 0, // default
+    EolWrap = 1,   // only breaks at \N escapes
+    NoWrap = 2,
+    SmartWrapTopHeavy = 3
+};
+
 struct Ass::LineInfo {
     std::vector<std::string> lines;
     int minLineIdx;
@@ -116,38 +124,42 @@ struct Ass::Style {
     int  angle   = 0;
 
     BorderStyle borderStyle = BorderStyle::Outline;
-    int  outlineWidth          = 0;
-    int  shadowDepth           = 0;
+    int  outlineWidth = 0;
+    int  shadowDepth  = 0;
 
-    Alignment alignment = Alignment::TopLeft;
+    Alignment alignment;
     int marginL  = 10;
     int marginR  = 10;
     int marginV  = 10;
     int encoding = 1;  // usually 1 (ANSI) or 0
 
     Style() = delete;
-    Style(const std::string styleName, const std::string fontName, const int fontSize);
+    Style(const std::string styleName, const std::string fontName, const int fontSize, const Alignment alignment);
     
     std::string toAssLine() const;
 };
 
 struct Ass::Dialogue {
-    int      layer   = 0;
-    int64_t  startMs = 0;  // start time in milliseconds
-    int64_t  endMs   = 0;  // end time in milliseconds
-
-    std::string style;
+    // Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    int layer;
+    int64_t startTime;  // start time in milliseconds, TODO: can we do seconds instead?
+    int64_t endTime;    // end time in milliseconds
+    std::string styleName;
     std::string name;  // usually empty
-
-    int marginL = 0;  // in script units, zero-padded to 4 digits
+    int marginL = 0;   // Margins will be overridden with absolute positioning, keep at 0
     int marginR = 0;
     int marginV = 0;
-
     std::string effect;  // usually empty
-    std::string text;    // raw ASS text, including any override tags
+    std::string text;    // raw ASS text
+
+    // Override values
+    int posX;
+    int posY;
+    TextWrap textWrap = NoWrap;
 
     Dialogue() = delete;
-    Dialogue(int64_t startMs, int64_t endMs, std::string styleName, std::string text_);
+    Dialogue(const std::string& styleName, const int layer, const int64_t startTime, const int64_t endTime,
+        const std::string text, const int posX, const int posY);
 
     std::string toAssLine() const;
 };
