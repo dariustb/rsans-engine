@@ -247,7 +247,8 @@ void Ass::buildEvents(std::ostringstream& ss) {
 void Ass::buildHighlights(std::ostringstream& ss) {
     const int audioLengthMs = d_data.audio.length * 1000;
 
-    for (const Token& token : d_data.tokens) {
+    for (size_t idx = 0; idx < d_data.tokens.size(); ++idx) {
+        const Token& token = d_data.tokens.at(idx);
         if (!token.rhymeIndex.has_value()) {
             continue;
         }
@@ -255,10 +256,7 @@ void Ass::buildHighlights(std::ostringstream& ss) {
         const int colorIndex = token.rhymeIndex.value() % d_data.colorSwatch.size();
         const std::string groupName = getGroupNameFromValue(colorIndex);
         const std::string& lineText = d_lineInfo_p->lines.at(token.lineIndex - d_lineInfo_p->minLineIdx);
-        
-        // FIXME: This will only find the first occurence of the word
-        // May be bad if the word is used multiple times in a line
-        const size_t tokenCharPos = lineText.find(token.text);
+        const size_t tokenCharPos = d_lineInfo_p->tokenCharPositions.at(idx);
 
         const std::string textBeforeToken = lineText.substr(0, tokenCharPos);
         const double tokenX = d_leftMargin + getStringWidth(textBeforeToken);
@@ -342,19 +340,25 @@ Ass::LineInfo::LineInfo(const std::vector<Token>& tokens) {
             maxLineIdx = token.lineIndex;
         }
 
+        size_t charPos;
         if (token.lineIndex != lastLineIdx) {
             if (!tokenLineStr.empty()) {
                 lines.push_back(std::move(tokenLineStr));
             }
             tokenLineStr = token.text;
             lastLineIdx = token.lineIndex;
+            charPos = 0;
         } else {
             // Put commas next to end of text for grammar
             if (token.text != ",") {
+                charPos = tokenLineStr.size() + 1;  // +1 for the space
                 tokenLineStr += ' ';
+            } else {
+                charPos = tokenLineStr.size();
             }
             tokenLineStr += token.text;
         }
+        tokenCharPositions.push_back(charPos);
     }
 
     if (!tokenLineStr.empty()) {

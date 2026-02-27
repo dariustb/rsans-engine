@@ -96,6 +96,7 @@ enum Ass::TextWrap : int {
 
 struct Ass::LineInfo {
     std::vector<std::string> lines;
+    std::vector<size_t> tokenCharPositions;  // char position of each token within its line, parallel to tokens
     int minLineIdx;
     int maxLineIdx;
 
