@@ -148,14 +148,14 @@ struct Ass::Dialogue {
     int64_t startTime;  // start time in milliseconds, TODO: can we do seconds instead?
     int64_t endTime;    // end time in milliseconds
     std::string styleName;
-    std::string name;  // usually empty
-    int marginL = 0;   // Margins will be overridden with absolute positioning, keep at 0
-    int marginR = 0;
-    int marginV = 0;
-    std::string effect;  // usually empty
-    std::string text;    // raw ASS text
+    std::string text;   // raw ASS text
 
-    // Override values
+    // Non-essentials
+    std::string name;    // usually empty
+    int marginL = 0, marginR = 0, marginV = 0; // posX/posY overrides margins, keep at 0
+    std::string effect;  // usually empty
+
+    // Overrides
     int posX;
     int posY;
     TextWrap textWrap = NoWrap;
