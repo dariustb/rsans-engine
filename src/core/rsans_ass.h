@@ -136,7 +136,9 @@ struct Ass::Style {
 
     Style() = delete;
     Style(const std::string styleName, const std::string fontName, const int fontSize, const Alignment alignment);
-    
+    Style(const std::string styleName, const std::string fontName, const int fontSize, const Alignment alignment,
+          const std::string& primaryColor, const BorderStyle borderStyle);
+
     std::string toAssLine() const;
 };
 

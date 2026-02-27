@@ -196,23 +196,18 @@ void Ass::buildStyleInfo(std::ostringstream& ss) {
 }
 
 void Ass::buildStyles(std::ostringstream& ss) {
-    // Make Base style line
+    // Lyrics text style
     ss << Style("Base", d_data.layout.fontName, d_data.layout.fontSize, Alignment::TopLeft).toAssLine();
 
-    // Make title & artist style lines
+    // Header title & artist styles
     // TODO: Figure out how to support multiple fonts in the same video gen pass
     ss << Style("Title", d_data.layout.fontName, d_data.header.titleSize, Alignment::BottomCenter).toAssLine();
     ss << Style("Artist", d_data.layout.fontName, d_data.header.artistSize, Alignment::TopCenter).toAssLine();
 
-    // Make Highlight style lines
+    // Highlight styles
     for (int idx = 0; idx < d_data.colorSwatch.size(); idx++) {
-        Style highlight(getGroupNameFromValue(idx), d_data.layout.fontName, d_data.layout.fontSize, Alignment::TopLeft);
-        highlight.primaryColor = d_data.colorSwatch.at(idx).ass();
-        highlight.borderStyle = BorderStyle::OpaqueBox;
-        highlight.outlineColor = highlight.primaryColor;
-        highlight.outlineWidth = 1; // 1px border outline
-
-        ss << highlight.toAssLine();
+        ss << Style(getGroupNameFromValue(idx), d_data.layout.fontName, d_data.layout.fontSize,
+                    Alignment::TopLeft, d_data.colorSwatch.at(idx).ass(), BorderStyle::OpaqueBox).toAssLine();
     }
     ss << "\n";
 }
@@ -279,6 +274,18 @@ Ass::Style::Style(const std::string styleName, const std::string fontName, const
     , fontName(fontName)
     , fontSize(fontSize)
     , alignment(alignment)
+{}
+
+Ass::Style::Style(const std::string styleName, const std::string fontName, const int fontSize, const Alignment alignment,
+                  const std::string& primaryColor, const BorderStyle borderStyle) 
+    : name(styleName)
+    , fontName(fontName)
+    , fontSize(fontSize)
+    , alignment(alignment)
+    , primaryColor(primaryColor)
+    , outlineColor(primaryColor)
+    , borderStyle(borderStyle)
+    , outlineWidth(1)
 {}
 
 std::string Ass::Style::toAssLine() const {
