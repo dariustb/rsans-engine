@@ -159,6 +159,8 @@ TEST(AssTest, AssConstructorGeneratesHeaderLabelDialogueGivenHeaderConfig) {
     EXPECT_NE(ass.text().find("Dialogue: 3,"), std::string::npos);
     EXPECT_NE(ass.text().find("Test Title"), std::string::npos);
     EXPECT_NE(ass.text().find(",Title,"), std::string::npos);
+    EXPECT_NE(ass.text().find("Test Artist"), std::string::npos);
+    EXPECT_NE(ass.text().find(",Artist,"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorGeneratesBaseDialogueGivenTokens) {
@@ -289,9 +291,7 @@ TEST(AssTest, AssConstructorHandlesDuplicateWordsGivenRepeatedTokensOnSameLine) 
     // When
     const Ass ass(data);
 
-    // Then: Both rhyme dialogues are generated
-    // Note: This test exposes a potential bug where both dialogues
-    // may be positioned at the same X coordinate
+    // Then: Both rhyme dialogues are generated at different X positions
     size_t pos = 0;
     int count = 0;
     while ((pos = ass.text().find("Dialogue: 0,", pos)) != std::string::npos) {
@@ -356,11 +356,10 @@ TEST(AssTest, AssConstructorIncludesHighlightFormattingGivenRhymeTokens) {
     // When
     const Ass ass(data);
 
-    // Then
-    EXPECT_NE(ass.text().find("\\1a&HFF&"), std::string::npos);  // Fully trans text
-    EXPECT_NE(ass.text().find("\\3c"), std::string::npos);  // Outline/border color
-    EXPECT_NE(ass.text().find("\\3a&H00&"), std::string::npos);  // Opaque
-    EXPECT_NE(ass.text().find("\\bord"), std::string::npos);  // Border thickness setting
+    // Then: Highlight formatting is defined in the Style (not dialogue override tags)
+    EXPECT_NE(ass.text().find("Style: rhyme_0"), std::string::npos);  // highlight style exists
+    EXPECT_NE(ass.text().find("&H000000FF"), std::string::npos);       // swatch color #FF0000 in ASS BGR format
+    EXPECT_NE(ass.text().find(",3,"), std::string::npos);              // OpaqueBox borderStyle in Style line
 }
 
 TEST(AssTest, AssConstructorPositionsLinesVerticallyGivenMultipleLines) {
@@ -394,8 +393,10 @@ TEST(AssTest, AssConstructorIncludesAlignmentTagsGivenTokens) {
     // When
     const Ass ass(data);
 
-    // Then
-    EXPECT_NE(ass.text().find("\\an7"), std::string::npos);
+    // Then: Alignment is encoded in the Style line (TopLeft=7) not as a dialogue override tag
+    // Pattern matches: outlineWidth=0, shadowDepth=0, alignment=7, marginL=10 in Base style
+    EXPECT_NE(ass.text().find("Style: Base"), std::string::npos);
+    EXPECT_NE(ass.text().find(",0,0,7,10,"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorUsesCorrectAlignmentGivenRhymeTokens) {
@@ -408,6 +409,8 @@ TEST(AssTest, AssConstructorUsesCorrectAlignmentGivenRhymeTokens) {
     // When
     const Ass ass(data);
 
-    // Then
-    EXPECT_NE(ass.text().find("\\an7"), std::string::npos);
+    // Then: Highlight style also uses TopLeft alignment (7)
+    // Pattern matches: outlineWidth=1, shadowDepth=0, alignment=7, marginL=10 in rhyme style
+    EXPECT_NE(ass.text().find("Style: rhyme_0"), std::string::npos);
+    EXPECT_NE(ass.text().find(",1,0,7,10,"), std::string::npos);
 }
