@@ -16,6 +16,8 @@
 
 namespace {
 
+const std::string RENDER_TEMP_DIALOGUE =  "Dialogue: 0,0:00:00.00,0:00:10.00,Base,,0,0,0,,{\\an7\\pos(0,0)}";
+
 void silentAssLog(int, const char*, va_list, void*) {}
 
 std::string formatTime(int ms) {
@@ -100,11 +102,13 @@ int Ass::renderAssHeight() {
     // Set temp ASS string for format info
     const std::string glyphText = "Hg";  // chars use the top and bottom of the glyph space
     std::ostringstream oss;
+
     buildScriptInfo(oss);
     buildStyleInfo(oss);
     buildStyles(oss);
     buildEventInfo(oss);
-    oss << "Dialogue: 0,0:00:00.00,0:00:10.00,Base,,0,0,0,,{\\an7\\pos(0,0)}" + glyphText + "\n";
+
+    oss << RENDER_TEMP_DIALOGUE + glyphText + "\n";
 
     std::unique_ptr<ASS_Track, TrackDeleter> track(ass_read_memory(
         d_library_p.get(),
@@ -139,10 +143,8 @@ int Ass::renderAssWidth(const std::string& text) {
     buildStyleInfo(oss);
     buildStyles(oss);
     buildEventInfo(oss);
-    
-    const std::string textDialogue =
-        "Dialogue: 0,0:00:00.00,0:00:10.00,Base,,0,0,0,,{\\an7\\pos(0,0)}" + text + "\n";
-    oss << textDialogue;
+
+    oss << RENDER_TEMP_DIALOGUE + text + "\n";
 
     std::unique_ptr<ASS_Track, TrackDeleter> track(ass_read_memory(
         d_library_p.get(),
@@ -201,7 +203,7 @@ void Ass::buildStyles(std::ostringstream& ss) {
     // Make title & artist style lines
     // TODO: Figure out how to support multiple fonts in the same video gen pass
     const Style titleStyle("Title", d_data.layout.fontName, d_data.header.titleSize);
-    const Style artistStyle("Artist", d_data.header.fontName, d_data.header.artistSize);
+    const Style artistStyle("Artist", d_data.layout.fontName, d_data.header.artistSize);
     ss << titleStyle.toAssLine();
     ss << artistStyle.toAssLine();
 
@@ -231,9 +233,10 @@ void Ass::buildHeaderLabel(std::ostringstream& ss) {
     const double scale = static_cast<double>(d_data.video.width) / mediaWidth;
     const int bottomOfMediaY = static_cast<int>(mediaHeight * scale);
 
-    ss << "Dialogue: 3," << formatTime(0) << "," << formatTime(audioLengthMs)
-       << "," << "Title" << ",,0,0,0,,{\\an5\\pos(" << centerOfVideoX << "," << bottomOfMediaY << ")\\fs64}" << d_data.header.title << "\n";
-    //    << "{\\N}{\\fs36}" << d_data.header.artist << "\n";
+    ss << "Dialogue: " << HeaderText << "," << formatTime(0) << "," << formatTime(audioLengthMs)
+       << "," << "Title" << ",,0,0,0,,{\\an" << BottomCenter << "\\pos(" << centerOfVideoX << "," << bottomOfMediaY << ")}" << d_data.header.title << "\n";
+    ss << "Dialogue: " << HeaderText << "," << formatTime(0) << "," << formatTime(audioLengthMs)
+       << "," << "Artist" << ",,0,0,0,,{\\an" << TopCenter << "\\pos(" << centerOfVideoX << "," << bottomOfMediaY << ")}" << d_data.header.artist << "\n";
 }
 
 void Ass::buildEvents(std::ostringstream& ss) {
@@ -242,8 +245,8 @@ void Ass::buildEvents(std::ostringstream& ss) {
     // Build base text as separate dialogues per line with explicit positioning
     for (size_t i = 0; i < d_lineInfo_p->lines.size(); ++i) {
         const double lineY = d_topMargin + i * d_fontHeight;
-        ss << "Dialogue: 1," << formatTime(0) << "," << formatTime(audioLengthMs)
-           << ",Base,,0,0,0,,{\\an7\\pos(" << d_leftMargin << "," << lineY << ")\\q2}"
+        ss << "Dialogue: " << LyricText << "," << formatTime(0) << "," << formatTime(audioLengthMs)
+           << ",Base,,0,0,0,,{\\an" << TopLeft << "\\pos(" << d_leftMargin << "," << lineY << ")\\q2}"
            << d_lineInfo_p->lines[i] << "\n";
     }
 }
@@ -276,9 +279,9 @@ void Ass::buildHighlights(std::ostringstream& ss) {
         const std::string highlightColor = d_data.colorSwatch.at(colorIndex).ass();
         const int borderSize = 1;
 
-        ss << "Dialogue: 0," << formatTime(token.startMs) << ","
+        ss << "Dialogue: " << LyricHighlight << "," << formatTime(token.startMs) << ","
            << formatTime(audioLengthMs) << "," << groupName << ",,0,0,0,,"
-           << "{\\an7\\pos(" << tokenX << "," << lineY << ")"
+           << "{\\an" << TopLeft << "\\pos(" << tokenX << "," << lineY << ")"
            << "\\1a&HFF&\\3c" << highlightColor << "\\3a&H00&"
            << "\\bord" << borderSize << "\\shad0}"
            << token.text << "\n";
