@@ -12,6 +12,7 @@
 
 class Ass {
   private:
+    enum Layer: int;
     enum BorderStyle: int;
     enum Alignment: int;
 
@@ -59,6 +60,13 @@ class Ass {
 
     Ass() = delete;
     Ass(const ProjectData& data);
+};
+
+enum Ass::Layer : int {
+    LyricHighlight,
+    LyricText,
+    HeaderBackground,
+    HeaderText
 };
 
 enum Ass::BorderStyle : int {
