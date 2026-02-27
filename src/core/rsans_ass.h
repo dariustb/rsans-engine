@@ -114,7 +114,7 @@ struct Ass::Style {
     std::string outlineColor   = "&H00000000";
     std::string backColor      = "&H00000000";  // transparent by default
 
-    bool isBold      = false;
+    bool isBold      = true;
     bool isItalic    = false;
     bool isUnderline = false;
     bool isStrikeOut = false;

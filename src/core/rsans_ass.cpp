@@ -9,10 +9,12 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#include <fstream>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -73,6 +75,20 @@ Ass::Ass(const ProjectData& data)
     }
     ass_set_storage_size(d_renderer_p.get(), data.video.width, data.video.height);
     ass_set_frame_size(d_renderer_p.get(), data.video.width, data.video.height);
+
+    // Load header font into the library so it is available for measurement and rendering
+    {
+        std::ifstream fontFile(data.header.fontPath, std::ios::binary | std::ios::ate);
+        if (fontFile.is_open()) {
+            const std::streamsize size = fontFile.tellg();
+            fontFile.seekg(0, std::ios::beg);
+            std::vector<char> fontData(size);
+            fontFile.read(fontData.data(), size);
+            ass_add_font(d_library_p.get(), data.header.fontName.c_str(),
+                         fontData.data(), static_cast<int>(size));
+        }
+    }
+
     ass_set_fonts(d_renderer_p.get(), data.layout.fontPath.c_str(),
     data.layout.fontName.c_str(), ASS_FONTPROVIDER_NONE, nullptr, 0);
 
@@ -199,10 +215,9 @@ void Ass::buildStyles(std::ostringstream& ss) {
     // Lyrics text style
     ss << Style("Base", d_data.layout.fontName, d_data.layout.fontSize, Alignment::TopLeft).toAssLine();
 
-    // Header title & artist styles
-    // TODO: Figure out how to support multiple fonts in the same video gen pass
-    ss << Style("Title", d_data.layout.fontName, d_data.header.titleSize, Alignment::BottomCenter).toAssLine();
-    ss << Style("Artist", d_data.layout.fontName, d_data.header.artistSize, Alignment::TopCenter).toAssLine();
+    // Header title & artist styles use the header font
+    ss << Style("Title", d_data.header.fontName, d_data.header.titleSize, Alignment::BottomCenter).toAssLine();
+    ss << Style("Artist", d_data.header.fontName, d_data.header.artistSize, Alignment::TopCenter).toAssLine();
 
     // Highlight styles
     for (int idx = 0; idx < d_data.colorSwatch.size(); idx++) {

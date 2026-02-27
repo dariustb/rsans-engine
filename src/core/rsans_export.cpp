@@ -37,7 +37,14 @@ int executeFfmpegBuild(const ProjectData& data,
                        const std::string& ffmpegPath,
                        const std::string& assPath) {
     // Build ffmpeg command
-    const std::filesystem::path fontPath(data.layout.fontPath);
+    const std::filesystem::path layoutFontDir = std::filesystem::path(data.layout.fontPath).parent_path();
+    const std::filesystem::path headerFontDir = std::filesystem::path(data.header.fontPath).parent_path();
+    // Use the common ancestor so fontconfig (used by ffmpeg's libass) can discover all fonts
+    // TODO: this only works when the fonts share the same immediate parent folder
+    const std::filesystem::path fontsDir = (layoutFontDir == headerFontDir)
+        ? layoutFontDir
+        : layoutFontDir.parent_path();
+
     std::ostringstream cmd;
     cmd << ffmpegPath << " -y ";
     cmd << "-f lavfi -i color=c=" << data.video.background << ":s=" << data.video.width << "x"
@@ -47,7 +54,7 @@ int executeFfmpegBuild(const ProjectData& data,
         << "scale=" << data.video.width << ":-1"
         << (isImageFile(data.header.media) ? "[cover];[0:v][cover]" : "[hdr];[0:v][hdr]")
         << "overlay=0:0,";
-    cmd << "subtitles=" << assPath << ":fontsdir=" << fontPath.parent_path().string() << "\" ";
+    cmd << "subtitles=" << assPath << ":fontsdir=" << fontsDir.string() << "\" ";
     cmd << "-c:v libx264 -c:a aac -shortest ";
     cmd << outputVideoPath;
     
