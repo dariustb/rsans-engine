@@ -343,7 +343,6 @@ Ass::Dialogue::Dialogue(const std::string& styleName, const int layer, const int
     , layer(layer)
     , startTime(startTime)
     , endTime(endTime)
-    , text(std::string())
     , posX(posX)
     , posY(posY)
     , rectangleWidth(width)
