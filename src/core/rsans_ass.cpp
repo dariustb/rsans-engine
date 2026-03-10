@@ -103,8 +103,8 @@ Ass::Ass(const ProjectData& data)
     int mediaWidth  = 0;
     getImageDimensions(d_data.header.media, mediaWidth, mediaHeight);
     
-    d_fontHeight = renderAssHeight();
-    d_leftMargin = 50.0;
+    d_fontHeight = renderAssHeight(StyleName::LyricText);
+    d_leftMargin = 50.0;  // TODO: Get left & top Margin to project.json instead
     d_topMargin  = 75.0 + static_cast<int>(mediaHeight * static_cast<double>(d_data.video.width) / mediaWidth);
 
     // Set up ASS file stuff
