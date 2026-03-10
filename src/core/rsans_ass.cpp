@@ -19,7 +19,6 @@
 namespace {
 
 constexpr int VIDEO_START_TIME = 0;
-const std::string RENDER_TEMP_DIALOGUE =  "Dialogue: 0,0:00:00.00,0:00:10.00,Base,,0,0,0,,{\\an7\\pos(0,0)}";
 
 void silentAssLog(int, const char*, va_list, void*) {}
 
@@ -114,7 +113,7 @@ std::string Ass::text() const {
     return d_ss.str();
 }
 
-int Ass::renderAssHeight() {
+int Ass::renderAssHeight(const std::string& styleName) {
     // Set temp ASS string for format info
     const std::string glyphText = "Hg";  // chars use the top and bottom of the glyph space
     std::ostringstream oss;
@@ -124,7 +123,7 @@ int Ass::renderAssHeight() {
     buildStyles(oss);
     buildEventInfo(oss);
 
-    oss << RENDER_TEMP_DIALOGUE + glyphText + "\n";
+    oss << "Dialogue: 0,0:00:00.00,0:00:10.00," << styleName << ",,0,0,0,,{\\an7\\pos(0,0)}" << glyphText << "\n";
 
     std::unique_ptr<ASS_Track, TrackDeleter> track(ass_read_memory(
         d_library_p.get(),
@@ -152,7 +151,7 @@ int Ass::renderAssHeight() {
     return maxY;
 }
 
-int Ass::renderAssWidth(const std::string& text) {
+int Ass::renderAssWidth(const std::string& text, const std::string& styleName) {
     std::ostringstream oss;
 
     buildScriptInfo(oss);
@@ -160,7 +159,7 @@ int Ass::renderAssWidth(const std::string& text) {
     buildStyles(oss);
     buildEventInfo(oss);
 
-    oss << RENDER_TEMP_DIALOGUE + text + "\n";
+    oss << "Dialogue: 0,0:00:00.00,0:00:10.00," << styleName << ",,0,0,0,,{\\an7\\pos(0,0)}" << text << "\n";
 
     std::unique_ptr<ASS_Track, TrackDeleter> track(ass_read_memory(
         d_library_p.get(),
@@ -218,6 +217,8 @@ void Ass::buildStyles(std::ostringstream& ss) {
     // Header title & artist styles use the header font
     ss << Style("Title", d_data.header.fontName, d_data.header.titleSize, Alignment::BottomCenter).toAssLine();
     ss << Style("Artist", d_data.header.fontName, d_data.header.artistSize, Alignment::TopCenter).toAssLine();
+    ss << Style("HeaderBkgd", d_data.header.fontName, d_data.header.artistSize,
+    Alignment::TopLeft, Color("#D98B71").ass(), BorderStyle::OpaqueBox).toAssLine();
 
     // Highlight styles
     for (int idx = 0; idx < d_data.colorSwatch.size(); idx++) {
@@ -236,12 +237,23 @@ void Ass::buildHeaderLabel(std::ostringstream& ss) {
     int mediaWidth, mediaHeight, mediaChannels;
     stbi_info(d_data.header.media.c_str(), &mediaWidth, &mediaHeight, &mediaChannels);
     
+    const int titleWidth   = renderAssWidth(d_data.header.title, "Title");
+    const int artistWidth  = renderAssWidth(d_data.header.artist, "Artist");
+    const int titleHeight  = renderAssHeight("Title");
+    const int artistHeight = renderAssHeight("Artist");
+    
     const int audioLengthMs = d_data.audio.length * 1000;
     const int centerOfVideoX = d_data.video.width / 2;  // TODO: posX/posY should be doubles in Dialogue
     const int bottomOfMediaY = static_cast<int>(mediaHeight * (static_cast<double>(d_data.video.width) / mediaWidth));
+    const int padding = 200;
+    const int headerTopY = bottomOfMediaY - titleHeight;
+    const int headerLeftX = centerOfVideoX - ((std::max(titleWidth, artistWidth) + padding)/2);
+    const int headerWidth = std::max(titleWidth, artistWidth) + padding;
+    const int headerHeight = titleHeight + artistHeight;
 
     ss << Dialogue("Title", Layer::HeaderText, VIDEO_START_TIME, audioLengthMs, d_data.header.title, centerOfVideoX, bottomOfMediaY).toAssLine();
     ss << Dialogue("Artist", Layer::HeaderText, VIDEO_START_TIME, audioLengthMs, d_data.header.artist, centerOfVideoX, bottomOfMediaY).toAssLine();
+    ss << Dialogue("HeaderBkgd", Layer::HeaderBackground, VIDEO_START_TIME, audioLengthMs, headerLeftX, headerTopY, headerWidth, headerHeight).toAssLine();
 }
 
 void Ass::buildEvents(std::ostringstream& ss) {
@@ -323,6 +335,21 @@ Ass::Dialogue::Dialogue(const std::string& styleName, const int layer, const int
     , text(text)
     , posX(posX)
     , posY(posY)
+    , rectangleWidth(0)
+    , rectangleHeight(0)
+{}
+
+Ass::Dialogue::Dialogue(const std::string& styleName, const int layer, const int64_t startTime, const int64_t endTime,
+    const int posX, const int posY, const int width, const int height)
+    : styleName(styleName)
+    , layer(layer)
+    , startTime(startTime)
+    , endTime(endTime)
+    , text(std::string())
+    , posX(posX)
+    , posY(posY)
+    , rectangleWidth(width)
+    , rectangleHeight(height)
 {}
 
 std::string Ass::Dialogue::toAssLine() const {
@@ -335,9 +362,19 @@ std::string Ass::Dialogue::toAssLine() const {
 
     // Overrides tag
     oss << "{"
-        << "\\pos(" << posX << ',' << posY << ")"
-        << "\\q" << textWrap 
-        << "}" << text << "\n";
+        << "\\pos(" << posX << ',' << posY << ")";
+    if (rectangleWidth && rectangleHeight) {
+        oss << "\\an7\\bord0\\shad0\\p1}m "
+            << "0 0 l "
+            << rectangleWidth << " 0 "
+            << rectangleWidth << ' ' << rectangleHeight << " "
+            << "0 " << rectangleHeight
+            << "{\\p0}" << "\n";
+    }
+    else {
+        oss << "\\q" << textWrap 
+            << "}" << text << "\n";
+    }
 
     return oss.str();
 }

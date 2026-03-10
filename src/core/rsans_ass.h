@@ -44,8 +44,8 @@ class Ass {
 
     std::ostringstream d_ss;
     
-    int renderAssHeight();
-    int renderAssWidth(const std::string& text);
+    int renderAssHeight(const std::string& styleName = "Base");
+    int renderAssWidth(const std::string& text, const std::string& styleName = "Base");
     int getStringWidth(const std::string& text);
 
     void buildScriptInfo(std::ostringstream& ss);
@@ -151,7 +151,7 @@ struct Ass::Dialogue {
     std::string text;   // raw ASS text
 
     // Non-essentials
-    std::string name;    // usually empty
+    std::string name;    // name of character giving dialogue, usually empty
     int marginL = 0, marginR = 0, marginV = 0; // posX/posY overrides margins, keep at 0
     std::string effect;  // usually empty
 
@@ -160,10 +160,16 @@ struct Ass::Dialogue {
     int posY;
     TextWrap textWrap = NoWrap;
 
+    // Box-drawing Overrides
+    int rectangleWidth;
+    int rectangleHeight;
+
     Dialogue() = delete;
     Dialogue(const std::string& styleName, const int layer, const int64_t startTime, const int64_t endTime,
         const std::string text, const int posX, const int posY);
-
+    Dialogue(const std::string& styleName, const int layer, const int64_t startTime, const int64_t endTime,
+        const int posX, const int posY, const int width, const int height); // Constructor for header background dialogue
+    
     std::string toAssLine() const;
 };
 
