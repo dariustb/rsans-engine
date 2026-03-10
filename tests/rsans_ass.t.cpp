@@ -414,3 +414,244 @@ TEST(AssTest, AssConstructorUsesCorrectAlignmentGivenRhymeTokens) {
     EXPECT_NE(ass.text().find("Style: rhyme_0"), std::string::npos);
     EXPECT_NE(ass.text().find(",1,0,7,10,"), std::string::npos);
 }
+
+TEST(AssTest, AssConstructorIncludesHeaderBkgdStyleGivenHeaderConfig) {
+    // Given
+    std::vector<Token> tokens = {
+        {1, "test", 0, 100, 0, std::nullopt}
+    };
+    const ProjectData data = createTestProjectData(tokens);
+
+    // When
+    const Ass ass(data);
+
+    // Then: HeaderBkgd style is present for drawing the background rectangle
+    EXPECT_NE(ass.text().find("Style: HeaderBkgd"), std::string::npos);
+}
+
+TEST(AssTest, AssConstructorIncludesHeaderBackgroundDrawingDialogueGivenHeaderConfig) {
+    // Given
+    std::vector<Token> tokens = {
+        {1, "test", 0, 100, 0, std::nullopt}
+    };
+    const ProjectData data = createTestProjectData(tokens);
+
+    // When
+    const Ass ass(data);
+
+    // Then: HeaderBackground layer (2) dialogue uses drawing commands
+    EXPECT_NE(ass.text().find("Dialogue: 2,"), std::string::npos);
+    EXPECT_NE(ass.text().find("\\p1}m 0 0 l"), std::string::npos);
+    EXPECT_NE(ass.text().find("{\\p0}"), std::string::npos);
+}
+
+TEST(AssTest, AssConstructorAttachesCommaDirectlyGivenCommaToken) {
+    // Given: A comma token should not be preceded by a space in the assembled line
+    std::vector<Token> tokens = {
+        {1, "Hello", 0, 200, 0, std::nullopt},
+        {2, ",",     200, 300, 0, std::nullopt},
+        {3, "world", 300, 500, 0, std::nullopt}
+    };
+    const ProjectData data = createTestProjectData(tokens);
+
+    // When
+    const Ass ass(data);
+
+    // Then: "Hello," with no space before the comma, space before "world"
+    EXPECT_NE(ass.text().find("Hello, world"), std::string::npos);
+    EXPECT_EQ(ass.text().find("Hello ,"), std::string::npos);
+}
+
+TEST(AssTest, AssConstructorUsesTokenStartTimeForHighlightGivenRhymeToken) {
+    // Given: Rhyme token starts at 3000ms = 0:00:03.00
+    std::vector<Token> tokens = {
+        {1, "test", 3000, 5000, 0, 0}
+    };
+    const ProjectData data = createTestProjectData(tokens, {"#FF0000"});
+
+    // When
+    const Ass ass(data);
+
+    // Then: Highlight dialogue starts at token's startMs, not at 0
+    EXPECT_NE(ass.text().find("Dialogue: 0,0:00:03.00,"), std::string::npos);
+}
+
+TEST(AssTest, AssConstructorGeneratesDistinctStylesGivenMultipleRhymeGroups) {
+    // Given: Two tokens with different rhyme groups on different lines
+    std::vector<Token> tokens = {
+        {1, "cat", 0, 500, 0, 0},
+        {2, "dog", 500, 1000, 1, 1}
+    };
+    const ProjectData data = createTestProjectData(tokens, {"#FF0000", "#00FF00"});
+
+    // When
+    const Ass ass(data);
+
+    // Then: Both rhyme styles are defined
+    EXPECT_NE(ass.text().find("Style: rhyme_0"), std::string::npos);
+    EXPECT_NE(ass.text().find("Style: rhyme_1"), std::string::npos);
+
+    // And both highlight dialogues are generated
+    size_t pos = 0;
+    int count = 0;
+    while ((pos = ass.text().find("Dialogue: 0,", pos)) != std::string::npos) {
+        ++count;
+        pos += 12;
+    }
+    EXPECT_EQ(count, 2);
+}
+
+TEST(AssTest, AssConstructorCyclesRhymeColorThroughSwatchGivenHighRhymeIndex) {
+    // Given: rhymeIndex=2 with 2-color swatch -> maps to rhyme_0 (2 % 2 = 0)
+    std::vector<Token> tokens = {
+        {1, "word", 0, 500, 0, 2}
+    };
+    const ProjectData data = createTestProjectData(tokens, {"#FF0000", "#00FF00"});
+
+    // When
+    const Ass ass(data);
+
+    // Then: The highlight dialogue references rhyme_0 (not rhyme_2)
+    EXPECT_NE(ass.text().find(",rhyme_0,"), std::string::npos);
+    EXPECT_EQ(ass.text().find(",rhyme_2,"), std::string::npos);
+}
+
+TEST(AssTest, AssConstructorIncludesNoWrapTagGivenTextDialogue) {
+    // Given
+    std::vector<Token> tokens = {
+        {1, "test", 0, 100, 0, std::nullopt}
+    };
+    const ProjectData data = createTestProjectData(tokens);
+
+    // When
+    const Ass ass(data);
+
+    // Then: Text dialogues use NoWrap (\q2)
+    EXPECT_NE(ass.text().find("\\q2}"), std::string::npos);
+}
+
+TEST(AssTest, AssConstructorOutputsSectionsInCorrectOrder) {
+    // Given
+    std::vector<Token> tokens = {
+        {1, "test", 0, 100, 0, std::nullopt}
+    };
+    const ProjectData data = createTestProjectData(tokens);
+
+    // When
+    const Ass ass(data);
+    const std::string& text = ass.text();
+
+    // Then: [Script Info] -> [V4+ Styles] -> [Events]
+    const size_t scriptInfoPos = text.find("[Script Info]");
+    const size_t stylesPos     = text.find("[V4+ Styles]");
+    const size_t eventsPos     = text.find("[Events]");
+
+    ASSERT_NE(scriptInfoPos, std::string::npos);
+    ASSERT_NE(stylesPos, std::string::npos);
+    ASSERT_NE(eventsPos, std::string::npos);
+
+    EXPECT_LT(scriptInfoPos, stylesPos);
+    EXPECT_LT(stylesPos, eventsPos);
+}
+
+TEST(AssTest, AssConstructorFormatsEndTimeWithCentisecondsGivenAudioLength) {
+    // Given: audio.length = 10.5 -> audioLengthMs = 10500 -> 0:00:10.50
+    std::vector<Token> tokens = {
+        {1, "test", 0, 100, 0, std::nullopt}
+    };
+    const ProjectData data = createTestProjectData(tokens);
+
+    // When
+    const Ass ass(data);
+
+    // Then: End time includes centiseconds (50 cs for 10500ms)
+    EXPECT_NE(ass.text().find("0:00:10.50"), std::string::npos);
+}
+
+TEST(AssTest, AssConstructorFormatsTimeWithMinutesGivenLongStartTime) {
+    // Given: rhyme token startMs = 75000ms = 1 min 15 sec -> 0:01:15.00
+    std::vector<Token> tokens = {
+        {1, "word", 75000, 80000, 0, 0}
+    };
+    const ProjectData data = createTestProjectData(tokens, {"#FF0000"});
+
+    // When
+    const Ass ass(data);
+
+    // Then: Highlight dialogue start time has minutes
+    EXPECT_NE(ass.text().find("0:01:15.00"), std::string::npos);
+}
+
+TEST(AssTest, AssConstructorIncludesBoldFieldInStyleLine) {
+    // Given
+    std::vector<Token> tokens = {
+        {1, "test", 0, 100, 0, std::nullopt}
+    };
+    const ProjectData data = createTestProjectData(tokens);
+
+    // When
+    const Ass ass(data);
+
+    // Then: ASS bold field is -1 (true) for the Base style (default isBold = true)
+    // Style format: ...backColor,Bold,... -> &H00000000,-1,...
+    EXPECT_NE(ass.text().find("&H00000000,-1,"), std::string::npos);
+}
+
+TEST(AssTest, AssConstructorIncludesFormatLineInStylesSection) {
+    // Given
+    std::vector<Token> tokens = {
+        {1, "test", 0, 100, 0, std::nullopt}
+    };
+    const ProjectData data = createTestProjectData(tokens);
+
+    // When
+    const Ass ass(data);
+
+    // Then: [V4+ Styles] section has the required Format line
+    EXPECT_NE(ass.text().find("Format: Name, Fontname, Fontsize,"), std::string::npos);
+}
+
+TEST(AssTest, AssConstructorIncludesEncodingFieldInStyleLine) {
+    // Given
+    std::vector<Token> tokens = {
+        {1, "test", 0, 100, 0, std::nullopt}
+    };
+    const ProjectData data = createTestProjectData(tokens);
+
+    // When
+    const Ass ass(data);
+
+    // Then: Style line ends with encoding=1
+    // Pattern: marginV=10, encoding=1 -> ",10,1\n"
+    EXPECT_NE(ass.text().find(",10,1\n"), std::string::npos);
+}
+
+TEST(AssTest, AssConstructorHandlesNonConsecutiveLineIndicesGivenGapInLines) {
+    // Given: Tokens on lines 0 and 5 (no tokens on lines 1-4)
+    std::vector<Token> tokens = {
+        {1, "first",  0,   500, 0, std::nullopt},
+        {2, "second", 500, 1000, 5, std::nullopt}
+    };
+    const ProjectData data = createTestProjectData(tokens);
+
+    // When
+    const Ass ass(data);
+
+    // Then: Both lines appear in the output
+    EXPECT_NE(ass.text().find("first"),  std::string::npos);
+    EXPECT_NE(ass.text().find("second"), std::string::npos);
+}
+
+TEST(AssTest, AssConstructorIncludesEventsFormatLineGivenOutput) {
+    // Given
+    std::vector<Token> tokens = {
+        {1, "test", 0, 100, 0, std::nullopt}
+    };
+    const ProjectData data = createTestProjectData(tokens);
+
+    // When
+    const Ass ass(data);
+
+    // Then: [Events] section has the required Format line
+    EXPECT_NE(ass.text().find("Format: Layer, Start, End, Style, Name,"), std::string::npos);
+}
