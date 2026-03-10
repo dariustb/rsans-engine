@@ -335,8 +335,6 @@ Ass::Dialogue::Dialogue(const std::string& styleName, const int layer, const int
     , text(text)
     , posX(posX)
     , posY(posY)
-    , rectangleWidth(0)
-    , rectangleHeight(0)
 {}
 
 Ass::Dialogue::Dialogue(const std::string& styleName, const int layer, const int64_t startTime, const int64_t endTime,

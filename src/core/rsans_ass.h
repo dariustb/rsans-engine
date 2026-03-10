@@ -161,8 +161,8 @@ struct Ass::Dialogue {
     TextWrap textWrap = NoWrap;
 
     // Box-drawing Overrides
-    int rectangleWidth;
-    int rectangleHeight;
+    int rectangleWidth  = 0;
+    int rectangleHeight = 0;
 
     Dialogue() = delete;
     Dialogue(const std::string& styleName, const int layer, const int64_t startTime, const int64_t endTime,

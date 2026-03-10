@@ -81,6 +81,7 @@ cd build/tests
 - Rhyme detection is user-defined; no automatic rhyme inference
 - No real-time playback or editing (offline rendering only)
 - Desktop UI not included (CLI-only)
+- Multiple fonts will have to exist in the same parent folder to work in a single video
 
 <!-- CI Test Badges -->
 [gtest-svg]:  https://github.com/dariustb/rsans-engine/actions/workflows/gtest.yml/badge.svg
