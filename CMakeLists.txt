@@ -7,15 +7,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_CLANG_TIDY "clang-tidy")
 
-# Fetch CMUdict from GitHub
 include(FetchContent)
 
+# Fetch CMUdict from GitHub
 FetchContent_Declare(
     cmudict
     GIT_REPOSITORY https://github.com/cmusphinx/cmudict.git
     GIT_TAG master
 )
-
 FetchContent_MakeAvailable(cmudict)
 
 # Create data directory in project root
