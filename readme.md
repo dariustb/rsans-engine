@@ -34,16 +34,16 @@ cmake --install build --prefix ~/.local
 ## How to Use
 ```sh
 # Analyze audio / tokenize lyrics
-rsans analyze project.json -o out.json
+rsans analyze -i project.json -o out.json
 
 # Detect rhymes in the lyrics 
-rsans rhyme project.json -o out.json
+rsans rhyme -i project.json -o out.json
 
 # Export video based on project data
-rsans export project.json -o out.mp4
+rsans export -i project.json -o out.mp4
 
 # Full run of analyze -> detect -> export
-rsans full project.json -o out.mp4
+rsans full -i project.json -o out.mp4
 
 ```
 
