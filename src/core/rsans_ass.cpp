@@ -226,7 +226,7 @@ void Ass::buildStyles(std::ostringstream& ss) {
     ss << Style(StyleName::HeaderTitle, d_data.header.fontName, d_data.header.titleSize, Alignment::BottomCenter).toAssLine();
     ss << Style(StyleName::HeaderArtist, d_data.header.fontName, d_data.header.artistSize, Alignment::TopCenter).toAssLine();
     ss << Style(StyleName::HeaderBackground, d_data.header.fontName, d_data.header.artistSize,
-    Alignment::TopLeft, Color("#D98B71").ass(), BorderStyle::OpaqueBox).toAssLine();
+    Alignment::TopLeft, Color("#D98B71").ass(), BorderStyle::OpaqueBox).toAssLine(); // TODO: Move header bkgd color to project.json
 
     // Highlight styles
     for (int idx = 0; idx < d_data.colorSwatch.size(); idx++) {
@@ -253,7 +253,7 @@ void Ass::buildHeaderLabel(std::ostringstream& ss) {
     const int audioLengthMs = d_data.audio.length * 1000;
     const int centerOfVideoX = d_data.video.width / 2;  // TODO: posX/posY should be doubles in Dialogue
     const int bottomOfMediaY = static_cast<int>(mediaHeight * (static_cast<double>(d_data.video.width) / mediaWidth));
-    const int padding = 200;
+    const int padding = 200; // TODO: add padding to project.json instead
     const int headerTopY = bottomOfMediaY - titleHeight;
     const int headerLeftX = centerOfVideoX - ((std::max(titleWidth, artistWidth) + padding)/2);
     const int headerWidth = std::max(titleWidth, artistWidth) + padding;
