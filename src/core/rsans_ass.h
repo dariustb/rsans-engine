@@ -44,8 +44,8 @@ class Ass {
 
     std::ostringstream d_ss;
     
-    int renderAssHeight(const std::string& styleName = "Base");
-    int renderAssWidth(const std::string& text, const std::string& styleName = "Base");
+    int renderAssHeight(const std::string& styleName);
+    int renderAssWidth(const std::string& text, const std::string& styleName);
     int getStringWidth(const std::string& text);
 
     void buildScriptInfo(std::ostringstream& ss);

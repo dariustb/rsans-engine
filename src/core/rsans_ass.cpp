@@ -20,6 +20,14 @@ namespace {
 
 constexpr int VIDEO_START_TIME = 0;
 
+namespace StyleName {
+    std::string LyricText = "LyricText";
+    std::string LyricHighlight = "LyricHighlight";
+    std::string HeaderTitle = "HeaderTitle";
+    std::string HeaderArtist = "HeaderArtist";
+    std::string HeaderBackground = "HeaderBackground";
+}
+
 void silentAssLog(int, const char*, va_list, void*) {}
 
 std::string formatTime(int ms) {
@@ -37,7 +45,7 @@ std::string formatTime(int ms) {
 }
 
 std::string getGroupNameFromValue(int value) {
-    return "rhyme_" + std::to_string(value);
+    return StyleName::LyricHighlight + "_" + std::to_string(value);
 }
 
 void getImageDimensions(const std::string& path, int& width, int& height) {
@@ -113,7 +121,7 @@ std::string Ass::text() const {
     return d_ss.str();
 }
 
-int Ass::renderAssHeight(const std::string& styleName) {
+int Ass::renderAssHeight(const std::string& styleName = StyleName::LyricText) {
     // Set temp ASS string for format info
     const std::string glyphText = "Hg";  // chars use the top and bottom of the glyph space
     std::ostringstream oss;
@@ -151,7 +159,7 @@ int Ass::renderAssHeight(const std::string& styleName) {
     return maxY;
 }
 
-int Ass::renderAssWidth(const std::string& text, const std::string& styleName) {
+int Ass::renderAssWidth(const std::string& text, const std::string& styleName  = StyleName::LyricText) {
     std::ostringstream oss;
 
     buildScriptInfo(oss);
@@ -212,12 +220,12 @@ void Ass::buildStyleInfo(std::ostringstream& ss) {
 
 void Ass::buildStyles(std::ostringstream& ss) {
     // Lyrics text style
-    ss << Style("Base", d_data.layout.fontName, d_data.layout.fontSize, Alignment::TopLeft).toAssLine();
+    ss << Style(StyleName::LyricText, d_data.layout.fontName, d_data.layout.fontSize, Alignment::TopLeft).toAssLine();
 
     // Header title & artist styles use the header font
-    ss << Style("Title", d_data.header.fontName, d_data.header.titleSize, Alignment::BottomCenter).toAssLine();
-    ss << Style("Artist", d_data.header.fontName, d_data.header.artistSize, Alignment::TopCenter).toAssLine();
-    ss << Style("HeaderBkgd", d_data.header.fontName, d_data.header.artistSize,
+    ss << Style(StyleName::HeaderTitle, d_data.header.fontName, d_data.header.titleSize, Alignment::BottomCenter).toAssLine();
+    ss << Style(StyleName::HeaderArtist, d_data.header.fontName, d_data.header.artistSize, Alignment::TopCenter).toAssLine();
+    ss << Style(StyleName::HeaderBackground, d_data.header.fontName, d_data.header.artistSize,
     Alignment::TopLeft, Color("#D98B71").ass(), BorderStyle::OpaqueBox).toAssLine();
 
     // Highlight styles
@@ -237,10 +245,10 @@ void Ass::buildHeaderLabel(std::ostringstream& ss) {
     int mediaWidth, mediaHeight, mediaChannels;
     stbi_info(d_data.header.media.c_str(), &mediaWidth, &mediaHeight, &mediaChannels);
     
-    const int titleWidth   = renderAssWidth(d_data.header.title, "Title");
-    const int artistWidth  = renderAssWidth(d_data.header.artist, "Artist");
-    const int titleHeight  = renderAssHeight("Title");
-    const int artistHeight = renderAssHeight("Artist");
+    const int titleWidth   = renderAssWidth(d_data.header.title, StyleName::HeaderTitle);
+    const int artistWidth  = renderAssWidth(d_data.header.artist, StyleName::HeaderArtist);
+    const int titleHeight  = renderAssHeight(StyleName::HeaderTitle);
+    const int artistHeight = renderAssHeight(StyleName::HeaderArtist);
     
     const int audioLengthMs = d_data.audio.length * 1000;
     const int centerOfVideoX = d_data.video.width / 2;  // TODO: posX/posY should be doubles in Dialogue
@@ -251,9 +259,9 @@ void Ass::buildHeaderLabel(std::ostringstream& ss) {
     const int headerWidth = std::max(titleWidth, artistWidth) + padding;
     const int headerHeight = titleHeight + artistHeight;
 
-    ss << Dialogue("Title", Layer::HeaderText, VIDEO_START_TIME, audioLengthMs, d_data.header.title, centerOfVideoX, bottomOfMediaY).toAssLine();
-    ss << Dialogue("Artist", Layer::HeaderText, VIDEO_START_TIME, audioLengthMs, d_data.header.artist, centerOfVideoX, bottomOfMediaY).toAssLine();
-    ss << Dialogue("HeaderBkgd", Layer::HeaderBackground, VIDEO_START_TIME, audioLengthMs, headerLeftX, headerTopY, headerWidth, headerHeight).toAssLine();
+    ss << Dialogue(StyleName::HeaderTitle, Layer::HeaderText, VIDEO_START_TIME, audioLengthMs, d_data.header.title, centerOfVideoX, bottomOfMediaY).toAssLine();
+    ss << Dialogue(StyleName::HeaderArtist, Layer::HeaderText, VIDEO_START_TIME, audioLengthMs, d_data.header.artist, centerOfVideoX, bottomOfMediaY).toAssLine();
+    ss << Dialogue(StyleName::HeaderBackground, Layer::HeaderBackground, VIDEO_START_TIME, audioLengthMs, headerLeftX, headerTopY, headerWidth, headerHeight).toAssLine();
 }
 
 void Ass::buildEvents(std::ostringstream& ss) {
@@ -262,7 +270,7 @@ void Ass::buildEvents(std::ostringstream& ss) {
     // Build base text as separate dialogues per line with explicit positioning
     for (int idx = 0; idx < d_lineInfo_p->lines.size(); ++idx) {
         const double lineY = d_topMargin + idx * d_fontHeight;
-        ss << Dialogue("Base", Layer::LyricText, VIDEO_START_TIME, audioLengthMs, d_lineInfo_p->lines.at(idx), d_leftMargin, lineY).toAssLine();
+        ss << Dialogue(StyleName::LyricText, Layer::LyricText, VIDEO_START_TIME, audioLengthMs, d_lineInfo_p->lines.at(idx), d_leftMargin, lineY).toAssLine();
     }
 }
 
