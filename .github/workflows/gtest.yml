@@ -20,7 +20,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
 
     - name: Install libass
       run: |
@@ -45,8 +46,17 @@ jobs:
       # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
       run: ctest -C ${{env.BUILD_TYPE}}
 
+    - name: Generate Conerage
+      # Gen code from
+      # https://blog.andreiavram.ro/partial-code-coverage-cpp-lcov-codecov-github-actions/
+      working-directory: ${{github.workspace}}/build
+      run: |
+        sudo apt-get install lcov -y
+        lcov --capture --directory . --output-file coverage.info --ignore-errors mismatch
+        lcov --remove coverage.info "*/usr/*" -o coverage.info
+
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        slug: dariustb/rsans-engine
+        files: ${{github.workspace}}/build/coverage.info
