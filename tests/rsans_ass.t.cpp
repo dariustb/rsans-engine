@@ -126,7 +126,7 @@ TEST(AssTest, AssConstructorGeneratesBaseStyleGivenLayoutConfig) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text().find("Style: Base"), std::string::npos);
+    EXPECT_NE(ass.text().find("Style: LyricText"), std::string::npos);
     EXPECT_NE(ass.text().find("DejaVu Sans Mono"), std::string::npos);
 }
 
@@ -141,8 +141,8 @@ TEST(AssTest, AssConstructorGeneratesTitleAndArtistStylesGivenHeaderConfig) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text().find("Style: Title"), std::string::npos);
-    EXPECT_NE(ass.text().find("Style: Artist"), std::string::npos);
+    EXPECT_NE(ass.text().find("Style: HeaderTitle"), std::string::npos);
+    EXPECT_NE(ass.text().find("Style: HeaderArtist"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorGeneratesHeaderLabelDialogueGivenHeaderConfig) {
@@ -158,9 +158,9 @@ TEST(AssTest, AssConstructorGeneratesHeaderLabelDialogueGivenHeaderConfig) {
     // Then
     EXPECT_NE(ass.text().find("Dialogue: 3,"), std::string::npos);
     EXPECT_NE(ass.text().find("Test Title"), std::string::npos);
-    EXPECT_NE(ass.text().find(",Title,"), std::string::npos);
+    EXPECT_NE(ass.text().find(",HeaderTitle,"), std::string::npos);
     EXPECT_NE(ass.text().find("Test Artist"), std::string::npos);
-    EXPECT_NE(ass.text().find(",Artist,"), std::string::npos);
+    EXPECT_NE(ass.text().find(",HeaderArtist,"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorGeneratesBaseDialogueGivenTokens) {
@@ -177,7 +177,7 @@ TEST(AssTest, AssConstructorGeneratesBaseDialogueGivenTokens) {
     // Then
     EXPECT_NE(ass.text().find("Dialogue: 1,"), std::string::npos);
     EXPECT_NE(ass.text().find("Hello world"), std::string::npos);
-    EXPECT_NE(ass.text().find(",Base,"), std::string::npos);
+    EXPECT_NE(ass.text().find(",LyricText,"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorGeneratesRhymeDialoguesGivenRhymeTokens) {
@@ -193,7 +193,7 @@ TEST(AssTest, AssConstructorGeneratesRhymeDialoguesGivenRhymeTokens) {
 
     // Then
     EXPECT_NE(ass.text().find("Dialogue: 0,"), std::string::npos);
-    EXPECT_NE(ass.text().find(",rhyme_0,"), std::string::npos);
+    EXPECT_NE(ass.text().find(",LyricHighlight_0,"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorCreatesValidStructureGivenEmptyTokens) {
@@ -357,7 +357,7 @@ TEST(AssTest, AssConstructorIncludesHighlightFormattingGivenRhymeTokens) {
     const Ass ass(data);
 
     // Then: Highlight formatting is defined in the Style (not dialogue override tags)
-    EXPECT_NE(ass.text().find("Style: rhyme_0"), std::string::npos);  // highlight style exists
+    EXPECT_NE(ass.text().find("Style: LyricHighlight_0"), std::string::npos);  // highlight style exists
     EXPECT_NE(ass.text().find("&H000000FF"), std::string::npos);       // swatch color #FF0000 in ASS BGR format
     EXPECT_NE(ass.text().find(",3,"), std::string::npos);              // OpaqueBox borderStyle in Style line
 }
@@ -394,8 +394,8 @@ TEST(AssTest, AssConstructorIncludesAlignmentTagsGivenTokens) {
     const Ass ass(data);
 
     // Then: Alignment is encoded in the Style line (TopLeft=7) not as a dialogue override tag
-    // Pattern matches: outlineWidth=0, shadowDepth=0, alignment=7, marginL=10 in Base style
-    EXPECT_NE(ass.text().find("Style: Base"), std::string::npos);
+    // Pattern matches: outlineWidth=0, shadowDepth=0, alignment=7, marginL=10 in LyricText style
+    EXPECT_NE(ass.text().find("Style: LyricText"), std::string::npos);
     EXPECT_NE(ass.text().find(",0,0,7,10,"), std::string::npos);
 }
 
@@ -411,7 +411,7 @@ TEST(AssTest, AssConstructorUsesCorrectAlignmentGivenRhymeTokens) {
 
     // Then: Highlight style also uses TopLeft alignment (7)
     // Pattern matches: outlineWidth=1, shadowDepth=0, alignment=7, marginL=10 in rhyme style
-    EXPECT_NE(ass.text().find("Style: rhyme_0"), std::string::npos);
+    EXPECT_NE(ass.text().find("Style: LyricHighlight_0"), std::string::npos);
     EXPECT_NE(ass.text().find(",1,0,7,10,"), std::string::npos);
 }
 
@@ -426,7 +426,7 @@ TEST(AssTest, AssConstructorIncludesHeaderBkgdStyleGivenHeaderConfig) {
     const Ass ass(data);
 
     // Then: HeaderBkgd style is present for drawing the background rectangle
-    EXPECT_NE(ass.text().find("Style: HeaderBkgd"), std::string::npos);
+    EXPECT_NE(ass.text().find("Style: HeaderBackground"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorIncludesHeaderBackgroundDrawingDialogueGivenHeaderConfig) {
@@ -488,8 +488,8 @@ TEST(AssTest, AssConstructorGeneratesDistinctStylesGivenMultipleRhymeGroups) {
     const Ass ass(data);
 
     // Then: Both rhyme styles are defined
-    EXPECT_NE(ass.text().find("Style: rhyme_0"), std::string::npos);
-    EXPECT_NE(ass.text().find("Style: rhyme_1"), std::string::npos);
+    EXPECT_NE(ass.text().find("Style: LyricHighlight_0"), std::string::npos);
+    EXPECT_NE(ass.text().find("Style: LyricHighlight_1"), std::string::npos);
 
     // And both highlight dialogues are generated
     size_t pos = 0;
@@ -512,8 +512,8 @@ TEST(AssTest, AssConstructorCyclesRhymeColorThroughSwatchGivenHighRhymeIndex) {
     const Ass ass(data);
 
     // Then: The highlight dialogue references rhyme_0 (not rhyme_2)
-    EXPECT_NE(ass.text().find(",rhyme_0,"), std::string::npos);
-    EXPECT_EQ(ass.text().find(",rhyme_2,"), std::string::npos);
+    EXPECT_NE(ass.text().find(",LyricHighlight_0,"), std::string::npos);
+    EXPECT_EQ(ass.text().find(",LyricHighlight_2,"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorIncludesNoWrapTagGivenTextDialogue) {
