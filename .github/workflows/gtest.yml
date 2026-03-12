@@ -46,7 +46,7 @@ jobs:
       run: ctest -C ${{env.BUILD_TYPE}}
 
     - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v4.0.1
+      uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         slug: dariustb/rsans-engine
