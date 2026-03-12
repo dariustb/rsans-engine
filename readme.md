@@ -1,6 +1,6 @@
 <!-- Project Shields -->
-[![Gtest][gtest-svg]][gtest-url]
 ![GitHub repo size][repo-size]
+[![Gtest][gtest-svg]][gtest-url]
 [![codecov][codecov-svg]][codecov-url]
 
 <!-- Readme Text -->
@@ -88,5 +88,5 @@ cd build/tests
 [repo-size]:   https://img.shields.io/github/repo-size/dariustb/rsans-engine
 [gtest-svg]:   https://github.com/dariustb/rsans-engine/actions/workflows/gtest.yml/badge.svg
 [gtest-url]:   https://github.com/dariustb/rsans-engine/actions/workflows/gtest.yml
-[codecov-url]: https://codecov.io/gh/dariustb/rsans-engine/graph/badge.svg?token=1KWNMKFD4K
+[codecov-svg]: https://codecov.io/gh/dariustb/rsans-engine/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/dariustb/rsans-engine
