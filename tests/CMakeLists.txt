@@ -1,10 +1,11 @@
 include(FetchContent)
+
+# Fetch Gtest
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_Declare(
     googletest
     URL https://github.com/google/googletest/archive/refs/tags/v1.17.0.zip
 )
-
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 include(GoogleTest)
@@ -19,7 +20,10 @@ target_include_directories(test_rsans PUBLIC ./)
 
 target_sources(test_rsans
 	PRIVATE
-		rsans_speechtotext.t.cpp
+		rsans_ass.t.cpp
+		rsans_data.t.cpp
+		rsans_rhyme.t.cpp
+		rsans_whisper.t.cpp
 )
 
 gtest_discover_tests(test_rsans)

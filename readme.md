@@ -1,12 +1,13 @@
 <!-- Project Shields -->
 [![Gtest][gtest-svg]][gtest-url]
 ![GitHub repo size][repo-size]
+[![codecov][codecov-svg]][codecov-url]
 
 <!-- Readme Text -->
 # RSANS Lyric Alignment & Visualization Engine
 
 ## Overview
-RSANS is a headless, offline-first CLI tool that aligns audio with provided lyrics and generates time-synchronized lyric visualization videos. It uses offline speech recognition to extract word-level timing, maps that timing onto user-supplied lyrics, applies optional rhyme annotations, and renders karaoke-style highlights via FFmpeg. The system is file-driven and deterministic, designed for automation now and UI integration later.
+RSANS Engine is a headless, offline-first CLI tool that aligns audio with provided lyrics and generates time-synchronized lyric visualization videos. It uses offline speech recognition to extract a transcript & word-level timing, applies optional rhyme annotations, and renders karaoke-style highlights via FFmpeg. The system is file-driven and deterministic, designed for automation now and UI integration later.
 
 ## Features
 - Offline audio processing (no cloud dependency)
@@ -18,7 +19,6 @@ RSANS is a headless, offline-first CLI tool that aligns audio with provided lyri
 - Video export with burned-in visuals using FFmpeg
 - File-driven CLI workflow with reproducible outputs
 - JSON project state for caching and future UI integration
-
 
 ## Installation
 Build:
@@ -34,7 +34,18 @@ cmake --install build --prefix ~/.local
 
 ## How to Use
 ```sh
-TBA
+# Analyze audio / tokenize lyrics
+rsans analyze -i project.json -o out.json
+
+# Detect rhymes in the lyrics 
+rsans rhyme -i project.json -o out.json
+
+# Export video based on project data
+rsans export -i project.json -o out.mp4
+
+# Full run of analyze -> detect -> export
+rsans full -i project.json -o out.mp4
+
 ```
 
 ## Output Format
@@ -63,6 +74,7 @@ cd build/tests
 ```
 
 ## Limitations
+- Audio is limited to English-only words
 - Requires reasonably clean, clearly spoken or sung audio
 - Lyrics must closely match the audio; large deviations reduce alignment quality
 - Word-level timing accuracy depends on the speech recognition model
@@ -70,8 +82,11 @@ cd build/tests
 - Rhyme detection is user-defined; no automatic rhyme inference
 - No real-time playback or editing (offline rendering only)
 - Desktop UI not included (CLI-only)
+- Multiple fonts will have to exist in the same parent folder to work in a single video
 
 <!-- CI Test Badges -->
-[gtest-svg]:  https://github.com/dariustb/rsans-engine/actions/workflows/gtest.yml/badge.svg
-[gtest-url]:  https://github.com/dariustb/rsans-engine/actions/workflows/gtest.yml
-[repo-size]:  https://img.shields.io/github/repo-size/dariustb/rsans-engine
+[repo-size]:   https://img.shields.io/github/repo-size/dariustb/rsans-engine
+[gtest-svg]:   https://github.com/dariustb/rsans-engine/actions/workflows/gtest.yml/badge.svg
+[gtest-url]:   https://github.com/dariustb/rsans-engine/actions/workflows/gtest.yml
+[codecov-url]: https://codecov.io/gh/dariustb/rsans-engine/graph/badge.svg?token=1KWNMKFD4K
+[codecov-url]: https://codecov.io/gh/dariustb/rsans-engine

@@ -16,3 +16,17 @@ _deps
 build/
 dist/
 output/
+data/
+
+# Dev Files
+*.ass
+*.json
+*.mp4
+*.mp3
+*.wav
+*.png
+*.zip
+*.ttf
+*.jpg
+*.png
+*.jpeg
