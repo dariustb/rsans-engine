@@ -103,9 +103,13 @@ Ass::Ass(const ProjectData& data)
     int mediaWidth  = 0;
     getImageDimensions(d_data.header.media, mediaWidth, mediaHeight);
     
-    d_fontHeight = renderAssHeight(StyleName::LyricText);
-    d_leftMargin = 50.0;  // TODO: Get left & top Margin to project.json instead
-    d_topMargin  = 75.0 + static_cast<int>(mediaHeight * static_cast<double>(d_data.video.width) / mediaWidth);
+    d_fontHeight  = renderAssHeight(StyleName::LyricText);
+    d_leftMargin  = 50.0;  // TODO: Get left & top Margin to project.json instead
+    d_topMargin   = 75.0 + static_cast<int>(mediaHeight * static_cast<double>(d_data.video.width) / mediaWidth);
+    d_headroomPx  = d_fontHeight * 3;
+    d_scrollPx    = static_cast<int>(d_lineInfo_p->lines.size() > 1
+                        ? (d_lineInfo_p->lines.size() - 1) * d_fontHeight
+                        : 0) + d_headroomPx;
 
     // Set up ASS file stuff
     buildScriptInfo(d_ss);
@@ -267,11 +271,16 @@ void Ass::buildHeaderLabel(std::ostringstream& ss) {
 void Ass::buildEvents(std::ostringstream& ss) {
     const int audioLengthMs = d_data.audio.length * 1000;
 
-    // Build base text as separate dialogues per line with explicit positioning
-    for (int idx = 0; idx < d_lineInfo_p->lines.size(); ++idx) {
-        const double lineY = d_topMargin + idx * d_fontHeight;
-        const int lineX = d_data.video.width / 2; // d_leftMargin
-        ss << Dialogue(StyleName::LyricText, Layer::LyricText, VIDEO_START_TIME, audioLengthMs, d_lineInfo_p->lines.at(idx), lineX, lineY).toAssLine();
+    const int clipTop = static_cast<int>(d_topMargin);
+
+    for (int idx = 0; idx < static_cast<int>(d_lineInfo_p->lines.size()); ++idx) {
+        const int lineY    = static_cast<int>(d_topMargin + d_headroomPx + idx * d_fontHeight);
+        const int lineYEnd = lineY - d_scrollPx;
+        const int lineX    = d_data.video.width / 2; // d_leftMargin
+        ss << Dialogue(StyleName::LyricText, Layer::LyricText, VIDEO_START_TIME, audioLengthMs,
+                       d_lineInfo_p->lines.at(idx), lineX, lineY, lineYEnd)
+                  .withClip(0, clipTop, d_data.video.width, d_data.video.height)
+                  .toAssLine();
     }
 }
 
@@ -293,12 +302,18 @@ void Ass::buildHighlights(std::ostringstream& ss) {
         const std::string textBeforeToken = lineText.substr(0, tokenCharPos);
         const int lineWidth = getStringWidth(lineText);
         const double tokenX = (d_data.video.width / 2.0) - (lineWidth / 2.0) + getStringWidth(textBeforeToken); // d_leftMargin + getStringWidth(textBeforeToken)
-        const double lineY = d_topMargin + linePos * d_fontHeight;
 
-        const std::string highlightColor = d_data.colorSwatch.at(colorIndex).ass();
-        const int borderSize = 1;
+        const int baseY        = static_cast<int>(d_topMargin + d_headroomPx + linePos * d_fontHeight);
+        const int scrollAtStart = (audioLengthMs > 0)
+            ? static_cast<int>(static_cast<double>(d_scrollPx) * token.startMs / audioLengthMs)
+            : 0;
+        const int tokenY    = baseY - scrollAtStart;
+        const int tokenYEnd = baseY - d_scrollPx;
 
-        ss << Dialogue(groupName, Layer::LyricHighlight, token.startMs, audioLengthMs, token.text, tokenX, lineY).toAssLine();
+        ss << Dialogue(groupName, Layer::LyricHighlight, token.startMs, audioLengthMs,
+                       token.text, static_cast<int>(tokenX), tokenY, tokenYEnd)
+                  .withClip(0, static_cast<int>(d_topMargin), d_data.video.width, d_data.video.height)
+                  .toAssLine();
     }
 }
 
@@ -346,6 +361,19 @@ Ass::Dialogue::Dialogue(const std::string& styleName, const int layer, const int
     , text(text)
     , posX(posX)
     , posY(posY)
+    , posYEnd(posY)
+{}
+
+Ass::Dialogue::Dialogue(const std::string& styleName, const int layer, const int64_t startTime, const int64_t endTime,
+    const std::string text, const int posX, const int posY, const int posYEnd)
+    : styleName(styleName)
+    , layer(layer)
+    , startTime(startTime)
+    , endTime(endTime)
+    , text(text)
+    , posX(posX)
+    , posY(posY)
+    , posYEnd(posYEnd)
 {}
 
 Ass::Dialogue::Dialogue(const std::string& styleName, const int layer, const int64_t startTime, const int64_t endTime,
@@ -356,9 +384,15 @@ Ass::Dialogue::Dialogue(const std::string& styleName, const int layer, const int
     , endTime(endTime)
     , posX(posX)
     , posY(posY)
+    , posYEnd(posY)
     , rectangleWidth(width)
     , rectangleHeight(height)
 {}
+
+Ass::Dialogue& Ass::Dialogue::withClip(int x1, int y1, int x2, int y2) {
+    clipX1 = x1; clipY1 = y1; clipX2 = x2; clipY2 = y2;
+    return *this;
+}
 
 std::string Ass::Dialogue::toAssLine() const {
     std::ostringstream oss;
@@ -369,8 +403,15 @@ std::string Ass::Dialogue::toAssLine() const {
         << effect << ',';
 
     // Overrides tag
-    oss << "{"
-        << "\\pos(" << posX << ',' << posY << ")";
+    oss << "{";
+    if (posYEnd != posY) {
+        oss << "\\move(" << posX << ',' << posY << ',' << posX << ',' << posYEnd << ")";
+    } else {
+        oss << "\\pos(" << posX << ',' << posY << ")";
+    }
+    if (clipX2 || clipY2) {
+        oss << "\\clip(" << clipX1 << ',' << clipY1 << ',' << clipX2 << ',' << clipY2 << ")";
+    }
     if (rectangleWidth && rectangleHeight) {
         oss << "\\an7\\bord0\\shad0\\p1}m "
             << "0 0 l "
