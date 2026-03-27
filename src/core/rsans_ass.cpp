@@ -107,9 +107,9 @@ Ass::Ass(const ProjectData& data)
     d_leftMargin  = 50.0;  // TODO: Get left & top Margin to project.json instead
     d_topMargin   = 75.0 + static_cast<int>(mediaHeight * static_cast<double>(d_data.video.width) / mediaWidth);
     d_headroomPx  = d_fontHeight * 3;
-    d_scrollPx    = static_cast<int>(d_lineInfo_p->lines.size() > 1
+    d_scrollPx    = static_cast<int>((static_cast<int>(d_lineInfo_p->lines.size() > 1
                         ? (d_lineInfo_p->lines.size() - 1) * d_fontHeight
-                        : 0) + d_headroomPx;
+                        : 0) + d_headroomPx) * 0.85);
 
     // Set up ASS file stuff
     buildScriptInfo(d_ss);
