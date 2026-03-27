@@ -220,7 +220,7 @@ void Ass::buildStyleInfo(std::ostringstream& ss) {
 
 void Ass::buildStyles(std::ostringstream& ss) {
     // Lyrics text style
-    ss << Style(StyleName::LyricText, d_data.layout.fontName, d_data.layout.fontSize, Alignment::TopLeft).toAssLine();
+    ss << Style(StyleName::LyricText, d_data.layout.fontName, d_data.layout.fontSize, Alignment::TopCenter).toAssLine(); // Alignment::TopLeft
 
     // Header title & artist styles use the header font
     ss << Style(StyleName::HeaderTitle, d_data.header.fontName, d_data.header.titleSize, Alignment::BottomCenter).toAssLine();
@@ -270,7 +270,8 @@ void Ass::buildEvents(std::ostringstream& ss) {
     // Build base text as separate dialogues per line with explicit positioning
     for (int idx = 0; idx < d_lineInfo_p->lines.size(); ++idx) {
         const double lineY = d_topMargin + idx * d_fontHeight;
-        ss << Dialogue(StyleName::LyricText, Layer::LyricText, VIDEO_START_TIME, audioLengthMs, d_lineInfo_p->lines.at(idx), d_leftMargin, lineY).toAssLine();
+        const int lineX = d_data.video.width / 2; // d_leftMargin
+        ss << Dialogue(StyleName::LyricText, Layer::LyricText, VIDEO_START_TIME, audioLengthMs, d_lineInfo_p->lines.at(idx), lineX, lineY).toAssLine();
     }
 }
 
@@ -289,7 +290,8 @@ void Ass::buildHighlights(std::ostringstream& ss) {
         const size_t tokenCharPos = d_lineInfo_p->tokenCharPositions.at(idx);
 
         const std::string textBeforeToken = lineText.substr(0, tokenCharPos);
-        const double tokenX = d_leftMargin + getStringWidth(textBeforeToken);
+        const int lineWidth = getStringWidth(lineText);
+        const double tokenX = (d_data.video.width / 2.0) - (lineWidth / 2.0) + getStringWidth(textBeforeToken); // d_leftMargin + getStringWidth(textBeforeToken)
         const double lineY = d_topMargin + (token.lineIndex - d_lineInfo_p->minLineIdx) * d_fontHeight;
 
         const std::string highlightColor = d_data.colorSwatch.at(colorIndex).ass();
