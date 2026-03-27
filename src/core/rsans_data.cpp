@@ -70,6 +70,9 @@ ProjectData::ProjectData(const std::string& jsonContent) {
     audio.length = j["audio"]["length"].is_null()
         ? getAudioDuration(audio.path)
         : j["audio"]["length"].get<double>();
+    audio.lyricsPath = (j["audio"].contains("lyricsPath") && j["audio"]["lyricsPath"].is_string())
+        ? j["audio"]["lyricsPath"].get<std::string>()
+        : "";
 
     video.width = j["video"]["width"].get<int>();
     video.height = j["video"]["height"].get<int>();
@@ -138,6 +141,9 @@ std::string ProjectData::toJson() const {
 
     j["audio"]["path"] = audio.path;
     j["audio"]["length"] = audio.length;
+    if (!audio.lyricsPath.empty()) {
+        j["audio"]["lyricsPath"] = audio.lyricsPath;
+    }
 
     j["video"]["width"] = video.width;
     j["video"]["height"] = video.height;

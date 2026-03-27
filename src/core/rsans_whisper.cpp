@@ -1,6 +1,7 @@
 #include <rsans_whisper.h>
 
 #include <rsans_data.h>
+#include <rsans_lyric_tokenizer.h>
 
 #include <whisper.h>
 
@@ -67,17 +68,44 @@ std::vector<float> loadAudioFile(const std::string& audioPath) {
 }
 
 ProjectData tokenizeAudio(const ProjectData& project) {
-    std::vector<Token> tokens = extractTokensFromAudio(
-        project.audio.path,
-        project.model.base
-    );
+    std::vector<Token> tokens;
+
+    if (!project.audio.lyricsPath.empty()) {
+        // Lyrics-guided path: the lyrics file is the authoritative word source.
+        // Whisper is run with the lyrics as an initial prompt to improve
+        // alignment, then its output is matched back onto the lyric tokens.
+        const LyricSheet sheet = parseLyrics(project.audio.lyricsPath);
+
+        // Build a single-line prompt from the lyrics text.  Whisper truncates
+        // initial_prompt internally if it exceeds the context window.
+        std::string prompt;
+        for (const LyricLine& line : sheet.lines) {
+            if (!line.blank()) {
+                if (!prompt.empty()) prompt += ' ';
+                prompt += line.text;
+            }
+        }
+
+        const std::vector<Token> whisperTokens = extractTokensFromAudio(
+            project.audio.path,
+            project.model.base,
+            prompt
+        );
+
+        tokens = alignLyricsToWhisper(sheet, whisperTokens);
+    } else {
+        // Fallback: let Whisper transcribe and timestamp freely.
+        tokens = extractTokensFromAudio(project.audio.path, project.model.base);
+    }
+
     ProjectData result(project.toJson());
     return ProjectData(std::move(result), tokens);
 }
 
 std::vector<Token> extractTokensFromAudio(
     const std::string& audioPath,
-    const std::string& modelPath
+    const std::string& modelPath,
+    const std::string& initialPrompt
 ) {
     std::vector<Token> tokens;
 
@@ -99,6 +127,9 @@ std::vector<Token> extractTokensFromAudio(
     }
 
     whisper_full_params wparams = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
+    if (!initialPrompt.empty()) {
+        wparams.initial_prompt = initialPrompt.c_str();
+    }
     wparams.print_progress = false;
     wparams.print_special = false;
     wparams.print_realtime = false;

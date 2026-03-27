@@ -2,6 +2,7 @@ add_library(rsans_core
     rsans_ass.cpp
     rsans_data.cpp
     rsans_export.cpp
+    rsans_lyric_tokenizer.cpp
     rsans_rhyme.cpp
     rsans_whisper.cpp
 )
