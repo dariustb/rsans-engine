@@ -8,6 +8,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 class Ass {
@@ -96,7 +97,8 @@ enum Ass::TextWrap : int {
 
 struct Ass::LineInfo {
     std::vector<std::string> lines;
-    std::vector<size_t> tokenCharPositions;  // char position of each token within its line, parallel to tokens
+    std::vector<size_t> tokenCharPositions;      // char position of each token within its line, parallel to tokens
+    std::unordered_map<int, int> lineIndexToPos; // maps token.lineIndex -> position in lines[]
     int minLineIdx;
     int maxLineIdx;
 

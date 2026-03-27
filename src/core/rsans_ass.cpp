@@ -286,13 +286,14 @@ void Ass::buildHighlights(std::ostringstream& ss) {
 
         const int colorIndex = token.rhymeIndex.value() % d_data.colorSwatch.size();
         const std::string groupName = getGroupNameFromValue(colorIndex);
-        const std::string& lineText = d_lineInfo_p->lines.at(token.lineIndex - d_lineInfo_p->minLineIdx);
+        const int linePos = d_lineInfo_p->lineIndexToPos.at(token.lineIndex);
+        const std::string& lineText = d_lineInfo_p->lines.at(linePos);
         const size_t tokenCharPos = d_lineInfo_p->tokenCharPositions.at(idx);
 
         const std::string textBeforeToken = lineText.substr(0, tokenCharPos);
         const int lineWidth = getStringWidth(lineText);
         const double tokenX = (d_data.video.width / 2.0) - (lineWidth / 2.0) + getStringWidth(textBeforeToken); // d_leftMargin + getStringWidth(textBeforeToken)
-        const double lineY = d_topMargin + (token.lineIndex - d_lineInfo_p->minLineIdx) * d_fontHeight;
+        const double lineY = d_topMargin + linePos * d_fontHeight;
 
         const std::string highlightColor = d_data.colorSwatch.at(colorIndex).ass();
         const int borderSize = 1;
@@ -406,6 +407,7 @@ Ass::LineInfo::LineInfo(const std::vector<Token>& tokens) {
             if (!tokenLineStr.empty()) {
                 lines.push_back(std::move(tokenLineStr));
             }
+            lineIndexToPos[token.lineIndex] = static_cast<int>(lines.size());
             tokenLineStr = token.text;
             lastLineIdx = token.lineIndex;
             charPos = 0;
