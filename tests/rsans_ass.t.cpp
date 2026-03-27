@@ -393,10 +393,10 @@ TEST(AssTest, AssConstructorIncludesAlignmentTagsGivenTokens) {
     // When
     const Ass ass(data);
 
-    // Then: Alignment is encoded in the Style line (TopLeft=7) not as a dialogue override tag
-    // Pattern matches: outlineWidth=0, shadowDepth=0, alignment=7, marginL=10 in LyricText style
+    // Then: Alignment is encoded in the Style line (TopLeft=7, TopCenter=8) not as a dialogue override tag
+    // Pattern matches: outlineWidth=0, shadowDepth=0, alignment=8, marginL=10 in LyricText style
     EXPECT_NE(ass.text().find("Style: LyricText"), std::string::npos);
-    EXPECT_NE(ass.text().find(",0,0,7,10,"), std::string::npos);
+    EXPECT_NE(ass.text().find(",0,0,8,10,"), std::string::npos);
 }
 
 TEST(AssTest, AssConstructorUsesCorrectAlignmentGivenRhymeTokens) {
