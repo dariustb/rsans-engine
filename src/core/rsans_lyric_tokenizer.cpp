@@ -144,6 +144,83 @@ std::vector<Token> alignLyricsToWhisper(
         wEntries.push_back({normalizeLyricWord(t.text), t.startMs, t.endMs});
     }
 
+    // Collect alignable lyric tokens (the sequence we need to assign timestamps to)
+    struct LyricEntry {
+        std::string text;
+        std::string normalized;
+        int lineIndex;
+    };
+    std::vector<LyricEntry> lEntries;
+    for (const LyricLine& line : sheet.lines) {
+        for (const LyricToken& tok : line.tokens) {
+            if (tok.alignable()) {
+                lEntries.push_back({tok.text, tok.normalized, tok.lineIndex});
+            }
+        }
+    }
+
+    const int L = static_cast<int>(lEntries.size());
+    const int W = static_cast<int>(wEntries.size());
+
+    // Needleman-Wunsch DP over lyric tokens (rows) vs whisper tokens (cols).
+    // Match = 0, mismatch = 1, gap = 1.
+    // dp[i][j] = min cost to align lEntries[0..i) to wEntries[0..j).
+    const int kGap      = 1;
+    const int kMismatch = 1;
+
+    // Use 1-D rolling rows to keep memory O(W).
+    std::vector<int> prev(W + 1), curr(W + 1);
+    for (int j = 0; j <= W; ++j) prev[j] = j * kGap;
+
+    // traceback[i][j]: 0=match/mismatch (diag), 1=delete lyric (up), 2=insert whisper (left)
+    std::vector<std::vector<int8_t>> tb(L + 1, std::vector<int8_t>(W + 1, 0));
+    for (int j = 1; j <= W; ++j) tb[0][j] = 2; // gap in lyric row
+
+    for (int i = 1; i <= L; ++i) {
+        curr[0] = i * kGap;
+        tb[i][0] = 1; // gap in whisper col
+        for (int j = 1; j <= W; ++j) {
+            const int matchCost = (lEntries[i-1].normalized == wEntries[j-1].normalized)
+                                  ? 0 : kMismatch;
+            const int diag = prev[j-1] + matchCost;
+            const int up   = prev[j]   + kGap;   // lyric token unmatched
+            const int left = curr[j-1] + kGap;   // whisper token unmatched
+
+            if (diag <= up && diag <= left) {
+                curr[j] = diag;
+                tb[i][j] = 0;
+            } else if (up <= left) {
+                curr[j] = up;
+                tb[i][j] = 1;
+            } else {
+                curr[j] = left;
+                tb[i][j] = 2;
+            }
+        }
+        std::swap(prev, curr);
+    }
+
+    // Traceback to recover the alignment.
+    // matched[i] = index into wEntries that lEntries[i] aligns to, or -1.
+    std::vector<int> matched(L, -1);
+    {
+        int i = L, j = W;
+        while (i > 0 || j > 0) {
+            if (i == 0) { --j; continue; }
+            if (j == 0) { --i; continue; }
+            switch (tb[i][j]) {
+                case 0: // diagonal
+                    if (lEntries[i-1].normalized == wEntries[j-1].normalized) {
+                        matched[i-1] = j-1;
+                    }
+                    --i; --j;
+                    break;
+                case 1: --i; break; // lyric gap
+                case 2: --j; break; // whisper gap
+            }
+        }
+    }
+
     struct MatchResult {
         std::string text;
         int lineIndex;
@@ -153,35 +230,17 @@ std::vector<Token> alignLyricsToWhisper(
     };
 
     std::vector<MatchResult> results;
-
-    static const int kLookahead = 8;
-    int wCursor = 0;
-
-    for (const LyricLine& line : sheet.lines) {
-        for (const LyricToken& tok : line.tokens) {
-            if (!tok.alignable()) continue;
-
-            MatchResult r;
-            r.text      = tok.text;
-            r.lineIndex = tok.lineIndex;
-
-            const int wEnd = std::min(
-                static_cast<int>(wEntries.size()),
-                wCursor + kLookahead
-            );
-
-            for (int w = wCursor; w < wEnd; ++w) {
-                if (wEntries[w].normalized == tok.normalized) {
-                    r.startMs = wEntries[w].startMs;
-                    r.endMs   = wEntries[w].endMs;
-                    r.matched = true;
-                    wCursor   = w + 1;
-                    break;
-                }
-            }
-
-            results.push_back(r);
+    results.reserve(L);
+    for (int i = 0; i < L; ++i) {
+        MatchResult r;
+        r.text      = lEntries[i].text;
+        r.lineIndex = lEntries[i].lineIndex;
+        if (matched[i] >= 0) {
+            r.startMs = wEntries[matched[i]].startMs;
+            r.endMs   = wEntries[matched[i]].endMs;
+            r.matched = true;
         }
+        results.push_back(r);
     }
 
     const int audioEndMs = wEntries.empty() ? 0 : wEntries.back().endMs;

@@ -153,6 +153,7 @@ std::vector<Token> extractTokensFromAudio(
     wparams.print_realtime = false;
     wparams.print_timestamps = false;
     wparams.token_timestamps = true;
+    wparams.split_on_word = true;
     wparams.max_len = 0; // 0 disables the limit
     wparams.language = "en";
 
