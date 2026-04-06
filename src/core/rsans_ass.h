@@ -8,6 +8,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 class Ass {
@@ -39,6 +40,8 @@ class Ass {
     std::unique_ptr<ASS_Renderer, RendererDeleter> d_renderer_p;
 
     int d_fontHeight;
+    int d_headroomPx; // extra space below the clip boundary before line 0 starts
+    int d_scrollPx;   // total pixels the lyric block scrolls upward over the audio duration
     double d_topMargin;
     double d_leftMargin;
 
@@ -96,7 +99,8 @@ enum Ass::TextWrap : int {
 
 struct Ass::LineInfo {
     std::vector<std::string> lines;
-    std::vector<size_t> tokenCharPositions;  // char position of each token within its line, parallel to tokens
+    std::vector<size_t> tokenCharPositions;      // char position of each token within its line, parallel to tokens
+    std::unordered_map<int, int> lineIndexToPos; // maps token.lineIndex -> position in lines[]
     int minLineIdx;
     int maxLineIdx;
 
@@ -158,6 +162,8 @@ struct Ass::Dialogue {
     // Overrides
     int posX;
     int posY;
+    int posYEnd;       // when posYEnd != posY, \move() is emitted instead of \pos()
+    int clipX1 = 0, clipY1 = 0, clipX2 = 0, clipY2 = 0; // when clipX2/Y2 are non-zero, \clip() is emitted
     TextWrap textWrap = NoWrap;
 
     // Box-drawing Overrides
@@ -168,8 +174,11 @@ struct Ass::Dialogue {
     Dialogue(const std::string& styleName, const int layer, const int64_t startTime, const int64_t endTime,
         const std::string text, const int posX, const int posY);
     Dialogue(const std::string& styleName, const int layer, const int64_t startTime, const int64_t endTime,
+        const std::string text, const int posX, const int posY, const int posYEnd); // scrolling \move() constructor
+    Dialogue(const std::string& styleName, const int layer, const int64_t startTime, const int64_t endTime,
         const int posX, const int posY, const int width, const int height); // Constructor for header background dialogue
-    
+
+    Dialogue& withClip(int x1, int y1, int x2, int y2);
     std::string toAssLine() const;
 };
 

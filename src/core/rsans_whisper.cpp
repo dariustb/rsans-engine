@@ -1,6 +1,7 @@
 #include <rsans_whisper.h>
 
 #include <rsans_data.h>
+#include <rsans_lyric_tokenizer.h>
 
 #include <whisper.h>
 
@@ -12,6 +13,26 @@
 #include <vector>
 
 namespace {
+
+std::vector<float> resampleLinear(const std::vector<float>& input,
+                                  uint32_t srcRate, uint32_t dstRate) {
+    if (input.empty()) return {};
+
+    const double ratio  = static_cast<double>(srcRate) / dstRate;
+    const size_t outLen = static_cast<size_t>(input.size() / ratio);
+
+    std::vector<float> output(outLen);
+    for (size_t i = 0; i < outLen; ++i) {
+        const double srcPos = i * ratio;
+        const size_t idx    = static_cast<size_t>(srcPos);
+        const double frac   = srcPos - idx;
+
+        output[i] = (idx + 1 < input.size())
+            ? static_cast<float>(input[idx] * (1.0 - frac) + input[idx + 1] * frac)
+            : input[idx];
+    }
+    return output;
+}
 
 std::vector<float> loadAudioFile(const std::string& audioPath) {
     std::vector<float> audioData;
@@ -28,15 +49,8 @@ std::vector<float> loadAudioFile(const std::string& audioPath) {
         return audioData;
     }
 
-    // TODO: sample rate caps @ 16kHz, will need to change logic to allow resampling 
-    if (wav.sampleRate != WHISPER_SAMPLE_RATE) {
-        fprintf(stderr, "Audio sample rate must be %d Hz, got %u Hz\n",
-                WHISPER_SAMPLE_RATE, wav.sampleRate);
-        drwav_uninit(&wav);
-        return audioData;
-    }
-
-    const size_t sampleCount = wav.totalPCMFrameCount;
+    const size_t   sampleCount = wav.totalPCMFrameCount;
+    const uint32_t srcRate     = wav.sampleRate;
     std::vector<int16_t> samples(sampleCount * wav.channels);
 
     const size_t framesRead = drwav_read_pcm_frames_s16(&wav, sampleCount, samples.data());
@@ -47,19 +61,24 @@ std::vector<float> loadAudioFile(const std::string& audioPath) {
         return audioData;
     }
 
-    audioData.resize(sampleCount);
-
+    // Convert to mono float
+    std::vector<float> mono(sampleCount);
     if (wav.channels == 1) {
         for (size_t i = 0; i < sampleCount; ++i) {
-            audioData[i] = static_cast<float>(samples[i]) / 32768.0f;
+            mono[i] = static_cast<float>(samples[i]) / 32768.0f;
         }
     } else {
         for (size_t i = 0; i < sampleCount; ++i) {
-            const float left = static_cast<float>(samples[i * 2]) / 32768.0f;
+            const float left  = static_cast<float>(samples[i * 2])     / 32768.0f;
             const float right = static_cast<float>(samples[i * 2 + 1]) / 32768.0f;
-            audioData[i] = (left + right) / 2.0f;
+            mono[i] = (left + right) / 2.0f;
         }
     }
+
+    // Resample to Whisper's required rate if the source differs
+    audioData = (srcRate == WHISPER_SAMPLE_RATE)
+        ? std::move(mono)
+        : resampleLinear(mono, srcRate, WHISPER_SAMPLE_RATE);
 
     return audioData;
 }
@@ -67,17 +86,44 @@ std::vector<float> loadAudioFile(const std::string& audioPath) {
 }
 
 ProjectData tokenizeAudio(const ProjectData& project) {
-    std::vector<Token> tokens = extractTokensFromAudio(
-        project.audio.path,
-        project.model.base
-    );
+    std::vector<Token> tokens;
+
+    if (!project.audio.lyricsPath.empty()) {
+        // Lyrics-guided path: the lyrics file is the authoritative word source.
+        // Whisper is run with the lyrics as an initial prompt to improve
+        // alignment, then its output is matched back onto the lyric tokens.
+        const LyricSheet sheet = parseLyrics(project.audio.lyricsPath);
+
+        // Build a single-line prompt from the lyrics text.  Whisper truncates
+        // initial_prompt internally if it exceeds the context window.
+        std::string prompt;
+        for (const LyricLine& line : sheet.lines) {
+            if (!line.blank()) {
+                if (!prompt.empty()) prompt += ' ';
+                prompt += line.text;
+            }
+        }
+
+        const std::vector<Token> whisperTokens = extractTokensFromAudio(
+            project.audio.path,
+            project.model.base,
+            prompt
+        );
+
+        tokens = alignLyricsToWhisper(sheet, whisperTokens);
+    } else {
+        // Fallback: let Whisper transcribe and timestamp freely.
+        tokens = extractTokensFromAudio(project.audio.path, project.model.base);
+    }
+
     ProjectData result(project.toJson());
     return ProjectData(std::move(result), tokens);
 }
 
 std::vector<Token> extractTokensFromAudio(
     const std::string& audioPath,
-    const std::string& modelPath
+    const std::string& modelPath,
+    const std::string& initialPrompt
 ) {
     std::vector<Token> tokens;
 
@@ -99,11 +145,15 @@ std::vector<Token> extractTokensFromAudio(
     }
 
     whisper_full_params wparams = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
+    if (!initialPrompt.empty()) {
+        wparams.initial_prompt = initialPrompt.c_str();
+    }
     wparams.print_progress = false;
     wparams.print_special = false;
     wparams.print_realtime = false;
     wparams.print_timestamps = false;
     wparams.token_timestamps = true;
+    wparams.split_on_word = true;
     wparams.max_len = 0; // 0 disables the limit
     wparams.language = "en";
 

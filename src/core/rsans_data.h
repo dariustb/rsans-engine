@@ -52,6 +52,10 @@ struct ProjectData {
     struct AudioData {
         std::string path;
         double length;
+        std::string lyricsPath; // Optional. Empty means no lyrics file; Whisper
+                                // will transcribe freely. When set, tokenizeAudio
+                                // uses the lyrics as the authoritative word source
+                                // and falls back to Whisper only for timestamps.
     } audio;
 
     struct VideoConfig {
