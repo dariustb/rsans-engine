@@ -447,15 +447,15 @@ TEST(DetectRhymesTest, DetectRhymesAssignsGroupGivenPerfectRhymes) {
         {1, "cat", 0, 500, 0, std::nullopt},
         {2, "hat", 500, 1000, 1, std::nullopt}
     };
-    const ProjectData input(createTestProjectJson(tokens, dictFile.path()));
+    ProjectData input(createTestProjectJson(tokens, dictFile.path()));
 
     // When
-    const ProjectData result = detectRhymes(input);
+    detectRhymes(input);
 
     // Then: Both tokens should have the same rhyme group
-    ASSERT_TRUE(result.tokens[0].rhymeIndex.has_value());
-    ASSERT_TRUE(result.tokens[1].rhymeIndex.has_value());
-    EXPECT_EQ(result.tokens[0].rhymeIndex.value(), result.tokens[1].rhymeIndex.value());
+    ASSERT_TRUE(input.tokens[0].rhymeIndex.has_value());
+    ASSERT_TRUE(input.tokens[1].rhymeIndex.has_value());
+    EXPECT_EQ(input.tokens[0].rhymeIndex.value(), input.tokens[1].rhymeIndex.value());
 }
 
 TEST(DetectRhymesTest, DetectRhymesAssignsNoGroupGivenNonRhymingWords) {
@@ -465,14 +465,14 @@ TEST(DetectRhymesTest, DetectRhymesAssignsNoGroupGivenNonRhymingWords) {
         {1, "cat", 0, 500, 0, std::nullopt},
         {2, "dog", 500, 1000, 1, std::nullopt}
     };
-    const ProjectData input(createTestProjectJson(tokens, dictFile.path()));
+    ProjectData input(createTestProjectJson(tokens, dictFile.path()));
 
     // When
-    const ProjectData result = detectRhymes(input);
+    detectRhymes(input);
 
     // Then: Neither token should have a rhyme group (singletons are filtered)
-    EXPECT_FALSE(result.tokens[0].rhymeIndex.has_value());
-    EXPECT_FALSE(result.tokens[1].rhymeIndex.has_value());
+    EXPECT_FALSE(input.tokens[0].rhymeIndex.has_value());
+    EXPECT_FALSE(input.tokens[1].rhymeIndex.has_value());
 }
 
 TEST(DetectRhymesTest, DetectRhymesMergesGroupsGivenAssonance) {
@@ -483,15 +483,15 @@ TEST(DetectRhymesTest, DetectRhymesMergesGroupsGivenAssonance) {
         {1, "lake", 0, 500, 0, std::nullopt},
         {2, "fade", 500, 1000, 1, std::nullopt}
     };
-    const ProjectData input(createTestProjectJson(tokens, dictFile.path()));
+    ProjectData input(createTestProjectJson(tokens, dictFile.path()));
 
     // When
-    const ProjectData result = detectRhymes(input);
+    detectRhymes(input);
 
     // Then: Both should be in same group via vowel matching
-    ASSERT_TRUE(result.tokens[0].rhymeIndex.has_value());
-    ASSERT_TRUE(result.tokens[1].rhymeIndex.has_value());
-    EXPECT_EQ(result.tokens[0].rhymeIndex.value(), result.tokens[1].rhymeIndex.value());
+    ASSERT_TRUE(input.tokens[0].rhymeIndex.has_value());
+    ASSERT_TRUE(input.tokens[1].rhymeIndex.has_value());
+    EXPECT_EQ(input.tokens[0].rhymeIndex.value(), input.tokens[1].rhymeIndex.value());
 }
 
 TEST(DetectRhymesTest, DetectRhymesDoesNotGroupGivenOnlyConsonanceMatch) {
@@ -502,14 +502,14 @@ TEST(DetectRhymesTest, DetectRhymesDoesNotGroupGivenOnlyConsonanceMatch) {
         {1, "cat", 0, 500, 0, std::nullopt},
         {2, "cut", 500, 1000, 1, std::nullopt}
     };
-    const ProjectData input(createTestProjectJson(tokens, dictFile.path()));
+    ProjectData input(createTestProjectJson(tokens, dictFile.path()));
 
     // When
-    const ProjectData result = detectRhymes(input);
+    detectRhymes(input);
 
     // Then: Should NOT be grouped (consonance alone is not enough)
-    EXPECT_FALSE(result.tokens[0].rhymeIndex.has_value());
-    EXPECT_FALSE(result.tokens[1].rhymeIndex.has_value());
+    EXPECT_FALSE(input.tokens[0].rhymeIndex.has_value());
+    EXPECT_FALSE(input.tokens[1].rhymeIndex.has_value());
 }
 
 TEST(DetectRhymesTest, DetectRhymesHandlesUnknownWordsGivenWordsNotInDict) {
@@ -519,27 +519,27 @@ TEST(DetectRhymesTest, DetectRhymesHandlesUnknownWordsGivenWordsNotInDict) {
         {1, "cat", 0, 500, 0, std::nullopt},
         {2, "xyzzy", 500, 1000, 1, std::nullopt}
     };
-    const ProjectData input(createTestProjectJson(tokens, dictFile.path()));
+    ProjectData input(createTestProjectJson(tokens, dictFile.path()));
 
     // When
-    const ProjectData result = detectRhymes(input);
+    detectRhymes(input);
 
     // Then: Unknown word should have no rhyme group, known word is singleton so also none
-    EXPECT_FALSE(result.tokens[0].rhymeIndex.has_value());
-    EXPECT_FALSE(result.tokens[1].rhymeIndex.has_value());
+    EXPECT_FALSE(input.tokens[0].rhymeIndex.has_value());
+    EXPECT_FALSE(input.tokens[1].rhymeIndex.has_value());
 }
 
 TEST(DetectRhymesTest, DetectRhymesReturnsUnchangedDataGivenEmptyTokens) {
     // Given: Project with no tokens
     TempDictFile dictFile("cat K AE1 T\n");
     std::vector<Token> tokens = {};
-    const ProjectData input(createTestProjectJson(tokens, dictFile.path()));
+    ProjectData input(createTestProjectJson(tokens, dictFile.path()));
 
     // When
-    const ProjectData result = detectRhymes(input);
+    detectRhymes(input);
 
     // Then: Should return data with empty tokens
-    EXPECT_TRUE(result.tokens.empty());
+    EXPECT_TRUE(input.tokens.empty());
 }
 
 TEST(DetectRhymesTest, DetectRhymesReturnsUnchangedDataGivenSingleToken) {
@@ -548,13 +548,13 @@ TEST(DetectRhymesTest, DetectRhymesReturnsUnchangedDataGivenSingleToken) {
     std::vector<Token> tokens = {
         {1, "cat", 0, 500, 0, std::nullopt}
     };
-    const ProjectData input(createTestProjectJson(tokens, dictFile.path()));
+     ProjectData input(createTestProjectJson(tokens, dictFile.path()));
 
     // When
-    const ProjectData result = detectRhymes(input);
+    detectRhymes(input);
 
     // Then: Single token can't form a rhyme group
-    EXPECT_FALSE(result.tokens[0].rhymeIndex.has_value());
+    EXPECT_FALSE(input.tokens[0].rhymeIndex.has_value());
 }
 
 TEST(DetectRhymesTest, DetectRhymesNormalizesWordGivenPunctuation) {
@@ -564,15 +564,15 @@ TEST(DetectRhymesTest, DetectRhymesNormalizesWordGivenPunctuation) {
         {1, "cat,", 0, 500, 0, std::nullopt},
         {2, "hat!", 500, 1000, 1, std::nullopt}
     };
-    const ProjectData input(createTestProjectJson(tokens, dictFile.path()));
+    ProjectData input(createTestProjectJson(tokens, dictFile.path()));
 
     // When
-    const ProjectData result = detectRhymes(input);
+    detectRhymes(input);
 
     // Then: Should still detect rhyme after stripping punctuation
-    ASSERT_TRUE(result.tokens[0].rhymeIndex.has_value());
-    ASSERT_TRUE(result.tokens[1].rhymeIndex.has_value());
-    EXPECT_EQ(result.tokens[0].rhymeIndex.value(), result.tokens[1].rhymeIndex.value());
+    ASSERT_TRUE(input.tokens[0].rhymeIndex.has_value());
+    ASSERT_TRUE(input.tokens[1].rhymeIndex.has_value());
+    EXPECT_EQ(input.tokens[0].rhymeIndex.value(), input.tokens[1].rhymeIndex.value());
 }
 
 TEST(DetectRhymesTest, DetectRhymesAssignsMultipleGroupsGivenDistinctRhymeSets) {
@@ -584,20 +584,20 @@ TEST(DetectRhymesTest, DetectRhymesAssignsMultipleGroupsGivenDistinctRhymeSets) 
         {3, "hat", 1000, 1500, 1, std::nullopt},
         {4, "log", 1500, 2000, 1, std::nullopt}
     };
-    const ProjectData input(createTestProjectJson(tokens, dictFile.path()));
+    ProjectData input(createTestProjectJson(tokens, dictFile.path()));
 
     // When
-    const ProjectData result = detectRhymes(input);
+    detectRhymes(input);
 
     // Then: cat/hat should be one group, dog/log another
-    ASSERT_TRUE(result.tokens[0].rhymeIndex.has_value()); // cat
-    ASSERT_TRUE(result.tokens[1].rhymeIndex.has_value()); // dog
-    ASSERT_TRUE(result.tokens[2].rhymeIndex.has_value()); // hat
-    ASSERT_TRUE(result.tokens[3].rhymeIndex.has_value()); // log
+    ASSERT_TRUE(input.tokens[0].rhymeIndex.has_value()); // cat
+    ASSERT_TRUE(input.tokens[1].rhymeIndex.has_value()); // dog
+    ASSERT_TRUE(input.tokens[2].rhymeIndex.has_value()); // hat
+    ASSERT_TRUE(input.tokens[3].rhymeIndex.has_value()); // log
 
-    EXPECT_EQ(result.tokens[0].rhymeIndex.value(), result.tokens[2].rhymeIndex.value()); // cat = hat
-    EXPECT_EQ(result.tokens[1].rhymeIndex.value(), result.tokens[3].rhymeIndex.value()); // dog = log
-    EXPECT_NE(result.tokens[0].rhymeIndex.value(), result.tokens[1].rhymeIndex.value()); // cat != dog
+    EXPECT_EQ(input.tokens[0].rhymeIndex.value(), input.tokens[2].rhymeIndex.value()); // cat = hat
+    EXPECT_EQ(input.tokens[1].rhymeIndex.value(), input.tokens[3].rhymeIndex.value()); // dog = log
+    EXPECT_NE(input.tokens[0].rhymeIndex.value(), input.tokens[1].rhymeIndex.value()); // cat != dog
 }
 
 TEST(DetectRhymesTest, DetectRhymesHandlesThreeWayRhymeGivenThreeRhymingWords) {
@@ -608,17 +608,18 @@ TEST(DetectRhymesTest, DetectRhymesHandlesThreeWayRhymeGivenThreeRhymingWords) {
         {2, "hat", 500, 1000, 0, std::nullopt},
         {3, "mat", 1000, 1500, 1, std::nullopt}
     };
-    const ProjectData input(createTestProjectJson(tokens, dictFile.path()));
+    ProjectData input(createTestProjectJson(tokens, dictFile.path()));
 
     // When
-    const ProjectData result = detectRhymes(input);
+    detectRhymes(input);
 
     // Then: All three should be in the same group
-    ASSERT_TRUE(result.tokens[0].rhymeIndex.has_value());
-    ASSERT_TRUE(result.tokens[1].rhymeIndex.has_value());
-    ASSERT_TRUE(result.tokens[2].rhymeIndex.has_value());
-    EXPECT_EQ(result.tokens[0].rhymeIndex.value(), result.tokens[1].rhymeIndex.value());
-    EXPECT_EQ(result.tokens[1].rhymeIndex.value(), result.tokens[2].rhymeIndex.value());
+    ASSERT_TRUE(input.tokens[0].rhymeIndex.has_value());
+    ASSERT_TRUE(input.tokens[1].rhymeIndex.has_value());
+    ASSERT_TRUE(input.tokens[2].rhymeIndex.has_value());
+
+    EXPECT_EQ(input.tokens[0].rhymeIndex.value(), input.tokens[1].rhymeIndex.value());
+    EXPECT_EQ(input.tokens[1].rhymeIndex.value(), input.tokens[2].rhymeIndex.value());
 }
 
 TEST(DetectRhymesTest, DetectRhymesAssignsNonNegativeIndexGivenRhymingTokens) {
@@ -628,12 +629,12 @@ TEST(DetectRhymesTest, DetectRhymesAssignsNonNegativeIndexGivenRhymingTokens) {
         {1, "cat", 0, 500, 0, std::nullopt},
         {2, "hat", 500, 1000, 1, std::nullopt}
     };
-    const ProjectData input(createTestProjectJson(tokens, dictFile.path()));
+    ProjectData input(createTestProjectJson(tokens, dictFile.path()));
 
     // When
-    const ProjectData result = detectRhymes(input);
+    detectRhymes(input);
 
     // Then: rhymeIndex should be a non-negative integer
-    ASSERT_TRUE(result.tokens[0].rhymeIndex.has_value());
-    EXPECT_GE(result.tokens[0].rhymeIndex.value(), 0);
+    ASSERT_TRUE(input.tokens[0].rhymeIndex.has_value());
+    EXPECT_GE(input.tokens[0].rhymeIndex.value(), 0);
 }
