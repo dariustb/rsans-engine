@@ -16,40 +16,39 @@ int main(int argc, char** argv) {
         switch (args.command) {
         case CommandType::Analyze: {
             const std::string json = readFile(args.analyze.input);
-            const ProjectData data(json);
-            const ProjectData tokenizedData = tokenizeAudio(data);
-            writeFile(args.analyze.output, tokenizedData.toJson());
+            ProjectData data(json);
+            tokenizeAudio(data);
+            writeFile(args.analyze.output, data.toJson());
             break;
         }
         case CommandType::Rhyme: {
             const std::string json = readFile(args.rhyme.input);
-            const ProjectData data(json);
-            const ProjectData rhymedData = detectRhymes(data);
-            writeFile(args.rhyme.output, rhymedData.toJson());
+            ProjectData data(json);
+            if (!data.tokens.empty()) {
+                detectRhymes(data);
+                writeFile(args.rhyme.output, data.toJson());
+            }
             break;
         }
         case CommandType::Export: {
             const std::string json = readFile(args.exportOpt.input);
             const ProjectData data(json);
-            const int code = exportVideo(data, args.exportOpt.output, args.ffmpegPath);
-            return code;
+            return exportVideo(data, args.exportOpt.output, args.ffmpegPath);
         }
         case CommandType::Full: {
             const std::string json = readFile(args.full.input);
-            const ProjectData data(json);
-            const ProjectData tokenizedData = tokenizeAudio(data);
-            const ProjectData rhymedData = detectRhymes(tokenizedData);
-            const int code = exportVideo(rhymedData, args.full.output, args.ffmpegPath);
-            return code;
+            ProjectData data(json);
+            tokenizeAudio(data);
+            detectRhymes(data);
+            return exportVideo(data, args.full.output, args.ffmpegPath);
         }
         default:
-            std::cerr << "No command selected" << std::endl;
+            std::cerr << "No valid command selected" << std::endl;
             return 1;
         }
-
-        return 0;
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return 1;
     }
+    return 0;
 }

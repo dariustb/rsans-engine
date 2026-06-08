@@ -66,13 +66,11 @@ std::vector<float> loadAudioFile(const std::string& audioPath) {
 
 }
 
-ProjectData tokenizeAudio(const ProjectData& project) {
-    std::vector<Token> tokens = extractTokensFromAudio(
+void tokenizeAudio(ProjectData& project) {  // TODO: Expand logic to choose active model for this call
+    project.tokens = extractTokensFromAudio(
         project.audio.path,
         project.model.base
     );
-    ProjectData result(project.toJson());
-    return ProjectData(std::move(result), tokens);
 }
 
 std::vector<Token> extractTokensFromAudio(

@@ -30,6 +30,6 @@ class RhymeGrouper {
 
 class ProjectData;
 
-ProjectData detectRhymes(const ProjectData& project);
+void detectRhymes(ProjectData& project);
 
 #endif

@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-ProjectData tokenizeAudio(const ProjectData& project);
+void tokenizeAudio(ProjectData& project);
 
 std::vector<Token> extractTokensFromAudio(
     const std::string& audioPath,

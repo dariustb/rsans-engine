@@ -190,14 +190,11 @@ void RhymeGrouper::unite(int x, int y) {
     }
 }
 
-ProjectData detectRhymes(const ProjectData& project) {
+void detectRhymes(ProjectData& project) {
     CMUDict dict(project.cmudict);
 
-    // Copy the project to modify tokens
-    ProjectData result(project.toJson());
-
-    if (result.tokens.empty()) {
-        return result;
+    if (project.tokens.empty()) {
+        return;  // TODO: handle error for empty tokens
     }
 
     // Extract rhyme tails for each token
@@ -209,8 +206,8 @@ ProjectData detectRhymes(const ProjectData& project) {
 
     std::vector<TokenRhymeInfo> rhymeInfos;
 
-    for (size_t i = 0; i < result.tokens.size(); ++i) {
-        const Token& token = result.tokens[i];
+    for (size_t i = 0; i < project.tokens.size(); ++i) {
+        const Token& token = project.tokens[i];
         std::string normalized = normalizeWord(token.text);
 
         if (normalized.empty()) continue;
@@ -230,7 +227,7 @@ ProjectData detectRhymes(const ProjectData& project) {
     }
 
     if (rhymeInfos.size() < 2) {
-        return result;
+        return;
     }
 
     // Build indexes for grouping
@@ -283,10 +280,8 @@ ProjectData detectRhymes(const ProjectData& project) {
         }
 
         for (int tokenIdx : tokenIndices) {
-            result.tokens[tokenIdx].rhymeIndex = groupId;
+            project.tokens[tokenIdx].rhymeIndex = groupId;
         }
-        groupId++;
+        ++groupId;
     }
-
-    return result;
 }
