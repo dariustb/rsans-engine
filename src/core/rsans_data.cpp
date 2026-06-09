@@ -3,6 +3,7 @@
 #include <nlohmann/json.hpp>
 #include <sndfile.h>
 
+#include <exception>
 #include <optional>
 #include <string>
 #include <vector>
@@ -58,38 +59,38 @@ std::string Color::toAss(const std::string& hexValue) {
 ProjectData::ProjectData(const std::string& jsonContent) {
     const json j = json::parse(jsonContent);
 
-    header.fontName = j["header"]["fontName"].get<std::string>();
-    header.fontPath = j["header"]["fontPath"].get<std::string>();
-    header.title = j["header"]["title"].get<std::string>();
-    header.titleSize = j["header"]["titleSize"].get<int>();
-    header.artist = j["header"]["artist"].get<std::string>();
+    header.fontName   = j["header"]["fontName"].get<std::string>();
+    header.fontPath   = j["header"].value("fontPath", std::string{});
+    header.title      = j["header"]["title"].get<std::string>();
+    header.titleSize  = j["header"]["titleSize"].get<int>();
+    header.artist     = j["header"]["artist"].get<std::string>();
     header.artistSize = j["header"]["artistSize"].get<int>();
-    header.media = j["header"]["media"].get<std::string>();
+    header.media      = j["header"].value("media", std::string{});
 
-    audio.path = j["audio"]["path"].get<std::string>();
+    audio.path   = j["audio"].value("path", std::string{});
     audio.length = j["audio"]["length"].is_null()
         ? getAudioDuration(audio.path)
         : j["audio"]["length"].get<double>();
 
-    video.width = j["video"]["width"].get<int>();
-    video.height = j["video"]["height"].get<int>();
+    video.width      = j["video"]["width"].get<int>();
+    video.height     = j["video"]["height"].get<int>();
     video.background = j["video"]["background"].get<std::string>();
 
-    layout.fontName = j["layout"]["fontName"].get<std::string>();
-    layout.fontPath = j["layout"]["fontPath"].get<std::string>();
-    layout.fontSize = j["layout"]["fontSize"].get<int>();
+    layout.fontName   = j["layout"]["fontName"].get<std::string>();
+    layout.fontPath   = j["layout"].value("fontPath", std::string{});
+    layout.fontSize   = j["layout"]["fontSize"].get<int>();
     layout.lineHeight = j["layout"]["lineHeight"].get<int>();
     
-    model.base = j["model"]["path"];
+    model.base = j["model"].value("path", std::string{});
 
     if (j.contains("cmudict") && !j["cmudict"].is_null()) {
         cmudict = j["cmudict"].get<std::string>();
     }
 
     for (const auto& tokenJson : j["tokens"]) {    
-        const std::optional<int> tokenRhymeIndex = tokenJson["rhymeIndex"].is_null()
-            ? std::optional<int>{}
-            : tokenJson["rhymeIndex"].get<int>();
+        const std::optional<int> tokenRhymeIndex = !tokenJson["rhymeIndex"].is_null()
+            ? tokenJson["rhymeIndex"].get<int>()
+            : std::optional<int>{};
 
         const Token token(
             tokenJson["id"].get<int>(),
@@ -107,6 +108,13 @@ ProjectData::ProjectData(const std::string& jsonContent) {
         const Color color(colorHex);
         colorSwatch.push_back(color);
     }
+
+    // Validate path values
+    if (header.fontPath.empty()) { throw std::invalid_argument("layout font path must be used (header.fontPath)"); }
+    if (header.media.empty()) { throw std::invalid_argument("cover media must be used (header.media)"); }
+    if (audio.path.empty()) { throw std::invalid_argument("audio path must be used (audio.audioPath)"); }
+    if (layout.fontPath.empty()) { throw std::invalid_argument("layout font path must be used (layout.fontPath)"); }
+    if (model.base.empty()) { throw std::invalid_argument("model .bin path must be used (model.path)"); }
 }
 
 ProjectData::ProjectData(ProjectData base, std::vector<Token>& newTokens)

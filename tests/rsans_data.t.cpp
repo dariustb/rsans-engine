@@ -819,3 +819,242 @@ TEST(ProjectDataTest, ToJsonRoundTripPreservesDataGivenCompleteProjectData) {
     EXPECT_FALSE(restored.tokens[1].rhymeIndex.has_value());
     EXPECT_EQ(restored.colorSwatch.size(), original.colorSwatch.size());
 }
+
+TEST(ProjectDataTest, ProjectDataConstructorThrowsWhenMissingHeaderFontPath) {
+    // Given
+    const std::string json = R"({
+        "header": {
+            "fontName": "Lobster",
+            
+            "title": "My Song",
+            "titleSize": 72,
+            "artist": "Some Artist",
+            "artistSize": 40,
+            "media": "cover.png"
+        },
+        "audio": {"path": "test.wav", "length": 10},
+        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
+        "colorSwatch": [],
+        "tokens": []
+    })";
+
+    // When/Then
+    EXPECT_THROW({ const ProjectData data(json); }, std::invalid_argument);
+}
+
+TEST(ProjectDataTest, ProjectDataConstructorThrowsWhenEmptyHeaderFontPath) {
+    // Given
+    const std::string json = R"({
+        "header": {
+            "fontName": "Lobster",
+            "fontPath": "",
+            "title": "My Song",
+            "titleSize": 72,
+            "artist": "Some Artist",
+            "artistSize": 40,
+            "media": "cover.png"
+        },
+        "audio": {"path": "test.wav", "length": 10},
+        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
+        "colorSwatch": [],
+        "tokens": []
+    })";
+
+    // When/Then
+    EXPECT_THROW({ const ProjectData data(json); }, std::invalid_argument);
+}
+
+TEST(ProjectDataTest, ProjectDataConstructorThrowsWhenMissingHeaderMediaPath) {
+    // Given
+    const std::string json = R"({
+        "header": {
+            "fontName": "Lobster",
+            "fontPath": "fonts/lobster.ttf",
+            "title": "My Song",
+            "titleSize": 72,
+            "artist": "Some Artist",
+            "artistSize": 40
+        },
+        "audio": {"path": "test.wav", "length": 10},
+        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
+        "colorSwatch": [],
+        "tokens": []
+    })";
+
+    // When/Then
+    EXPECT_THROW({ const ProjectData data(json); }, std::invalid_argument);
+}
+
+TEST(ProjectDataTest, ProjectDataConstructorThrowsWhenEmptyHeaderMediaPath) {
+    // Given
+    const std::string json = R"({
+        "header": {
+            "fontName": "Lobster",
+            "fontPath": "fonts/lobster.ttf",
+            "title": "My Song",
+            "titleSize": 72,
+            "artist": "Some Artist",
+            "artistSize": 40,
+            "media": ""
+        },
+        "audio": {"path": "test.wav", "length": 10},
+        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
+        "colorSwatch": [],
+        "tokens": []
+    })";
+
+    // When/Then
+    EXPECT_THROW({ const ProjectData data(json); }, std::invalid_argument);
+}
+
+TEST(ProjectDataTest, ProjectDataConstructorThrowsWhenMissingAudioPath) {
+    // Given
+    const std::string json = R"({
+        "header": {
+            "fontName": "Lobster",
+            "fontPath": "fonts/lobster.ttf",
+            "title": "My Song",
+            "titleSize": 72,
+            "artist": "Some Artist",
+            "artistSize": 40,
+            "media": "cover.png"
+        },
+        "audio": {"length": 10},
+        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
+        "colorSwatch": [],
+        "tokens": []
+    })";
+
+    // When/Then
+    EXPECT_THROW({ const ProjectData data(json); }, std::invalid_argument);
+}
+
+TEST(ProjectDataTest, ProjectDataConstructorThrowsWhenEmptyAudioPath) {
+    // Given
+    const std::string json = R"({
+        "header": {
+            "fontName": "Lobster",
+            "fontPath": "fonts/lobster.ttf",
+            "title": "My Song",
+            "titleSize": 72,
+            "artist": "Some Artist",
+            "artistSize": 40,
+            "media": "cover.png"
+        },
+        "audio": {"path": "", "length": 10},
+        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
+        "colorSwatch": [],
+        "tokens": []
+    })";
+
+    // When/Then
+    EXPECT_THROW({ const ProjectData data(json); }, std::invalid_argument);
+}
+
+TEST(ProjectDataTest, ProjectDataConstructorThrowsWhenMissingLayoutFontPath) {
+    // Given
+    const std::string json = R"({
+        "header": {
+            "fontName": "Lobster",
+            "fontPath": "fonts/lobster.ttf",
+            "title": "My Song",
+            "titleSize": 72,
+            "artist": "Some Artist",
+            "artistSize": 40,
+            "media": "cover.png"
+        },
+        "audio": {"path": "test.wav", "length": 10},
+        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "layout": {"fontName": "Arial", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
+        "colorSwatch": [],
+        "tokens": []
+    })";
+
+    // When/Then
+    EXPECT_THROW({ const ProjectData data(json); }, std::invalid_argument);
+}
+
+TEST(ProjectDataTest, ProjectDataConstructorThrowsWhenEmptyLayoutFontPath) {
+    // Given
+    const std::string json = R"({
+        "header": {
+            "fontName": "Lobster",
+            "fontPath": "fonts/lobster.ttf",
+            "title": "My Song",
+            "titleSize": 72,
+            "artist": "Some Artist",
+            "artistSize": 40,
+            "media": "cover.png"
+        },
+        "audio": {"path": "test.wav", "length": 10},
+        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "layout": {"fontName": "Arial", "fontPath": "", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": "models/base.bin"},
+        "colorSwatch": [],
+        "tokens": []
+    })";
+
+    // When/Then
+    EXPECT_THROW({ const ProjectData data(json); }, std::invalid_argument);
+}
+
+TEST(ProjectDataTest, ProjectDataConstructorThrowsWhenMissingModelPath) {
+    // Given
+    const std::string json = R"({
+        "header": {
+            "fontName": "Lobster",
+            "fontPath": "fonts/lobster.ttf",
+            "title": "My Song",
+            "titleSize": 72,
+            "artist": "Some Artist",
+            "artistSize": 40,
+            "media": "cover.png"
+        },
+        "audio": {"path": "test.wav", "length": 10},
+        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
+        "model": {},
+        "colorSwatch": [],
+        "tokens": []
+    })";
+
+    // When/Then
+    EXPECT_THROW({ const ProjectData data(json); }, std::invalid_argument);
+}
+
+TEST(ProjectDataTest, ProjectDataConstructorThrowsWhenEmptyModelPath) {
+    // Given
+    const std::string json = R"({
+        "header": {
+            "fontName": "Lobster",
+            "fontPath": "fonts/lobster.ttf",
+            "title": "My Song",
+            "titleSize": 72,
+            "artist": "Some Artist",
+            "artistSize": 40,
+            "media": "cover.png"
+        },
+        "audio": {"path": "test.wav", "length": 10},
+        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
+        "model": {"path": ""},
+        "colorSwatch": [],
+        "tokens": []
+    })";
+
+    // When/Then
+    EXPECT_THROW({ const ProjectData data(json); }, std::invalid_argument);
+}
