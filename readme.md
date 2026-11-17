@@ -11,7 +11,7 @@ RSANS Engine is an offline-first CLI tool that turns a song into a time-synchron
 
 ## Features
 - Offline audio processing (no cloud dependency)
-- Accepts any audio format FFmpeg can read (MP3, FLAC, M4A, WAV at any sample rate, ...)
+- Accepts WAV, FLAC, OGG, Opus, MP3 and AIFF audio at any sample rate (AAC/M4A is not supported)
 - Word-level timing via offline speech recognition
 - Automatic rhyme detection, with rhyming words color-grouped
 - Karaoke-style word highlighting
@@ -110,7 +110,7 @@ A project is a JSON file. A minimal one, before `analyze` has been run:
 | `header.title`, `header.artist` | Required, shown above the lyrics |
 | `header.media` | Required cover image: PNG, JPEG, BMP, GIF or TGA (not video) |
 | `header.fontPath`, `layout.fontPath` | Required font files. Both fonts must be in the same folder |
-| `audio.path` | Required. Any format FFmpeg can read |
+| `audio.path` | Required. WAV, FLAC, OGG, Opus, MP3 or AIFF (the formats libsndfile reads). AAC/M4A is not supported; convert it first, e.g. `ffmpeg -i song.m4a song.flac` |
 | `audio.length` | Seconds. Leave `null` to have it measured from the audio |
 | `video.width`, `video.height` | Required, positive, and even (required by the H.264 encoder) |
 | `video.background` | Required. An FFmpeg color name or hex value |

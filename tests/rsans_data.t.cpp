@@ -1,4 +1,5 @@
 #include <rsans_data.h>
+#include <rsans_process.h>
 #include <rsans_test_utils.h>
 
 #include <gtest/gtest.h>
@@ -823,7 +824,7 @@ class ProjectValidationTest : public ::testing::Test {
         project.header.artistSize = 36;
         project.header.media = (dir / "cover.bmp").string();
         writeTestBmp(project.header.media);
-        project.audio.path = touch("song.wav");
+        project.audio.path = writeTestWav("rsans_validation_test/song.wav", 1, 16000);
         project.audio.length = 42.0;
         project.video.width = 1920;
         project.video.height = 1080;
@@ -867,7 +868,7 @@ TEST(ProjectDataTest, ValidateReportsEveryMandatoryFieldGivenBlankProject) {
     for (const std::string field : {
              "header.fontName", "header.fontPath", "header.title", "header.titleSize",
              "header.artist", "header.artistSize",
-             "header.media", "audio.path", "audio.length", "video.width", "video.height",
+             "header.media", "audio.path", "video.width", "video.height",
              "video.background", "layout.fontName", "layout.fontPath", "layout.fontSize",
              "layout.lineHeight", "model.path"}) {
         EXPECT_TRUE(hasErrorFor(errors, field)) << "No error for " << field;
@@ -1197,11 +1198,13 @@ TEST(StepValidationTest, ValidateForFullReportsEveryInputGivenBlankProject) {
 
     // Then
     for (const std::string field : {
-             "header.title", "header.media", "audio.path", "audio.length", "video.width",
+             "header.title", "header.media", "audio.path", "video.width",
              "layout.fontPath", "model.path", "cmudict", "colorSwatch"}) {
         EXPECT_TRUE(hasErrorFor(errors, field)) << "No error for " << field;
     }
     EXPECT_FALSE(hasErrorFor(errors, "tokens"));
+    // The length is measured from the audio file, so only the path is reported
+    EXPECT_FALSE(hasErrorFor(errors, "audio.length"));
 }
 
 TEST_F(ProjectValidationTest, ReportsNotAnImageGivenNonImageMedia) {
@@ -1235,4 +1238,59 @@ TEST_F(ProjectValidationTest, ReportsOnlyMissingFileGivenNonExistentMedia) {
     // Then: one error for the missing file, not a second about the format
     ASSERT_EQ(errors.size(), 1);
     EXPECT_NE(errors[0].message.find("file not found"), std::string::npos);
+}
+
+TEST_F(ProjectValidationTest, ReportsUnsupportedFormatGivenNonAudioFile) {
+    // Given
+    project.audio.path = touch("song.mp3");
+
+    // When
+    const std::vector<ValidationError> errors = project.validate();
+
+    // Then: one error naming the format, not a second one about the length
+    ASSERT_EQ(errors.size(), 1);
+    EXPECT_EQ(errors[0].field, "audio.path");
+    EXPECT_NE(errors[0].message.find("unsupported audio format"), std::string::npos);
+}
+
+TEST_F(ProjectValidationTest, ReportsUnsupportedFormatInEveryStepGivenM4aAudio) {
+    if (!ffmpegAvailable()) {
+        GTEST_SKIP() << "ffmpeg not found";
+    }
+    // Given: AAC in an M4A container, which ffmpeg reads but libsndfile doesn't
+    const std::string m4a = (dir / "song.m4a").string();
+    ASSERT_EQ(runProcess({"ffmpeg", "-nostdin", "-y", "-loglevel", "error",
+                          "-f", "lavfi", "-i", "sine=frequency=440:duration=1",
+                          "-c:a", "aac", m4a}), 0);
+    project.audio.path = m4a;
+    project.audio.length = getAudioDuration(m4a);  // What loading a project would set
+    project.cmudict = touch("cmudict.dict");
+    project.colorSwatch = {Color("#FF8800")};
+    project.tokens = {Token(0, "day", 0, 500, 0, std::nullopt)};
+
+    // Then
+    for (const auto& errors : {project.validateForAnalyze(), project.validateForExport(),
+                               project.validateForFull()}) {
+        ASSERT_EQ(errors.size(), 1);
+        EXPECT_EQ(errors[0].field, "audio.path");
+        EXPECT_NE(errors[0].message.find("AAC/M4A"), std::string::npos);
+    }
+}
+
+TEST_F(ProjectValidationTest, ValidateForFullIsReadyGivenMp3Audio) {
+    if (!ffmpegAvailable()) {
+        GTEST_SKIP() << "ffmpeg not found";
+    }
+    // Given: MP3 is readable by libsndfile, so its length is measured on load
+    const std::string mp3 = (dir / "song.mp3").string();
+    ASSERT_EQ(runProcess({"ffmpeg", "-nostdin", "-y", "-loglevel", "error",
+                          "-f", "lavfi", "-i", "sine=frequency=440:duration=1", mp3}), 0);
+    project.audio.path = mp3;
+    project.audio.length = getAudioDuration(mp3);
+    project.cmudict = touch("cmudict.dict");
+    project.colorSwatch = {Color("#FF8800")};
+
+    // Then
+    EXPECT_GT(project.audio.length, 0.0);
+    EXPECT_TRUE(project.validateForFull().empty());
 }

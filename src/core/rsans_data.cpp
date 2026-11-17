@@ -34,6 +34,19 @@ bool isExistingFile(const std::string& path) {
     return std::filesystem::is_regular_file(path, ec);
 }
 
+// True if libsndfile can open the file. RSANS only accepts audio it can read,
+// so audio.length can always be measured. libsndfile 1.2 reads WAV, FLAC,
+// OGG/Vorbis, Opus, MP3 and AIFF, but not AAC/M4A.
+bool isReadableAudio(const std::string& path) {
+    SF_INFO info{};
+    SNDFILE* file = sf_open(path.c_str(), SFM_READ, &info);
+    if (file == nullptr) {
+        return false;
+    }
+    sf_close(file);
+    return true;
+}
+
 // True if stb_image (used by rsans_ass.cpp to size the cover) can read the
 // file as an image. Only reads the header, so it is cheap.
 bool isReadableImage(const std::string& path) {
@@ -250,9 +263,18 @@ void checkHeader(const ProjectData& p, Validator& v) {
 
 void checkAudioPath(const ProjectData& p, Validator& v) {
     v.requireFile("audio.path", p.audio.path);
+    if (isExistingFile(p.audio.path) && !isReadableAudio(p.audio.path)) {
+        v.addError("audio.path", "unsupported audio format; use WAV, FLAC, OGG, Opus, "
+                                 "MP3 or AIFF (AAC/M4A is not supported)");
+    }
 }
 
 void checkAudioLength(const ProjectData& p, Validator& v) {
+    // Unusable audio is already reported by checkAudioPath, and its length
+    // can't be measured, so a second error would only repeat the problem
+    if (!isExistingFile(p.audio.path) || !isReadableAudio(p.audio.path)) {
+        return;
+    }
     if (p.audio.length <= 0.0) {
         v.addError("audio.length", "must be greater than 0");
     }

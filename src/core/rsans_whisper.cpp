@@ -268,12 +268,6 @@ ProjectData tokenizeAudio(const ProjectData& project,
     if (!isWhisperReadyAudio(project.audio.path)) {
         convertAudioForWhisper(project.audio.path, convertedAudio.path(), ffmpegPath, cancel);
         whisperAudioPath = convertedAudio.path();
-
-        // libsndfile can't read every format ffmpeg can (e.g. AAC), so the
-        // length may be missing; the converted WAV has the same duration
-        if (result.audio.length <= 0.0) {
-            result.audio.length = getAudioDuration(whisperAudioPath);
-        }
     }
 
     result.tokens = extractTokensFromAudio(

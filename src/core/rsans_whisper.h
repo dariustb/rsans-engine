@@ -17,8 +17,7 @@ using WhisperLogHandler = std::function<void(WhisperLogLevel level, const std::s
 // - ffmpegPath: used to convert audio Whisper can't read directly (anything
 //   but a 16 kHz mono/stereo WAV, e.g. MP3, FLAC, 44.1 kHz WAV) into a
 //   temporary 16 kHz mono WAV, deleted afterwards. The project keeps pointing
-//   at the original file, which export uses. If the project has no valid
-//   audio.length, it is filled in from the converted audio.
+//   at the original file, which export uses.
 // - onLog: whisper.cpp's log lines, captured rather than written to the
 //   terminal. Whisper's logging is global to the process, so only one
 //   transcription should run at a time.
