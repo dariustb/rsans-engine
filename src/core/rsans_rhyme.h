@@ -15,6 +15,8 @@ class CMUDict {
     static std::vector<std::string> extractConsonants(const std::vector<std::string>& phonemes);
     
     static bool isVowel(const std::string& phoneme);
+    // Loads a CMUdict-format file. Throws std::runtime_error if the path is
+    // empty, the file cannot be opened, or it contains no pronunciations.
     CMUDict(const std::string& dictPath);
 };
 
@@ -30,6 +32,8 @@ class RhymeGrouper {
 
 class ProjectData;
 
+// Groups rhyming tokens using the project's CMUdict file. Throws
+// std::runtime_error if the dictionary cannot be loaded (see CMUDict).
 ProjectData detectRhymes(const ProjectData& project);
 
 #endif

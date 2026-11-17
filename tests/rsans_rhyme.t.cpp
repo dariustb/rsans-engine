@@ -6,6 +6,7 @@
 
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
 #include <vector>
 
 namespace {
@@ -362,15 +363,38 @@ TEST(CMUDictTest, GetPhonemesHandlesApostropheWordsGivenContractions) {
     EXPECT_EQ(phonemes[0], "B");
 }
 
-TEST(CMUDictTest, ConstructorHandlesNonExistentFileGivenInvalidPath) {
-    // Given: A path to a non-existent file
-    CMUDict dict("/nonexistent/path/to/dict.dict");
+TEST(CMUDictTest, ConstructorThrowsGivenNonExistentFile) {
+    // Given
+    const std::string path = "/nonexistent/path/to/dict.dict";
 
-    // When
-    const std::vector<std::string> phonemes = dict.getPhonemes("any");
+    // When / Then
+    try {
+        const CMUDict dict(path);
+        FAIL() << "Expected std::runtime_error";
+    } catch (const std::runtime_error& e) {
+        EXPECT_NE(std::string(e.what()).find("Failed to open pronunciation dictionary"),
+                  std::string::npos) << e.what();
+    }
+}
 
-    // Then: Should return empty without crashing
-    EXPECT_TRUE(phonemes.empty());
+TEST(CMUDictTest, ConstructorThrowsGivenEmptyPath) {
+    EXPECT_THROW(CMUDict(""), std::runtime_error);
+}
+
+TEST(CMUDictTest, ConstructorThrowsGivenEmptyFile) {
+    // Given
+    TempDictFile dictFile("");
+
+    // When / Then
+    EXPECT_THROW(CMUDict(dictFile.path()), std::runtime_error);
+}
+
+TEST(CMUDictTest, ConstructorThrowsGivenFileWithNoPronunciations) {
+    // Given: only comments and words without phonemes, like a wrong file
+    TempDictFile dictFile(";;; a comment\nhello\nworld\n");
+
+    // When / Then
+    EXPECT_THROW(CMUDict(dictFile.path()), std::runtime_error);
 }
 
 TEST(RhymeGrouperTest, FindReturnsElementItselfGivenNewElement) {
@@ -527,6 +551,30 @@ TEST(DetectRhymesTest, DetectRhymesHandlesUnknownWordsGivenWordsNotInDict) {
     // Then: Unknown word should have no rhyme group, known word is singleton so also none
     EXPECT_FALSE(result.tokens[0].rhymeIndex.has_value());
     EXPECT_FALSE(result.tokens[1].rhymeIndex.has_value());
+}
+
+TEST(DetectRhymesTest, DetectRhymesThrowsGivenNoDictionarySet) {
+    // Given: cmudict is null in the project
+    const std::vector<Token> tokens = {
+        {0, "cat", 0, 100, 0, std::nullopt},
+        {1, "hat", 100, 200, 0, std::nullopt}
+    };
+    const ProjectData input(createTestProjectJson(tokens));
+
+    // When / Then
+    EXPECT_THROW(detectRhymes(input), std::runtime_error);
+}
+
+TEST(DetectRhymesTest, DetectRhymesThrowsGivenNonExistentDictionary) {
+    // Given
+    const std::vector<Token> tokens = {
+        {0, "cat", 0, 100, 0, std::nullopt},
+        {1, "hat", 100, 200, 0, std::nullopt}
+    };
+    const ProjectData input(createTestProjectJson(tokens, "/nonexistent/path/to/dict.dict"));
+
+    // When / Then
+    EXPECT_THROW(detectRhymes(input), std::runtime_error);
 }
 
 TEST(DetectRhymesTest, DetectRhymesReturnsUnchangedDataGivenEmptyTokens) {
