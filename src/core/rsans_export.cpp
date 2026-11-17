@@ -3,22 +3,20 @@
 #include <rsans_ass.h>
 #include <rsans_data.h>
 #include <rsans_io.h>
+#include <rsans_process.h>
+#include <rsans_task.h>
 
 #include <array>
 #include <algorithm>
-#include <cstdio>
+#include <cctype>
+#include <cstdlib>
 #include <deque>
 #include <filesystem>
 #include <sstream>
 #include <string>
 #include <stdexcept>
-
-#ifdef _WIN32
-#define popen _popen
-#define pclose _pclose
-#else
-#include <sys/wait.h>
-#endif
+#include <system_error>
+#include <vector>
 
 namespace  {
 
@@ -38,27 +36,6 @@ bool isImageFile(const std::string& path)
 
     return std::any_of(imageExts.begin(), imageExts.end(),
                         [&](const char* e){ return ext == e; });
-}
-
-// Quotes one argument so the shell passes it through unchanged, whatever
-// spaces or special characters it contains.
-std::string shellQuote(const std::string& arg) {
-#ifdef _WIN32
-    // cmd.exe: wrap in double quotes (Windows paths cannot contain '"')
-    return "\"" + arg + "\"";
-#else
-    // POSIX sh: wrap in single quotes; an embedded ' becomes '\''
-    std::string quoted = "'";
-    for (const char c : arg) {
-        if (c == '\'') {
-            quoted += "'\\''";
-        } else {
-            quoted += c;
-        }
-    }
-    quoted += "'";
-    return quoted;
-#endif
 }
 
 // Escapes a value placed inside an ffmpeg filtergraph (e.g. movie=<path>).
@@ -81,66 +58,64 @@ std::string escapeFilterValue(const std::string& value) {
     return escapeChars(optionLevel, "\\'[],;");
 }
 
-// Runs a shell command, capturing stdout and stderr instead of letting them
-// reach the terminal. Each line is passed to onOutput; ffmpeg ends its progress
-// updates with '\r', so that counts as a line break too. Returns the exit code
-// and keeps the last few lines in recentOutput for error messages.
-int runCapturingOutput(const std::string& command,
-                       const FfmpegOutputHandler& onOutput,
-                       std::deque<std::string>& recentOutput) {
-    constexpr std::size_t maxRecentLines = 10;
+// Lines ffmpeg writes for -progress are "key=value" with no spaces, unlike
+// its log lines
+bool isProgressLine(const std::string& line) {
+    const std::size_t equals = line.find('=');
+    if (equals == std::string::npos || equals == 0) {
+        return false;
+    }
+    if (line.find(' ') != std::string::npos) {
+        return false;
+    }
+    return std::all_of(line.begin(), line.begin() + static_cast<std::ptrdiff_t>(equals),
+                       [](unsigned char c) { return std::islower(c) || std::isdigit(c) || c == '_'; });
+}
 
-    FILE* pipe = popen((command + " 2>&1").c_str(), "r");
-    if (pipe == nullptr) {
-        throw std::runtime_error("failed to start ffmpeg");
+// Turns ffmpeg's -progress lines into a fraction of the video's length
+class FfmpegProgress {
+  private:
+    const ProgressHandler& d_onProgress;
+    double d_durationUs;
+    double d_lastFraction = -1.0;
+
+    void report(double fraction) {
+        fraction = std::clamp(fraction, 0.0, 1.0);
+        if (fraction > d_lastFraction && d_onProgress) {
+            d_lastFraction = fraction;
+            d_onProgress(fraction);
+        }
     }
 
-    const auto emitLine = [&](std::string& line) {
-        if (line.empty()) {
-            return;
-        }
-        if (onOutput) {
-            onOutput(line);
-        }
-        recentOutput.push_back(line);
-        if (recentOutput.size() > maxRecentLines) {
-            recentOutput.pop_front();
-        }
-        line.clear();
-    };
+  public:
+    FfmpegProgress(const ProgressHandler& onProgress, double durationSeconds)
+    : d_onProgress(onProgress)
+    , d_durationUs(durationSeconds * 1'000'000.0) {}
 
-    std::array<char, 4096> buffer{};
-    std::string line;
-    std::size_t bytesRead = 0;
-    while ((bytesRead = std::fread(buffer.data(), 1, buffer.size(), pipe)) > 0) {
-        for (std::size_t i = 0; i < bytesRead; ++i) {
-            const char c = buffer[i];
-            if (c == '\n' || c == '\r') {
-                emitLine(line);
-            } else {
-                line += c;
+    void handle(const std::string& line) {
+        const std::size_t equals = line.find('=');
+        const std::string key = line.substr(0, equals);
+        const std::string value = line.substr(equals + 1);
+
+        if (key == "progress" && value == "end") {
+            report(1.0);
+        } else if (key == "out_time_us" && d_durationUs > 0.0) {
+            char* end = nullptr;
+            const long long timeUs = std::strtoll(value.c_str(), &end, 10);
+            if (end != value.c_str()) {  // Skips "N/A"
+                report(static_cast<double>(timeUs) / d_durationUs);
             }
         }
     }
-    emitLine(line);
-
-    const int status = pclose(pipe);
-#ifdef _WIN32
-    return status;
-#else
-    if (status == -1) {
-        return -1;
-    }
-    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-#endif
-}
+};
 
 int executeFfmpegBuild(const ProjectData& data,
                        const std::string& outputVideoPath,
                        const std::string& ffmpegPath,
                        const std::string& assPath,
-                       const FfmpegOutputHandler& onOutput) {
-    // Build ffmpeg command
+                       const FfmpegOutputHandler& onOutput,
+                       const ProgressHandler& onProgress,
+                       const CancelFlag* cancel) {
     const std::filesystem::path layoutFontDir = std::filesystem::path(data.layout.fontPath).parent_path();
     const std::filesystem::path headerFontDir = std::filesystem::path(data.header.fontPath).parent_path();
     // Use the common ancestor so fontconfig (used by ffmpeg's libass) can discover all fonts
@@ -162,20 +137,36 @@ int executeFfmpegBuild(const ProjectData& data,
                 << "subtitles=" << escapeFilterValue(assPath)
                 << ":fontsdir=" << escapeFilterValue(fontsDir.string());
 
-    // Every value that comes from the project or the caller is quoted, so paths
-    // containing spaces or shell characters reach ffmpeg as single arguments
-    std::ostringstream cmd;
-    // -nostdin stops ffmpeg from reading keypresses meant for the caller (e.g. a TUI)
-    cmd << shellQuote(ffmpegPath) << " -nostdin -y ";
-    cmd << "-f lavfi -i " << shellQuote(colorSource.str()) << " ";
-    cmd << "-i " << shellQuote(data.audio.path) << " ";
-    cmd << "-vf " << shellQuote(filterGraph.str()) << " ";
-    cmd << "-c:v libx264 -c:a aac -shortest ";
-    cmd << shellQuote(outputVideoPath);
+    // Arguments go straight to ffmpeg without a shell, so they need no quoting.
+    // -nostdin: don't read keypresses meant for the caller (e.g. a TUI)
+    // -nostats -progress pipe:1: replace the '\r' status line with
+    //   machine-readable key=value progress lines on stdout
+    const std::vector<std::string> args = {
+        ffmpegPath, "-nostdin", "-nostats", "-progress", "pipe:1", "-y",
+        "-f", "lavfi", "-i", colorSource.str(),
+        "-i", data.audio.path,
+        "-vf", filterGraph.str(),
+        "-c:v", "libx264", "-c:a", "aac", "-shortest",
+        outputVideoPath
+    };
 
-    // Execute ffmpeg
+    constexpr std::size_t maxRecentLines = 10;
     std::deque<std::string> recentOutput;
-    const int result = runCapturingOutput(cmd.str(), onOutput, recentOutput);
+    FfmpegProgress progress(onProgress, data.audio.length);
+
+    const int result = runProcess(args, [&](const std::string& line) {
+        if (isProgressLine(line)) {
+            progress.handle(line);
+            return;
+        }
+        if (onOutput) {
+            onOutput(line);
+        }
+        recentOutput.push_back(line);
+        if (recentOutput.size() > maxRecentLines) {
+            recentOutput.pop_front();
+        }
+    }, cancel);
 
     if (result != 0) {
         std::string message = "ffmpeg command failed with exit code " +
@@ -206,11 +197,24 @@ std::string subtitlePathFor(const std::string& outputVideoPath) {
 int exportVideo(const ProjectData& data,
                 const std::string& outputVideoPath,
                 const std::string& ffmpegPath,
-                const FfmpegOutputHandler& onOutput) {
+                const FfmpegOutputHandler& onOutput,
+                const ProgressHandler& onProgress,
+                const CancelFlag* cancel) {
+    throwIfCancelled(cancel, "Export cancelled");
+
     const Ass assSubtitles(data);
     const std::string assPath = subtitlePathFor(outputVideoPath);
 
     writeFile(assPath, assSubtitles.text());
 
-    return executeFfmpegBuild(data, outputVideoPath, ffmpegPath, assPath, onOutput);
+    try {
+        return executeFfmpegBuild(data, outputVideoPath, ffmpegPath, assPath,
+                                  onOutput, onProgress, cancel);
+    } catch (const CancelledError&) {
+        // A cancelled export leaves no half-written video or its subtitles behind
+        std::error_code ec;
+        std::filesystem::remove(outputVideoPath, ec);
+        std::filesystem::remove(assPath, ec);
+        throw CancelledError("Export cancelled");
+    }
 }

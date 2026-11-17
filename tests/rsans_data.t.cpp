@@ -1,4 +1,5 @@
 #include <rsans_data.h>
+#include <rsans_test_utils.h>
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
@@ -1053,32 +1054,10 @@ TEST_F(ProjectValidationTest, CopyAssignmentReplacesEveryMember) {
 
 TEST(AudioDurationTest, ReturnsLengthInSecondsGivenWavFile) {
     // Given: a 2 second, 16 kHz mono 16-bit WAV
-    const std::filesystem::path path =
-        std::filesystem::temp_directory_path() / "rsans_duration_test.wav";
-    const uint32_t sampleRate = 16000;
-    const uint32_t dataSize = sampleRate * 2 * 2;
-    {
-        std::ofstream out(path, std::ios::binary);
-        const auto write32 = [&](uint32_t v) { out.write(reinterpret_cast<const char*>(&v), 4); };
-        const auto write16 = [&](uint16_t v) { out.write(reinterpret_cast<const char*>(&v), 2); };
-        out.write("RIFF", 4);
-        write32(36 + dataSize);
-        out.write("WAVEfmt ", 8);
-        write32(16);
-        write16(1);
-        write16(1);
-        write32(sampleRate);
-        write32(sampleRate * 2);
-        write16(2);
-        write16(16);
-        out.write("data", 4);
-        write32(dataSize);
-        const std::vector<char> silence(dataSize, 0);
-        out.write(silence.data(), static_cast<std::streamsize>(silence.size()));
-    }
+    const std::string path = writeTestWav("rsans_duration_test.wav", 1, 16000, 2000);
 
     // When
-    const double seconds = getAudioDuration(path.string());
+    const double seconds = getAudioDuration(path);
 
     // Then
     EXPECT_DOUBLE_EQ(seconds, 2.0);

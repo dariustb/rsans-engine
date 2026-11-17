@@ -23,6 +23,7 @@ target_sources(test_rsans
 		rsans_ass.t.cpp
 		rsans_data.t.cpp
 		rsans_export.t.cpp
+		rsans_process.t.cpp
 		rsans_rhyme.t.cpp
 		rsans_whisper.t.cpp
 )

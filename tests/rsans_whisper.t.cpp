@@ -1,6 +1,7 @@
 #include <rsans_whisper.h>
 
 #include <rsans_data.h>
+#include <rsans_test_utils.h>
 
 #include <gtest/gtest.h>
 
@@ -13,37 +14,6 @@
 #include <vector>
 
 namespace {
-
-// Writes a silent 16-bit PCM WAV file and returns its path
-std::string writeTestWav(const std::string& name, uint16_t channels, uint32_t sampleRate) {
-    const std::filesystem::path path = std::filesystem::temp_directory_path() / name;
-    const uint32_t frameCount = sampleRate / 10; // 100 ms
-    const uint16_t bitsPerSample = 16;
-    const uint16_t blockAlign = channels * bitsPerSample / 8;
-    const uint32_t dataSize = frameCount * blockAlign;
-
-    std::ofstream out(path, std::ios::binary);
-    const auto write32 = [&](uint32_t v) { out.write(reinterpret_cast<const char*>(&v), 4); };
-    const auto write16 = [&](uint16_t v) { out.write(reinterpret_cast<const char*>(&v), 2); };
-
-    out.write("RIFF", 4);
-    write32(36 + dataSize);
-    out.write("WAVE", 4);
-    out.write("fmt ", 4);
-    write32(16);                       // fmt chunk size
-    write16(1);                        // PCM
-    write16(channels);
-    write32(sampleRate);
-    write32(sampleRate * blockAlign);  // byte rate
-    write16(blockAlign);
-    write16(bitsPerSample);
-    out.write("data", 4);
-    write32(dataSize);
-    const std::vector<char> silence(dataSize, 0);
-    out.write(silence.data(), static_cast<std::streamsize>(silence.size()));
-
-    return path.string();
-}
 
 // Runs extractTokensFromAudio, expecting it to throw with a message containing expectedText
 void expectExtractThrows(const std::string& audioPath,
@@ -354,4 +324,31 @@ TEST(MergeContractionsTest, MergeContractionsHandlesContractionAtEndGivenLastTwo
     ASSERT_EQ(tokens.size(), 2);
     EXPECT_EQ(tokens[0].text, "yes");
     EXPECT_EQ(tokens[1].text, "I'm");
+}
+
+TEST(WhisperTest, ExtractTokensFromAudioThrowsCancelledGivenCancelAlreadyRequested) {
+    // Given: valid audio and a missing model, so only cancellation explains the error
+    const std::string audioPath = writeTestWav("rsans_test_cancel.wav", 1, 16000);
+    const std::string modelPath = "/nonexistent/path/to/model.bin";
+    CancelFlag cancel;
+    cancel.request();
+
+    // When / Then
+    EXPECT_THROW(extractTokensFromAudio(audioPath, modelPath, {}, {}, &cancel), CancelledError);
+    std::filesystem::remove(audioPath);
+}
+
+TEST(WhisperTest, ExtractTokensFromAudioDoesNotReportProgressGivenFailedModelLoad) {
+    // Given
+    const std::string audioPath = writeTestWav("rsans_test_progress.wav", 1, 16000);
+    const std::string modelPath = "/nonexistent/path/to/model.bin";
+    bool progressReported = false;
+    const ProgressHandler onProgress = [&](double) { progressReported = true; };
+
+    // When
+    EXPECT_THROW(extractTokensFromAudio(audioPath, modelPath, {}, onProgress), std::runtime_error);
+
+    // Then
+    EXPECT_FALSE(progressReported);
+    std::filesystem::remove(audioPath);
 }

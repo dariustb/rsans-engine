@@ -100,6 +100,30 @@ class WhisperLogCapture {
     }
 };
 
+// Adapts the caller's progress handler and cancel flag to whisper's C callbacks
+struct TranscriptionCallbacks {
+    const ProgressHandler& onProgress;
+    const CancelFlag* cancel;
+
+    static void onWhisperProgress(whisper_context* /*ctx*/, whisper_state* /*state*/,
+                                  int progress, void* userData) {
+        const auto* self = static_cast<const TranscriptionCallbacks*>(userData);
+        if (self == nullptr || !self->onProgress) {
+            return;
+        }
+        // An exception must not unwind through whisper's C code
+        try {
+            self->onProgress(static_cast<double>(progress) / 100.0);
+        } catch (...) {
+        }
+    }
+
+    static bool shouldAbort(void* userData) {
+        const auto* self = static_cast<const TranscriptionCallbacks*>(userData);
+        return self != nullptr && self->cancel != nullptr && self->cancel->isRequested();
+    }
+};
+
 std::vector<float> loadAudioFile(const std::string& audioPath) {
     std::vector<float> audioData;
 
@@ -154,11 +178,15 @@ std::vector<float> loadAudioFile(const std::string& audioPath) {
 }
 
 ProjectData tokenizeAudio(const ProjectData& project,
-                          const WhisperLogHandler& onLog) {
+                          const WhisperLogHandler& onLog,
+                          const ProgressHandler& onProgress,
+                          const CancelFlag* cancel) {
     std::vector<Token> tokens = extractTokensFromAudio(
         project.audio.path,
         project.model.base,
-        onLog
+        onLog,
+        onProgress,
+        cancel
     );
     ProjectData result = project;
     result.tokens = std::move(tokens);
@@ -168,16 +196,22 @@ ProjectData tokenizeAudio(const ProjectData& project,
 std::vector<Token> extractTokensFromAudio(
     const std::string& audioPath,
     const std::string& modelPath,
-    const WhisperLogHandler& onLog
+    const WhisperLogHandler& onLog,
+    const ProgressHandler& onProgress,
+    const CancelFlag* cancel
 ) {
     std::vector<Token> tokens;
+    constexpr const char* cancelledMessage = "Transcription cancelled";
 
+    throwIfCancelled(cancel, cancelledMessage);
     const std::vector<float> audioData = loadAudioFile(audioPath);
     if (audioData.empty()) {
         throw std::runtime_error("Audio file contains no samples: " + audioPath);
     }
 
     WhisperLogCapture logCapture(onLog);
+
+    throwIfCancelled(cancel, cancelledMessage);
 
     whisper_context_params cparams = whisper_context_default_params();
     cparams.use_gpu = false;
@@ -198,8 +232,24 @@ std::vector<Token> extractTokensFromAudio(
     wparams.max_len = 0; // 0 disables the limit
     wparams.language = "en";
 
+    // Whisper reports progress as a whole percentage, and polls the abort
+    // callback during encoding and decoding to see whether to stop
+    TranscriptionCallbacks callbacks{onProgress, cancel};
+    wparams.progress_callback = &TranscriptionCallbacks::onWhisperProgress;
+    wparams.progress_callback_user_data = &callbacks;
+    wparams.abort_callback = &TranscriptionCallbacks::shouldAbort;
+    wparams.abort_callback_user_data = &callbacks;
+
+    if (cancel != nullptr && cancel->isRequested()) {
+        whisper_free(ctx);
+        throw CancelledError(cancelledMessage);
+    }
+
     if (whisper_full(ctx, wparams, audioData.data(), audioData.size()) != 0) {
         whisper_free(ctx);
+        if (cancel != nullptr && cancel->isRequested()) {
+            throw CancelledError(cancelledMessage);
+        }
         throw std::runtime_error(
             logCapture.withRecentOutput("Whisper failed to transcribe audio: " + audioPath));
     }
@@ -252,6 +302,10 @@ std::vector<Token> extractTokensFromAudio(
     // RSANS is for sung or spoken lyrics, so audio without words is an error
     if (tokens.empty()) {
         throw std::runtime_error("No words were detected in the audio: " + audioPath);
+    }
+
+    if (onProgress) {
+        onProgress(1.0);
     }
 
     return tokens;
