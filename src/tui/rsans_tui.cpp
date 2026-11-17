@@ -16,6 +16,9 @@
 #include <ftxui/screen/terminal.hpp>
 
 #include <algorithm>
+#include <system_error>
+#include <fstream>
+#include <cctype>
 #include <array>
 #include <cstdint>
 #include <cstdio>
@@ -116,6 +119,33 @@ const std::vector<std::string> dictTypes = {".dict", ".txt"};
 const std::vector<std::string> fontTypes = {".ttf", ".otf", ".ttc"};
 const std::vector<std::string> videoTypes = {".mp4", ".mkv", ".mov", ".webm"};
 
+// Project files are JSON, saved with their own extension. Older .json
+// projects can still be opened.
+const std::string projectExtension = ".rsans";
+
+// The path with the project extension: ".json" is replaced, and any other
+// extension is kept with ".rsans" added ("my.song" -> "my.song.rsans")
+std::string withProjectExtension(const std::string& path) {
+    std::filesystem::path result(path);
+    if (result.extension() == projectExtension) {
+        return result.string();
+    }
+    if (result.extension() == ".json") {
+        result.replace_extension(projectExtension);
+        return result.string();
+    }
+    return result.string() + projectExtension;
+}
+
+// Shortens a path to at most `width` characters by cutting from the left, so
+// the end (the part that differs) stays visible
+std::string elideLeft(const std::string& path, std::size_t width) {
+    if (path.size() <= width || width < 4) {
+        return path;
+    }
+    return "..." + path.substr(path.size() - (width - 3));
+}
+
 InputOption singleLineInput() {
     InputOption option = InputOption::Default();
     option.multiline = false;
@@ -161,16 +191,31 @@ RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void
 
     Component tabs = Container::Tab({makeProjectTab(), makeRunTab(), makeLyricsTab()}, &d_tab);
     Component tabBar = Toggle(&d_tabNames, &d_tab);
-    Component layout = Container::Vertical({tabBar, tabs});
+    Component saveButton = Button("Save", [this] { save(); }, ButtonOption::Ascii());
+    Component saveAsButton = Button("Save as", [this] { saveAs(); }, ButtonOption::Ascii());
+    Component header = Container::Horizontal({tabBar, saveButton, saveAsButton});
+    Component layout = Container::Vertical({header, tabs});
 
-    Component rendered = Renderer(layout, [this, tabBar, tabs] {
+    Component rendered = Renderer(layout, [this, tabBar, saveButton, saveAsButton, tabs] {
+        // The project file's name, "*" while there are unsaved changes
+        const bool unsaved = hasUnsavedChanges();
+        if (unsaved) {
+            d_saveMessage.clear();
+        }
+        const std::string name = d_projectPath.empty()
+            ? "New project"
+            : std::filesystem::path(d_projectPath).filename().string();
+        Element fileStatus = d_saveMessage.empty()
+            ? text(name + (unsaved ? " *" : "")) | (unsaved ? color(ftxui::Color::Yellow) : dim)
+            : text(d_saveMessage) | color(ftxui::Color::Green);
         return vbox({
             hbox({text(" RSANS ") | bold | inverted, text(" "), tabBar->Render(), filler(),
+                  fileStatus, text("  "), saveButton->Render(), saveAsButton->Render(), text("  "),
                   text(stateText(d_runner) + " ") | dim}),
             separator(),
             tabs->Render() | flex,
             separator(),
-            text(" Arrows/Tab: move   Enter: press   Ctrl+C: quit") | dim,
+            text(" Arrows/Tab: move   Enter: press   Ctrl+S: save   Ctrl+C: quit") | dim,
         }) | border;
     });
 
@@ -179,12 +224,155 @@ RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void
     Component screens = Container::Tab({makeStartScreen(), makeCredits(), rendered}, &d_screen);
     Component withPicker = Modal(screens, makeFontPicker(), &d_pickerOpen);
     Component withModels = Modal(withPicker, makeModelPicker(), &d_modelPickerOpen);
-    Component withDialogs = Modal(withModels, makeFileDialog(), &d_fileDialogOpen);
+    Component withPrompt = Modal(withModels, makeQuitPrompt(), &d_quitPromptOpen);
+    Component withDialogs = Modal(withPrompt, makeFileDialog(), &d_fileDialogOpen);
 
     d_root = CatchEvent(withDialogs, [this](const Event& event) {
         if (event == Event::CtrlC) {
-            d_runner.cancel();  // The runner's destructor waits for it to stop
-            d_quit();
+            // Unsaved work: ask first (a second Ctrl+C quits anyway)
+            if (hasUnsavedChanges() && !d_quitPromptOpen) {
+                d_pickerOpen = false;
+                d_modelPickerOpen = false;
+                d_fileDialogOpen = false;
+                d_quitPromptOpen = true;
+                return true;
+            }
+            quitNow();
+            return true;
+        }
+        const bool dialogOpen = d_pickerOpen || d_modelPickerOpen || d_fileDialogOpen || d_quitPromptOpen;
+        if (event == Event::CtrlS && d_screen == static_cast<int>(Screen::Editor) && !dialogOpen) {
+            save();
+            return true;
+        }
+        return false;
+    });
+    markSaved();  // A new, untouched project has nothing to save
+}
+
+void RsansApp::quitNow() {
+    d_runner.cancel();  // The runner's destructor waits for it to stop
+    d_quit();
+}
+
+void RsansApp::markSaved() {
+    d_savedJson = d_form.project().toJson();
+}
+
+bool RsansApp::hasUnsavedChanges() const {
+    return d_screen == static_cast<int>(Screen::Editor) && d_form.project().toJson() != d_savedJson;
+}
+
+std::string RsansApp::saveProject(const std::string& path) {
+    // Write a temporary file and rename it over the project, so a failed write
+    // (e.g. a full disk) never leaves a half-written project behind
+    const std::filesystem::path target(path);
+    const std::filesystem::path temporary = target.string() + ".tmp";
+    const std::string json = d_form.project().toJson();
+    {
+        std::ofstream out(temporary, std::ios::binary | std::ios::trunc);
+        out << json;
+        out.close();
+        if (!out) {
+            std::error_code ec;
+            std::filesystem::remove(temporary, ec);
+            return "Can't save to " + path;
+        }
+    }
+    std::error_code ec;
+    std::filesystem::rename(temporary, target, ec);
+    if (ec) {
+        std::filesystem::remove(temporary, ec);
+        return "Can't save to " + path + ": " + ec.message();
+    }
+
+    d_projectPath = path;
+    d_savedJson = json;
+    d_saveMessage = "Saved " + target.filename().string();
+    d_overwriteCandidate.clear();
+    if (d_quitAfterSave) {
+        quitNow();
+    }
+    return "";
+}
+
+void RsansApp::save() {
+    d_quitAfterSave = false;  // Only "Save and quit" quits after saving
+    saveOrAsk();
+}
+
+void RsansApp::saveAs() {
+    d_quitAfterSave = false;
+    askWhereToSave();
+}
+
+void RsansApp::saveOrAsk() {
+    if (d_projectPath.empty()) {
+        askWhereToSave();
+        return;
+    }
+    const std::string error = saveProject(d_projectPath);
+    if (!error.empty()) {
+        d_saveMessage.clear();
+        askWhereToSave();  // Somewhere else, then
+        d_fileError = error;
+    }
+}
+
+void RsansApp::askWhereToSave() {
+    // Suggest a name from the song title
+    std::string current = d_projectPath;
+    if (current.empty()) {
+        std::string name;
+        for (const char c : d_form.project().header.title) {
+            if (std::isalnum(static_cast<unsigned char>(c)) != 0) {
+                name += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            } else if (!name.empty() && name.back() != '-') {
+                name += '-';
+            }
+        }
+        while (!name.empty() && name.back() == '-') {
+            name.pop_back();
+        }
+        current = (std::filesystem::current_path() / ((name.empty() ? "project" : name) + projectExtension)).string();
+    }
+    d_overwriteCandidate.clear();
+    openFileDialog("Save project as", {projectExtension}, true, current, [this](const std::string& chosen) {
+        const std::filesystem::path path(withProjectExtension(chosen));
+        // Replacing another file needs a second Enter
+        std::error_code ec;
+        if (std::filesystem::exists(path, ec) && path.string() != d_projectPath &&
+            path.string() != d_overwriteCandidate) {
+            d_overwriteCandidate = path.string();
+            return path.filename().string() + " already exists. Press Enter again to replace it.";
+        }
+        return saveProject(path.string());
+    });
+}
+
+Component RsansApp::makeQuitPrompt() {
+    Component saveAndQuit = Button("Save and quit", [this] {
+        d_quitPromptOpen = false;
+        d_quitAfterSave = true;
+        saveOrAsk();  // Quits once saved (if it asks where, cancelling stays)
+    }, ButtonOption::Ascii());
+    Component quit = Button("Quit without saving", [this] { quitNow(); }, ButtonOption::Ascii());
+    Component cancel = Button("Cancel", [this] { d_quitPromptOpen = false; }, ButtonOption::Ascii());
+    Component buttons = Container::Horizontal({saveAndQuit, quit, cancel});
+
+    Component rendered = Renderer(buttons, [this, saveAndQuit, quit, cancel] {
+        const std::string name = d_projectPath.empty()
+            ? "This project"
+            : std::filesystem::path(d_projectPath).filename().string();
+        return window(text(" Unsaved changes "), vbox({
+            text(name + " has unsaved changes."),
+            text(""),
+            hbox({saveAndQuit->Render(), text(" "), quit->Render(), text(" "), cancel->Render()}),
+        }));
+    });
+    return CatchEvent(rendered, [this](const Event& event) {
+        if (event == Event::Escape) {
+            d_quitPromptOpen = false;
             return true;
         }
         return false;
@@ -398,6 +586,9 @@ Component RsansApp::makeModelPicker() {
 void RsansApp::newProject() {
     d_form.reset(defaultProject());
     outputPath.clear();
+    d_projectPath.clear();
+    d_saveMessage.clear();
+    markSaved();
     d_tab = 0;
     d_screen = static_cast<int>(Screen::Editor);
 }
@@ -409,6 +600,9 @@ std::string RsansApp::loadProject(const std::string& path) {
     } catch (const std::exception& e) {
         return std::string("Can't load project: ") + e.what();
     }
+    d_projectPath = path;
+    d_saveMessage.clear();
+    markSaved();
     d_tab = 0;
     d_screen = static_cast<int>(Screen::Editor);
     return "";
@@ -420,7 +614,7 @@ void RsansApp::chooseStartEntry() {
         newProject();
         break;
     case 1:
-        openFileDialog("Load project", {".json"}, false, "",
+        openFileDialog("Load project", {projectExtension, ".json"}, false, "",
                        [this](const std::string& path) { return loadProject(path); });
         break;
     case 2:
@@ -832,7 +1026,7 @@ Component RsansApp::makeFileDialog() {
         const std::string hint = browser.saveMode() ? "Enter: open folder / save  Esc: close"
                                                     : "Enter: open  Backspace: up  Esc: close";
         return window(text(" " + d_fileTitle + " "), vbox({
-            hbox({text("Folder ") | bold, text(browser.directory().string()) | dim}),
+            hbox({text("Folder ") | bold, text(elideLeft(browser.directory().string(), 70)) | dim}),
             hbox({text(browser.saveMode() ? "Name   " : "Search ") | bold, search->Render() | flex}),
             status,
             separator(),

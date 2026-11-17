@@ -896,7 +896,7 @@ std::filesystem::path writeTestProject(const std::filesystem::path& folder) {
     project.video.width = 1280;
     project.audio.length = 12.5;
     project.tokens.emplace_back(0, "hello", 0, 500, 0, std::nullopt);
-    const std::filesystem::path path = folder / "song.json";
+    const std::filesystem::path path = folder / "song.rsans";
     std::ofstream(path) << project.toJson();
     return path;
 }
@@ -904,7 +904,7 @@ std::filesystem::path writeTestProject(const std::filesystem::path& folder) {
 } // namespace
 
 TEST(StartScreenTest, LoadProjectChoosesJsonFileAndOpensEditor) {
-    // Given: Load project opens the file dialog, listing .json files
+    // Given: Load project opens the file dialog, listing project files
     DialogFolder folder;
     const std::filesystem::path path = writeTestProject(folder.root);
     ManualPost ui;
@@ -1199,4 +1199,265 @@ TEST(ModelPickerTest, PickerExplainsMissingCheckout) {
 
     EXPECT_TRUE(app.whisperModels().empty());
     EXPECT_TRUE(contains(renderToString(app.component()), "No models found"));
+}
+
+// Saving
+
+namespace {
+
+std::string readAll(const std::filesystem::path& path) {
+    std::ifstream in(path);
+    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+}
+
+} // namespace
+
+TEST(SaveProjectTest, SaveWritesProjectThatLoadsBack) {
+    // Given: an edited project with transcribed words
+    DialogFolder folder;
+    const std::filesystem::path path = folder.root / "song.rsans";
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    EXPECT_FALSE(app.hasUnsavedChanges());
+    app.form().setFieldText("header.title", "Saved Song");
+    app.form().setFieldText("video.width", "1280");
+    app.form().setTokens({Token(0, "hello", 0, 500, 0, 1)});
+    EXPECT_TRUE(app.hasUnsavedChanges());
+
+    // When
+    EXPECT_EQ(app.saveProject(path.string()), "");
+
+    // Then
+    EXPECT_FALSE(app.hasUnsavedChanges());
+    EXPECT_EQ(app.projectPath(), path.string());
+    EXPECT_FALSE(std::filesystem::exists(path.string() + ".tmp"));
+    EXPECT_TRUE(contains(renderToString(app.component()), "Saved song.rsans"));
+
+    RsansApp other("ffmpeg", ui.post(), [] {});
+    ASSERT_EQ(other.loadProject(path.string()), "");
+    EXPECT_EQ(other.form().project().header.title, "Saved Song");
+    EXPECT_EQ(other.form().project().video.width, 1280);
+    ASSERT_EQ(other.form().project().tokens.size(), 1u);
+    EXPECT_EQ(other.form().project().tokens[0].rhymeIndex, 1);
+    EXPECT_FALSE(other.hasUnsavedChanges());
+}
+
+TEST(SaveProjectTest, HeaderMarksUnsavedChanges) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    EXPECT_TRUE(contains(renderToString(app.component()), "New project  "));
+
+    app.form().setFieldText("header.title", "x");
+
+    EXPECT_TRUE(contains(renderToString(app.component()), "New project *"));
+}
+
+TEST(SaveProjectTest, CtrlSOnNewProjectAsksWhereWithNameFromTitle) {
+    // Given
+    DialogFolder folder;
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    app.form().setFieldText("header.title", "My Song!");
+
+    // When
+    app.component()->OnEvent(ftxui::Event::CtrlS);
+
+    // Then: a save dialog, named after the title
+    ASSERT_TRUE(app.fileDialogOpen());
+    EXPECT_TRUE(app.fileBrowser()->saveMode());
+    EXPECT_EQ(app.fileQuery, "my-song.rsans");
+
+    // When: saved in the test folder, without typing the extension
+    app.fileQuery.clear();
+    type(app, folder.root.string() + "/first");
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then
+    EXPECT_FALSE(app.fileDialogOpen());
+    EXPECT_EQ(app.projectPath(), (folder.root / "first.rsans").string());
+    EXPECT_TRUE(std::filesystem::exists(folder.root / "first.rsans"));
+
+    // And Ctrl+S now saves straight to it
+    app.form().setFieldText("header.title", "Changed");
+    app.component()->OnEvent(ftxui::Event::CtrlS);
+    EXPECT_FALSE(app.fileDialogOpen());
+    EXPECT_FALSE(app.hasUnsavedChanges());
+    EXPECT_TRUE(contains(readAll(folder.root / "first.rsans"), "Changed"));
+}
+
+TEST(SaveProjectTest, SaveAsAsksBeforeReplacingAnotherFile) {
+    // Given: old.rsans is in the folder already
+    DialogFolder folder;
+    std::ofstream(folder.root / "old.rsans") << "x";
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    app.saveAs();
+    app.fileQuery.clear();
+    type(app, (folder.root / "old.rsans").string());
+
+    // When: Enter once
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then: it asks
+    EXPECT_TRUE(app.fileDialogOpen());
+    EXPECT_TRUE(contains(renderToString(app.component()), "already exists")) << renderToString(app.component());
+    EXPECT_EQ(readAll(folder.root / "old.rsans"), "x");
+
+    // When: Enter again
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then
+    EXPECT_FALSE(app.fileDialogOpen());
+    EXPECT_TRUE(contains(readAll(folder.root / "old.rsans"), "\"header\""));
+}
+
+TEST(SaveProjectTest, SaveReportsUnwritableFolder) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+
+    EXPECT_NE(app.saveProject("/nonexistent/folder/song.rsans"), "");
+    EXPECT_EQ(app.projectPath(), "");
+}
+
+TEST(SaveProjectTest, CtrlCWithUnsavedChangesAsksFirst) {
+    // Given
+    ManualPost ui;
+    bool quit = false;
+    RsansApp app("ffmpeg", ui.post(), [&] { quit = true; });
+    app.newProject();
+    app.form().setFieldText("header.title", "x");
+
+    // When: Ctrl+C asks instead of quitting
+    app.component()->OnEvent(ftxui::Event::CtrlC);
+    EXPECT_FALSE(quit);
+    ASSERT_TRUE(app.quitPromptOpen());
+    EXPECT_TRUE(contains(renderToString(app.component()), "unsaved changes"));
+
+    // Esc goes back
+    app.component()->OnEvent(ftxui::Event::Escape);
+    EXPECT_FALSE(app.quitPromptOpen());
+    EXPECT_FALSE(quit);
+
+    // A second Ctrl+C at the prompt quits anyway
+    app.component()->OnEvent(ftxui::Event::CtrlC);
+    app.component()->OnEvent(ftxui::Event::CtrlC);
+    EXPECT_TRUE(quit);
+}
+
+TEST(SaveProjectTest, SaveAndQuitSavesThenQuits) {
+    // Given: a project with a file, then changed
+    DialogFolder folder;
+    ManualPost ui;
+    bool quit = false;
+    RsansApp app("ffmpeg", ui.post(), [&] { quit = true; });
+    app.newProject();
+    ASSERT_EQ(app.saveProject((folder.root / "song.rsans").string()), "");
+    app.form().setFieldText("header.title", "Last Change");
+
+    // When: Ctrl+C, then Enter on "Save and quit"
+    app.component()->OnEvent(ftxui::Event::CtrlC);
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then
+    EXPECT_TRUE(quit);
+    EXPECT_TRUE(contains(readAll(folder.root / "song.rsans"), "Last Change"));
+}
+
+TEST(SaveProjectTest, CancelledSaveAndQuitDoesNotQuitOnLaterSave) {
+    // Given: Save and quit on a new project opens Save as, which is cancelled
+    DialogFolder folder;
+    ManualPost ui;
+    bool quit = false;
+    RsansApp app("ffmpeg", ui.post(), [&] { quit = true; });
+    app.newProject();
+    app.form().setFieldText("header.title", "x");
+    app.component()->OnEvent(ftxui::Event::CtrlC);
+    app.component()->OnEvent(ftxui::Event::Return);
+    ASSERT_TRUE(app.fileDialogOpen());
+    app.component()->OnEvent(ftxui::Event::Escape);
+
+    // When: an ordinary save later
+    app.saveAs();
+    app.fileQuery.clear();
+    type(app, (folder.root / "later.rsans").string());
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then: saved, still running
+    EXPECT_TRUE(std::filesystem::exists(folder.root / "later.rsans"));
+    EXPECT_FALSE(quit);
+}
+
+TEST(SaveProjectTest, CtrlCQuitsStraightAwayWhenSaved) {
+    ManualPost ui;
+    bool quit = false;
+    RsansApp app("ffmpeg", ui.post(), [&] { quit = true; });
+    app.newProject();
+
+    app.component()->OnEvent(ftxui::Event::CtrlC);
+
+    EXPECT_TRUE(quit);
+    EXPECT_FALSE(app.quitPromptOpen());
+}
+
+TEST(SaveProjectTest, SaveAsUsesRsansExtension) {
+    DialogFolder folder;
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+
+    // name -> path saved
+    const std::vector<std::pair<std::string, std::string>> cases = {
+        {"plain", "plain.rsans"},
+        {"song.json", "song.rsans"},
+        {"my.song", "my.song.rsans"},
+        {"done.rsans", "done.rsans"},
+    };
+    for (const auto& [typed, saved] : cases) {
+        app.saveAs();
+        app.fileQuery.clear();
+        type(app, (folder.root / typed).string());
+        app.component()->OnEvent(ftxui::Event::Return);
+
+        EXPECT_FALSE(app.fileDialogOpen()) << typed;
+        EXPECT_EQ(app.projectPath(), (folder.root / saved).string()) << typed;
+        EXPECT_TRUE(std::filesystem::exists(folder.root / saved)) << typed;
+    }
+    EXPECT_FALSE(std::filesystem::exists(folder.root / "song.json"));
+}
+
+TEST(SaveProjectTest, LoadListsRsansAndOlderJsonProjects) {
+    // Given: a project of each kind, plus a file that isn't one
+    DialogFolder folder;
+    {
+        ManualPost ui;
+        RsansApp saver("ffmpeg", ui.post(), [] {});
+        saver.newProject();
+        ASSERT_EQ(saver.saveProject((folder.root / "new.rsans").string()), "");
+        ASSERT_EQ(saver.saveProject((folder.root / "old.json").string()), "");
+    }
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+
+    // When: Load project, in the test folder
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::Return);
+    ASSERT_TRUE(app.fileDialogOpen());
+    app.fileQuery.clear();
+    type(app, folder.root.string() + "/");
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then
+    std::vector<std::string> names;
+    for (const FileBrowser::Entry& entry : app.fileBrowser()->entries()) {
+        names.push_back(entry.name);
+    }
+    EXPECT_NE(std::find(names.begin(), names.end(), "new.rsans"), names.end());
+    EXPECT_NE(std::find(names.begin(), names.end(), "old.json"), names.end());
+    EXPECT_EQ(std::find(names.begin(), names.end(), "notes.txt"), names.end());
+    EXPECT_EQ(app.loadProject((folder.root / "old.json").string()), "");
 }

@@ -45,6 +45,18 @@ class RsansApp {
     // why it couldn't be loaded (the current project is left unchanged).
     std::string loadProject(const std::string& path);
 
+    // Saving. The project file is the one last loaded or saved ("" for a new
+    // project). Everything is saved, including the transcribed words, even if
+    // some settings are still missing.
+    const std::string& projectPath() const { return d_projectPath; }
+    bool hasUnsavedChanges() const;
+    // Writes the project to path and makes it the project file. Returns "" on
+    // success or why it failed.
+    std::string saveProject(const std::string& path);
+    void save();    // To the project file, or asks where (Save as) if there's none
+    void saveAs();  // Asks where, with the file dialog
+    bool quitPromptOpen() const { return d_quitPromptOpen; }
+
     ProjectForm& form() { return d_form; }
     StepRunner& runner() { return d_runner; }
 
@@ -140,6 +152,18 @@ class RsansApp {
     bool d_showAllFiles = false;
     std::string d_fileError;
 
+    // Saving
+    std::string d_projectPath;
+    std::string d_savedJson;       // The project as last loaded or saved
+    std::string d_saveMessage;     // e.g. "Saved song.rsans", until the next change
+    std::string d_overwriteCandidate;  // An existing file Save as was asked to replace
+    bool d_quitPromptOpen = false;
+    bool d_quitAfterSave = false;
+    void markSaved();
+    void quitNow();
+    void saveOrAsk();       // save() without changing d_quitAfterSave
+    void askWhereToSave();  // saveAs() without changing d_quitAfterSave
+
     // The start screen
     int d_screen = 0;  // A Screen
     std::vector<std::string> d_startEntries;
@@ -152,6 +176,7 @@ class RsansApp {
     // members above
     StepRunner d_runner;
 
+    ftxui::Component makeQuitPrompt();
     ftxui::Component makeStartScreen();
     ftxui::Component makeCredits();
     void chooseStartEntry();

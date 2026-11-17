@@ -11,7 +11,7 @@ RSANS Engine is an offline-first tool that turns a song into a time-synchronized
 
 It can be used two ways:
 - **Interactive terminal UI:** run `rsans` in a terminal to fill in the settings, run each step with live progress, and preview the lyrics.
-- **Command line:** subcommands that read and write a JSON project file, for scripts and automation.
+- **Command line:** subcommands that read and write a project file (`.rsans`, JSON inside), for scripts and automation.
 
 ## Features
 - Offline audio processing (no cloud dependency)
@@ -71,7 +71,7 @@ rsans --ffmpeg /opt/ffmpeg/bin/ffmpeg   # with a specific ffmpeg binary
 
 It opens on a start screen with the RSANS title and four options:
 - **New project:** a blank project with default settings.
-- **Load project:** choose a project `.json` file (the same format the command line uses) with the file browser. Its settings and any transcribed words are loaded; relative paths in it are read from the folder `rsans` was started in, as on the command line.
+- **Load project:** choose a project file (`.rsans`, or an older `.json` one) with the file browser. Its settings and any transcribed words are loaded; relative paths in it are read from the folder `rsans` was started in, as on the command line.
 - **Credits:** the libraries RSANS is built on.
 - **Quit**
 
@@ -100,26 +100,27 @@ New projects start with 1920x1080 video on black, standard text sizes and six rh
 | Enter | Press a button, open the font or model picker, or choose a font, model, file or folder |
 | Backspace | In the file browser with nothing typed: go up a folder |
 | Esc | Close the font picker, model picker or file browser |
-| Ctrl+C | Quit (cancels a running step first) |
+| Ctrl+S | Save the project |
+| Ctrl+C | Quit (cancels a running step first; asks to save unsaved changes) |
 
-Projects can be loaded but not saved yet: quitting discards changes made in the UI.
+Press **Ctrl+S**, or **Save** at the top right, to save the project, including the transcribed words, as a `.rsans` file (JSON inside, the same format the command line uses). A new project asks where to save it first, suggesting a name from the song title; after that Ctrl+S saves straight to the same file. **Save as** saves a copy somewhere else, and asks before replacing a different file. The file name is shown at the top, with `*` while there are unsaved changes, and quitting with unsaved changes asks whether to save first. Projects can be saved at any point, even with settings still missing.
 
 ### Command line
 ```sh
 # Transcribe the audio into timed words
-rsans analyze -i project.json -o out.json
+rsans analyze -i project.rsans -o out.rsans
 
 # Detect rhymes in the transcribed words
-rsans rhyme -i project.json -o out.json
+rsans rhyme -i project.rsans -o out.rsans
 
 # Export video based on project data
-rsans export -i project.json -o out.mp4
+rsans export -i project.rsans -o out.mp4
 
 # Full run of analyze -> rhyme -> export
-rsans full -i project.json -o out.mp4
+rsans full -i project.rsans -o out.mp4
 
 # Use a specific ffmpeg binary (works with any subcommand)
-rsans --ffmpeg /opt/ffmpeg/bin/ffmpeg full -i project.json -o out.mp4
+rsans --ffmpeg /opt/ffmpeg/bin/ffmpeg full -i project.rsans -o out.mp4
 ```
 
 Running `rsans` with no subcommand prints the help when used in a script or pipe, instead of opening the interactive UI.
@@ -132,7 +133,7 @@ Error: Project is not ready to run:
 ```
 
 ## Project File
-A project is a JSON file. A minimal one, before `analyze` has been run:
+A project is a `.rsans` file containing JSON. The interactive UI saves projects with this extension; the command line reads and writes any file name (older `.json` projects work everywhere). A minimal one, before `analyze` has been run:
 ```json
 {
     "header": {
@@ -183,7 +184,7 @@ Primary outputs:
 - The ASS subtitle file used to render the lyrics, written next to the video with the same name (`out.mp4` → `out.ass`). Useful for checking timings.
 
 Intermediate artifacts:
-- JSON project state from `analyze` and `rhyme`, with the words, their timings, and rhyme group assignments
+- Project files (`.rsans`, JSON) from `analyze` and `rhyme`, with the words, their timings, and rhyme group assignments
 
 ## Testing
 All tests are built as part of the normal build
@@ -213,7 +214,6 @@ Tests that run FFmpeg are skipped if `ffmpeg` is not on the `PATH`. The export t
 - Fonts render in their regular style only (no bold or italic)
 - A font that isn't installed on the system must be in the same folder as the other font
 - Only one transcription can run at a time per process
-- The interactive UI can load project files but not save them yet
 - Downloading models from the UI needs internet access, `sh`, and curl or wget; everything else runs offline
 
 <!-- CI Test Badges -->
