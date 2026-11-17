@@ -4,31 +4,107 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
+#include <filesystem>
+#include <fstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
-TEST(WhisperTest, ExtractTokensFromAudioReturnsEmptyVectorGivenNonExistentAudioFile) {
+namespace {
+
+// Writes a silent 16-bit PCM WAV file and returns its path
+std::string writeTestWav(const std::string& name, uint16_t channels, uint32_t sampleRate) {
+    const std::filesystem::path path = std::filesystem::temp_directory_path() / name;
+    const uint32_t frameCount = sampleRate / 10; // 100 ms
+    const uint16_t bitsPerSample = 16;
+    const uint16_t blockAlign = channels * bitsPerSample / 8;
+    const uint32_t dataSize = frameCount * blockAlign;
+
+    std::ofstream out(path, std::ios::binary);
+    const auto write32 = [&](uint32_t v) { out.write(reinterpret_cast<const char*>(&v), 4); };
+    const auto write16 = [&](uint16_t v) { out.write(reinterpret_cast<const char*>(&v), 2); };
+
+    out.write("RIFF", 4);
+    write32(36 + dataSize);
+    out.write("WAVE", 4);
+    out.write("fmt ", 4);
+    write32(16);                       // fmt chunk size
+    write16(1);                        // PCM
+    write16(channels);
+    write32(sampleRate);
+    write32(sampleRate * blockAlign);  // byte rate
+    write16(blockAlign);
+    write16(bitsPerSample);
+    out.write("data", 4);
+    write32(dataSize);
+    const std::vector<char> silence(dataSize, 0);
+    out.write(silence.data(), static_cast<std::streamsize>(silence.size()));
+
+    return path.string();
+}
+
+// Runs extractTokensFromAudio, expecting it to throw with a message containing expectedText
+void expectExtractThrows(const std::string& audioPath,
+                         const std::string& modelPath,
+                         const std::string& expectedText) {
+    try {
+        extractTokensFromAudio(audioPath, modelPath);
+        FAIL() << "Expected std::runtime_error containing: " << expectedText;
+    } catch (const std::runtime_error& e) {
+        EXPECT_NE(std::string(e.what()).find(expectedText), std::string::npos)
+            << "Actual message: " << e.what();
+    }
+}
+
+} // namespace
+
+TEST(WhisperTest, ExtractTokensFromAudioThrowsGivenNonExistentAudioFile) {
     // Given
     const std::string audioPath = "/nonexistent/path/to/audio.wav";
     const std::string modelPath = "/nonexistent/path/to/model.bin";
 
-    // When
-    const std::vector<Token> tokens = extractTokensFromAudio(audioPath, modelPath);
-
-    // Then
-    EXPECT_TRUE(tokens.empty());
+    // When / Then
+    expectExtractThrows(audioPath, modelPath, "Failed to open audio file");
 }
 
-TEST(WhisperTest, ExtractTokensFromAudioReturnsEmptyVectorGivenEmptyPaths) {
+TEST(WhisperTest, ExtractTokensFromAudioThrowsGivenEmptyPaths) {
     // Given
     const std::string audioPath = "";
     const std::string modelPath = "";
 
-    // When
-    const std::vector<Token> tokens = extractTokensFromAudio(audioPath, modelPath);
+    // When / Then
+    EXPECT_THROW(extractTokensFromAudio(audioPath, modelPath), std::runtime_error);
+}
 
-    // Then
-    EXPECT_TRUE(tokens.empty());
+TEST(WhisperTest, ExtractTokensFromAudioThrowsGivenWrongSampleRate) {
+    // Given: a 44.1 kHz WAV, the rate most music is distributed at
+    const std::string audioPath = writeTestWav("rsans_test_44100.wav", 2, 44100);
+    const std::string modelPath = "/nonexistent/path/to/model.bin";
+
+    // When / Then
+    expectExtractThrows(audioPath, modelPath, "got 44100 Hz");
+    std::filesystem::remove(audioPath);
+}
+
+TEST(WhisperTest, ExtractTokensFromAudioThrowsGivenUnsupportedChannelCount) {
+    // Given: a 16 kHz WAV with 3 channels
+    const std::string audioPath = writeTestWav("rsans_test_3ch.wav", 3, 16000);
+    const std::string modelPath = "/nonexistent/path/to/model.bin";
+
+    // When / Then
+    expectExtractThrows(audioPath, modelPath, "Unsupported number of audio channels: 3");
+    std::filesystem::remove(audioPath);
+}
+
+TEST(WhisperTest, ExtractTokensFromAudioThrowsGivenNonExistentModel) {
+    // Given: valid audio, but no model at the given path
+    const std::string audioPath = writeTestWav("rsans_test_16000.wav", 1, 16000);
+    const std::string modelPath = "/nonexistent/path/to/model.bin";
+
+    // When / Then
+    expectExtractThrows(audioPath, modelPath, "Failed to load Whisper model");
+    std::filesystem::remove(audioPath);
 }
 
 TEST(MergeContractionsTest, MergeContractionsDoesNothingGivenEmptyVector) {

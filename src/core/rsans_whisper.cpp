@@ -7,7 +7,7 @@
 #define DR_WAV_IMPLEMENTATION
 #include <dr_wav.h>
 
-#include <cstdio>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -18,22 +18,23 @@ std::vector<float> loadAudioFile(const std::string& audioPath) {
 
     drwav wav;
     if (!drwav_init_file(&wav, audioPath.c_str(), nullptr)) {
-        fprintf(stderr, "Failed to open audio file: %s\n", audioPath.c_str());
-        return audioData;
+        throw std::runtime_error("Failed to open audio file (must be a WAV file): " + audioPath);
     }
 
     if (wav.channels != 1 && wav.channels != 2) {
-        fprintf(stderr, "Unsupported number of channels: %u\n", wav.channels);
+        const unsigned int channels = wav.channels;
         drwav_uninit(&wav);
-        return audioData;
+        throw std::runtime_error("Unsupported number of audio channels: " +
+                                 std::to_string(channels) + " (must be mono or stereo)");
     }
 
     // TODO: sample rate caps @ 16kHz, will need to change logic to allow resampling 
     if (wav.sampleRate != WHISPER_SAMPLE_RATE) {
-        fprintf(stderr, "Audio sample rate must be %d Hz, got %u Hz\n",
-                WHISPER_SAMPLE_RATE, wav.sampleRate);
+        const unsigned int sampleRate = wav.sampleRate;
         drwav_uninit(&wav);
-        return audioData;
+        throw std::runtime_error("Audio sample rate must be " +
+                                 std::to_string(WHISPER_SAMPLE_RATE) + " Hz, got " +
+                                 std::to_string(sampleRate) + " Hz");
     }
 
     const size_t sampleCount = wav.totalPCMFrameCount;
@@ -43,8 +44,7 @@ std::vector<float> loadAudioFile(const std::string& audioPath) {
     drwav_uninit(&wav);
 
     if (framesRead != sampleCount) {
-        fprintf(stderr, "Failed to read all audio frames\n");
-        return audioData;
+        throw std::runtime_error("Failed to read all audio frames from: " + audioPath);
     }
 
     audioData.resize(sampleCount);
@@ -83,8 +83,7 @@ std::vector<Token> extractTokensFromAudio(
 
     const std::vector<float> audioData = loadAudioFile(audioPath);
     if (audioData.empty()) {
-        fprintf(stderr, "Failed to load audio data\n");
-        return tokens;
+        throw std::runtime_error("Audio file contains no samples: " + audioPath);
     }
 
     whisper_context_params cparams = whisper_context_default_params();
@@ -93,9 +92,7 @@ std::vector<Token> extractTokensFromAudio(
 
     whisper_context* ctx = whisper_init_from_file_with_params(modelPath.c_str(), cparams);
     if (!ctx) {
-        fprintf(stderr, "Failed to initialize Whisper context from model: %s\n",
-                modelPath.c_str());
-        return tokens;
+        throw std::runtime_error("Failed to load Whisper model: " + modelPath);
     }
 
     whisper_full_params wparams = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
@@ -108,9 +105,8 @@ std::vector<Token> extractTokensFromAudio(
     wparams.language = "en";
 
     if (whisper_full(ctx, wparams, audioData.data(), audioData.size()) != 0) {
-        fprintf(stderr, "Failed to process audio\n");
         whisper_free(ctx);
-        return tokens;
+        throw std::runtime_error("Whisper failed to transcribe audio: " + audioPath);
     }
 
     const int nSegments = whisper_full_n_segments(ctx);
@@ -157,6 +153,11 @@ std::vector<Token> extractTokensFromAudio(
     whisper_free(ctx);
 
     mergeContractions(tokens);
+
+    // RSANS is for sung or spoken lyrics, so audio without words is an error
+    if (tokens.empty()) {
+        throw std::runtime_error("No words were detected in the audio: " + audioPath);
+    }
 
     return tokens;
 }
