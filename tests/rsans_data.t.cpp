@@ -1125,3 +1125,138 @@ TEST(AudioDurationTest, ReturnsLengthInSecondsGivenWavFile) {
 TEST(AudioDurationTest, ReturnsNegativeOneGivenNonExistentFile) {
     EXPECT_EQ(getAudioDuration("/nonexistent/path/to/audio.wav"), -1.0);
 }
+
+// Step-level validation
+
+TEST(StepValidationTest, ValidateForAnalyzeRequiresOnlyAudioAndModelGivenBlankProject) {
+    // Given
+    const ProjectData project;
+
+    // When
+    const std::vector<ValidationError> errors = project.validateForAnalyze();
+
+    // Then
+    ASSERT_EQ(errors.size(), 2);
+    EXPECT_TRUE(hasErrorFor(errors, "audio.path"));
+    EXPECT_TRUE(hasErrorFor(errors, "model.path"));
+}
+
+TEST_F(ProjectValidationTest, ValidateForAnalyzeIsReadyGivenOnlyAudioAndModel) {
+    // Given: everything else blank
+    ProjectData analyzeOnly;
+    analyzeOnly.audio.path = project.audio.path;
+    analyzeOnly.model.base = project.model.base;
+
+    // Then
+    EXPECT_TRUE(analyzeOnly.validateForAnalyze().empty());
+    EXPECT_FALSE(analyzeOnly.isValid());
+}
+
+TEST_F(ProjectValidationTest, ValidateForRhymeRequiresCmudictAndTokensGivenNeitherSet) {
+    // When
+    const std::vector<ValidationError> errors = project.validateForRhyme();
+
+    // Then
+    ASSERT_EQ(errors.size(), 2);
+    EXPECT_TRUE(hasErrorFor(errors, "cmudict"));
+    EXPECT_TRUE(hasErrorFor(errors, "tokens"));
+}
+
+TEST_F(ProjectValidationTest, ValidateForRhymeIsReadyGivenCmudictAndTokens) {
+    // Given
+    project.cmudict = touch("cmudict.dict");
+    project.tokens = {Token(0, "day", 0, 500, 0, std::nullopt)};
+
+    // Then
+    EXPECT_TRUE(project.validateForRhyme().empty());
+}
+
+TEST_F(ProjectValidationTest, ValidateForRhymeReportsMissingFileGivenNonExistentCmudict) {
+    // Given
+    project.cmudict = (dir / "missing.dict").string();
+    project.tokens = {Token(0, "day", 0, 500, 0, std::nullopt)};
+
+    // When
+    const std::vector<ValidationError> errors = project.validateForRhyme();
+
+    // Then
+    ASSERT_EQ(errors.size(), 1);
+    EXPECT_EQ(errors[0].field, "cmudict");
+}
+
+TEST_F(ProjectValidationTest, ValidateForExportRequiresTokensGivenNoTokens) {
+    // When
+    const std::vector<ValidationError> errors = project.validateForExport();
+
+    // Then
+    ASSERT_EQ(errors.size(), 1);
+    EXPECT_EQ(errors[0].field, "tokens");
+}
+
+TEST_F(ProjectValidationTest, ValidateForExportIsReadyGivenTokensWithoutModelOrCmudict) {
+    // Given: export does not read the model or dictionary
+    project.model.base = "";
+    project.tokens = {Token(0, "day", 0, 500, 0, std::nullopt)};
+
+    // Then
+    EXPECT_TRUE(project.validateForExport().empty());
+}
+
+TEST_F(ProjectValidationTest, ValidateForExportReportsVisualSettingsGivenBlankHeaderAndLayout) {
+    // Given
+    project.header = ProjectData::HeaderData{};
+    project.layout = ProjectData::LayoutConfig{};
+    project.tokens = {Token(0, "day", 0, 500, 0, std::nullopt)};
+
+    // When
+    const std::vector<ValidationError> errors = project.validateForExport();
+
+    // Then
+    EXPECT_TRUE(hasErrorFor(errors, "header.title"));
+    EXPECT_TRUE(hasErrorFor(errors, "header.media"));
+    EXPECT_TRUE(hasErrorFor(errors, "layout.fontPath"));
+    EXPECT_FALSE(hasErrorFor(errors, "tokens"));
+}
+
+TEST_F(ProjectValidationTest, ValidateForExportReportsEmptySwatchGivenRhymedTokens) {
+    // Given
+    project.tokens = {Token(0, "day", 0, 500, 0, 0)};
+
+    // Then
+    EXPECT_TRUE(hasErrorFor(project.validateForExport(), "colorSwatch"));
+}
+
+TEST_F(ProjectValidationTest, ValidateForFullIsReadyGivenNoTokens) {
+    // Given: tokens come from analyze, so none are needed yet
+    project.cmudict = touch("cmudict.dict");
+    project.colorSwatch = {Color("#FF8800")};
+
+    // Then
+    EXPECT_TRUE(project.validateForFull().empty());
+}
+
+TEST_F(ProjectValidationTest, ValidateForFullRequiresCmudictAndSwatchGivenNeitherSet) {
+    // When
+    const std::vector<ValidationError> errors = project.validateForFull();
+
+    // Then
+    ASSERT_EQ(errors.size(), 2);
+    EXPECT_TRUE(hasErrorFor(errors, "cmudict"));
+    EXPECT_TRUE(hasErrorFor(errors, "colorSwatch"));
+}
+
+TEST(StepValidationTest, ValidateForFullReportsEveryInputGivenBlankProject) {
+    // Given
+    const ProjectData project;
+
+    // When
+    const std::vector<ValidationError> errors = project.validateForFull();
+
+    // Then
+    for (const std::string field : {
+             "header.title", "header.media", "audio.path", "audio.length", "video.width",
+             "layout.fontPath", "model.path", "cmudict", "colorSwatch"}) {
+        EXPECT_TRUE(hasErrorFor(errors, field)) << "No error for " << field;
+    }
+    EXPECT_FALSE(hasErrorFor(errors, "tokens"));
+}

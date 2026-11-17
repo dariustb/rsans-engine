@@ -100,6 +100,14 @@ struct ProjectData {
     // usable. Returns one error per problem, or an empty vector if valid.
     std::vector<ValidationError> validate() const;
     bool isValid() const;
+
+    // Per-step checks: only what each step reads, so a project can be ready
+    // for one step but not another (e.g. analyze before any fonts are chosen).
+    // Each returns one error per problem, or an empty vector if ready.
+    std::vector<ValidationError> validateForAnalyze() const;  // audio.path, model.path
+    std::vector<ValidationError> validateForRhyme() const;    // cmudict, tokens
+    std::vector<ValidationError> validateForExport() const;   // all visual settings, audio, tokens
+    std::vector<ValidationError> validateForFull() const;     // all of the above, except tokens
 };
 
 // Returns the length of the audio file in seconds, or -1.0 if libsndfile

@@ -9,6 +9,7 @@
 #include <optional>
 #include <string>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 using json = nlohmann::json;
@@ -184,110 +185,206 @@ std::string ProjectData::toJson() const {
     return j.dump();
 }
 
-std::vector<ValidationError> ProjectData::validate() const {
-    std::vector<ValidationError> errors;
-    const auto addError = [&](const std::string& field, const std::string& message) {
-        errors.push_back({field, message});
-    };
+namespace {
 
-    // Mandatory: must be set to a usable value
-    const auto requireText = [&](const std::string& field, const std::string& value) {
+// Collects validation errors. Each check* function covers one part of the
+// project, so the project-wide and per-step validations can share them.
+class Validator {
+  private:
+    std::vector<ValidationError> d_errors;
+
+  public:
+    void addError(const std::string& field, const std::string& message) {
+        d_errors.push_back({field, message});
+    }
+
+    void requireText(const std::string& field, const std::string& value) {
         if (value.empty()) {
             addError(field, "is required");
         }
-    };
-    const auto requireFile = [&](const std::string& field, const std::string& path) {
+    }
+
+    void requireFile(const std::string& field, const std::string& path) {
         if (path.empty()) {
             addError(field, "is required");
         } else if (!isExistingFile(path)) {
             addError(field, "file not found: " + path);
         }
-    };
-    const auto requirePositive = [&](const std::string& field, int value) {
+    }
+
+    void optionalFile(const std::string& field, const std::string& path) {
+        if (!path.empty() && !isExistingFile(path)) {
+            addError(field, "file not found: " + path);
+        }
+    }
+
+    void requirePositive(const std::string& field, int value) {
         if (value <= 0) {
             addError(field, "must be greater than 0");
         }
-    };
-
-    // header
-    requireText("header.fontName", header.fontName);
-    requireFile("header.fontPath", header.fontPath);
-    requireText("header.title", header.title);
-    requirePositive("header.titleSize", header.titleSize);
-    requireText("header.artist", header.artist);
-    requirePositive("header.artistSize", header.artistSize);
-    requireFile("header.media", header.media);
-
-    // audio
-    requireFile("audio.path", audio.path);
-    if (audio.length <= 0.0) {
-        addError("audio.length", "must be greater than 0");
     }
 
-    // video (libx264's yuv420p output needs even dimensions)
-    requirePositive("video.width", video.width);
-    requirePositive("video.height", video.height);
-    if (video.width > 0 && video.width % 2 != 0) {
-        addError("video.width", "must be an even number");
+    std::vector<ValidationError> errors() && {
+        return std::move(d_errors);
     }
-    if (video.height > 0 && video.height % 2 != 0) {
-        addError("video.height", "must be an even number");
+};
+
+void checkHeader(const ProjectData& p, Validator& v) {
+    v.requireText("header.fontName", p.header.fontName);
+    v.requireFile("header.fontPath", p.header.fontPath);
+    v.requireText("header.title", p.header.title);
+    v.requirePositive("header.titleSize", p.header.titleSize);
+    v.requireText("header.artist", p.header.artist);
+    v.requirePositive("header.artistSize", p.header.artistSize);
+    v.requireFile("header.media", p.header.media);
+}
+
+void checkAudioPath(const ProjectData& p, Validator& v) {
+    v.requireFile("audio.path", p.audio.path);
+}
+
+void checkAudioLength(const ProjectData& p, Validator& v) {
+    if (p.audio.length <= 0.0) {
+        v.addError("audio.length", "must be greater than 0");
     }
-    requireText("video.background", video.background);
+}
 
-    // layout
-    requireText("layout.fontName", layout.fontName);
-    requireFile("layout.fontPath", layout.fontPath);
-    requirePositive("layout.fontSize", layout.fontSize);
-    requirePositive("layout.lineHeight", layout.lineHeight);
-
-    // model
-    requireFile("model.path", model.base);
-
-    // Optional: may be left empty, but must be usable if set
-    if (!cmudict.empty() && !isExistingFile(cmudict)) {
-        addError("cmudict", "file not found: " + cmudict);
+void checkVideo(const ProjectData& p, Validator& v) {
+    // libx264's yuv420p output needs even dimensions
+    v.requirePositive("video.width", p.video.width);
+    v.requirePositive("video.height", p.video.height);
+    if (p.video.width > 0 && p.video.width % 2 != 0) {
+        v.addError("video.width", "must be an even number");
     }
+    if (p.video.height > 0 && p.video.height % 2 != 0) {
+        v.addError("video.height", "must be an even number");
+    }
+    v.requireText("video.background", p.video.background);
+}
 
-    for (size_t i = 0; i < colorSwatch.size(); ++i) {
-        if (!isHexColor(colorSwatch[i].hex())) {
-            addError("colorSwatch[" + std::to_string(i) + "]",
-                     "must be a #RRGGBB color, got: " + colorSwatch[i].hex());
+void checkLayout(const ProjectData& p, Validator& v) {
+    v.requireText("layout.fontName", p.layout.fontName);
+    v.requireFile("layout.fontPath", p.layout.fontPath);
+    v.requirePositive("layout.fontSize", p.layout.fontSize);
+    v.requirePositive("layout.lineHeight", p.layout.lineHeight);
+}
+
+void checkModel(const ProjectData& p, Validator& v) {
+    v.requireFile("model.path", p.model.base);
+}
+
+void checkCmudict(const ProjectData& p, Validator& v, bool required) {
+    if (required) {
+        v.requireFile("cmudict", p.cmudict);
+    } else {
+        v.optionalFile("cmudict", p.cmudict);
+    }
+}
+
+void checkColorSwatch(const ProjectData& p, Validator& v) {
+    for (size_t i = 0; i < p.colorSwatch.size(); ++i) {
+        if (!isHexColor(p.colorSwatch[i].hex())) {
+            v.addError("colorSwatch[" + std::to_string(i) + "]",
+                       "must be a #RRGGBB color, got: " + p.colorSwatch[i].hex());
         }
+    }
+}
+
+void checkTokens(const ProjectData& p, Validator& v, bool required) {
+    if (required && p.tokens.empty()) {
+        v.addError("tokens", "no lyrics yet; run analyze first");
     }
 
     bool hasRhymes = false;
-    for (size_t i = 0; i < tokens.size(); ++i) {
-        const Token& token = tokens[i];
+    for (size_t i = 0; i < p.tokens.size(); ++i) {
+        const Token& token = p.tokens[i];
         const std::string field = "tokens[" + std::to_string(i) + "]";
         if (token.text.empty()) {
-            addError(field + ".text", "must not be empty");
+            v.addError(field + ".text", "must not be empty");
         }
         if (token.startMs < 0) {
-            addError(field + ".startMs", "must not be negative");
+            v.addError(field + ".startMs", "must not be negative");
         }
         if (token.endMs < token.startMs) {
-            addError(field + ".endMs", "must not be before startMs");
+            v.addError(field + ".endMs", "must not be before startMs");
         }
         if (token.lineIndex < 0) {
-            addError(field + ".lineIndex", "must not be negative");
+            v.addError(field + ".lineIndex", "must not be negative");
         }
         if (token.rhymeIndex.has_value()) {
             hasRhymes = true;
             if (token.rhymeIndex.value() < 0) {
-                addError(field + ".rhymeIndex", "must not be negative");
+                v.addError(field + ".rhymeIndex", "must not be negative");
             }
         }
     }
 
     // Rhyme groups are colored from the swatch, so one is needed once rhymes exist
-    if (hasRhymes && colorSwatch.empty()) {
-        addError("colorSwatch", "needs at least one color when tokens have rhyme groups");
+    if (hasRhymes && p.colorSwatch.empty()) {
+        v.addError("colorSwatch", "needs at least one color when tokens have rhyme groups");
     }
+}
 
-    return errors;
+} // namespace
+
+std::vector<ValidationError> ProjectData::validate() const {
+    Validator v;
+    checkHeader(*this, v);
+    checkAudioPath(*this, v);
+    checkAudioLength(*this, v);
+    checkVideo(*this, v);
+    checkLayout(*this, v);
+    checkModel(*this, v);
+    checkCmudict(*this, v, false);
+    checkColorSwatch(*this, v);
+    checkTokens(*this, v, false);
+    return std::move(v).errors();
 }
 
 bool ProjectData::isValid() const {
     return validate().empty();
+}
+
+std::vector<ValidationError> ProjectData::validateForAnalyze() const {
+    Validator v;
+    checkAudioPath(*this, v);
+    checkModel(*this, v);
+    return std::move(v).errors();
+}
+
+std::vector<ValidationError> ProjectData::validateForRhyme() const {
+    Validator v;
+    checkCmudict(*this, v, true);
+    checkTokens(*this, v, true);
+    return std::move(v).errors();
+}
+
+std::vector<ValidationError> ProjectData::validateForExport() const {
+    Validator v;
+    checkHeader(*this, v);
+    checkAudioPath(*this, v);
+    checkAudioLength(*this, v);
+    checkVideo(*this, v);
+    checkLayout(*this, v);
+    checkColorSwatch(*this, v);
+    checkTokens(*this, v, true);
+    return std::move(v).errors();
+}
+
+std::vector<ValidationError> ProjectData::validateForFull() const {
+    // Everything analyze, rhyme, and export need, except tokens, which
+    // analyze produces. Rhymes will be found, so a swatch is needed too.
+    Validator v;
+    checkHeader(*this, v);
+    checkAudioPath(*this, v);
+    checkAudioLength(*this, v);
+    checkVideo(*this, v);
+    checkLayout(*this, v);
+    checkModel(*this, v);
+    checkCmudict(*this, v, true);
+    checkColorSwatch(*this, v);
+    if (colorSwatch.empty()) {
+        v.addError("colorSwatch", "needs at least one color to highlight rhymes");
+    }
+    return std::move(v).errors();
 }
