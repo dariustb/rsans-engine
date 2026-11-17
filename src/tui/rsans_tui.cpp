@@ -92,10 +92,45 @@ std::vector<std::string> describe(const std::vector<ValidationError>& errors) {
     return lines;
 }
 
+// The form keys a font setting is stored under
+struct FontKeys {
+    const char* name;
+    const char* path;
+};
+FontKeys fontKeys(RsansApp::FontTarget target) {
+    return target == RsansApp::FontTarget::Header
+        ? FontKeys{"header.fontName", "header.fontPath"}
+        : FontKeys{"layout.fontName", "layout.fontPath"};
+}
+
 InputOption singleLineInput() {
     InputOption option = InputOption::Default();
     option.multiline = false;
     return option;
+}
+
+// FTXUI's input uses Up/Down to move its cursor within the text, so leaving a
+// field with a value takes two presses. This passes Up/Down straight to the
+// surrounding container instead, so one press always moves one row.
+class VerticalArrowsMoveFocus : public ComponentBase {
+  public:
+    explicit VerticalArrowsMoveFocus(Component input) { Add(std::move(input)); }
+
+    bool OnEvent(Event event) override {
+        if (event == Event::ArrowUp || event == Event::ArrowDown) {
+            return false;
+        }
+        return ComponentBase::OnEvent(event);
+    }
+};
+
+Component TextInput(StringRef content, InputOption option) {
+    return Make<VerticalArrowsMoveFocus>(Input(std::move(content), std::move(option)));
+}
+
+Component TextInput(StringRef content, StringRef placeholder, InputOption option) {
+    option.placeholder = std::move(placeholder);
+    return TextInput(std::move(content), std::move(option));
 }
 
 } // namespace
@@ -104,6 +139,7 @@ RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void
 : ffmpegPath(std::move(ffmpeg))
 , d_form(defaultProject())
 , d_quit(std::move(quit))
+, d_post(post)
 , d_tabNames({"Project", "Run", "Lyrics"})
 , d_runner(std::move(post)) {
     Component tabs = Container::Tab({makeProjectTab(), makeRunTab(), makeLyricsTab()}, &d_tab);
@@ -121,10 +157,163 @@ RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void
         }) | border;
     });
 
-    d_root = CatchEvent(rendered, [this](const Event& event) {
+    // The font picker opens on top of everything else
+    Component withPicker = Modal(rendered, makeFontPicker(), &d_pickerOpen);
+
+    d_root = CatchEvent(withPicker, [this](const Event& event) {
         if (event == Event::CtrlC) {
             d_runner.cancel();  // The runner's destructor waits for it to stop
             d_quit();
+            return true;
+        }
+        return false;
+    });
+}
+
+RsansApp::~RsansApp() {
+    if (d_fontScan.joinable()) {
+        d_fontScan.join();
+    }
+}
+
+void RsansApp::scanFonts() {
+    if (d_fontsScanning) {
+        return;
+    }
+    if (d_fontScan.joinable()) {
+        d_fontScan.join();  // The previous scan has finished
+    }
+    d_fontsScanning = true;
+    refreshFontMatches();
+    d_fontScan = std::thread([this] {
+        std::vector<FontInfo> fonts = scanSystemFonts();
+        d_post([this, fonts = std::move(fonts)]() mutable {
+            d_fontsScanning = false;
+            setFonts(std::move(fonts));
+        });
+    });
+}
+
+void RsansApp::setFonts(std::vector<FontInfo> fonts) {
+    d_fonts = std::move(fonts);
+    refreshFontMatches();
+}
+
+void RsansApp::openFontPicker(FontTarget target) {
+    d_pickerTarget = target;
+    fontQuery.clear();
+    refreshFontMatches();
+
+    // Start on the font already chosen, if it's in the list
+    const std::string currentFamily = target == FontTarget::Header
+        ? d_form.project().header.fontName
+        : d_form.project().layout.fontName;
+    for (std::size_t i = 0; i < d_matchIndexes.size(); ++i) {
+        if (d_fonts[d_matchIndexes[i]].family == currentFamily) {
+            d_matchSelected = static_cast<int>(i);
+            break;
+        }
+    }
+    d_pickerOpen = true;
+}
+
+void RsansApp::refreshFontMatches() {
+    // A path to a font file can be used directly, installed or not
+    d_fileMatch.reset();
+    if (fontQuery.find('/') != std::string::npos) {
+        d_fileMatch = fontFromFile(fontQuery);
+    }
+
+    d_matchIndexes = filterFonts(d_fonts, fontQuery);
+    d_matchLabels.clear();
+    if (d_fileMatch) {
+        d_matchLabels.push_back("Use file: " + d_fileMatch->family + " (" + d_fileMatch->style + ")");
+    }
+    for (const std::size_t index : d_matchIndexes) {
+        d_matchLabels.push_back(d_fonts[index].family);
+    }
+    d_matchSelected = 0;
+}
+
+void RsansApp::chooseSelectedFont() {
+    if (d_matchLabels.empty()) {
+        return;
+    }
+    std::size_t selected = static_cast<std::size_t>(std::max(d_matchSelected, 0));
+    if (d_fileMatch) {
+        if (selected == 0) {
+            chooseFont(*d_fileMatch);
+            return;
+        }
+        --selected;
+    }
+    if (selected < d_matchIndexes.size()) {
+        chooseFont(d_fonts[d_matchIndexes[selected]]);
+    }
+}
+
+void RsansApp::chooseFont(const FontInfo& font) {
+    const FontKeys keys = fontKeys(d_pickerTarget);
+    d_form.setFieldText(keys.name, font.family);
+    d_form.setFieldText(keys.path, font.path);
+    d_pickerOpen = false;
+}
+
+Component RsansApp::makeFontPicker() {
+    InputOption searchOption = singleLineInput();
+    searchOption.on_change = [this] { refreshFontMatches(); };
+    searchOption.on_enter = [this] { chooseSelectedFont(); };
+    Component search = TextInput(&fontQuery, "type to search, or a path to a font file", searchOption);
+
+    MenuOption listOption = MenuOption::Vertical();
+    listOption.on_enter = [this] { chooseSelectedFont(); };
+    Component list = Menu(&d_matchLabels, &d_matchSelected, listOption);
+
+    Component rescan = Button("Rescan fonts", [this] { scanFonts(); }, ButtonOption::Ascii());
+    Component cancel = Button("Cancel", [this] { d_pickerOpen = false; }, ButtonOption::Ascii());
+
+    Component container = Container::Vertical({search, list, Container::Horizontal({rescan, cancel})});
+
+    Component rendered = Renderer(container, [this, search, list, rescan, cancel] {
+        const std::string title = d_pickerTarget == FontTarget::Header ? " Header font " : " Lyrics font ";
+
+        std::string status;
+        if (d_fontsScanning) {
+            status = "Scanning installed fonts...";
+        } else if (d_fonts.empty()) {
+            status = "No fonts found. Type a path to a font file, or rescan.";
+        } else {
+            status = std::to_string(d_matchIndexes.size()) + " of " +
+                     std::to_string(d_fonts.size()) + " fonts";
+        }
+
+        // Where the highlighted font comes from
+        std::string selectedPath;
+        const auto selected = static_cast<std::size_t>(std::max(d_matchSelected, 0));
+        if (d_fileMatch && selected == 0) {
+            selectedPath = d_fileMatch->path;
+        } else {
+            const std::size_t index = selected - (d_fileMatch ? 1 : 0);
+            if (index < d_matchIndexes.size()) {
+                selectedPath = d_fonts[d_matchIndexes[index]].path;
+            }
+        }
+
+        return window(text(title), vbox({
+            hbox({text("Search ") | bold, search->Render() | flex}),
+            text(status) | dim,
+            separator(),
+            list->Render() | vscroll_indicator | frame | size(HEIGHT, LESS_THAN, 14),
+            separator(),
+            text(selectedPath.empty() ? " " : selectedPath) | dim,
+            hbox({rescan->Render(), text(" "), cancel->Render(), filler(),
+                  text("Enter: choose  Esc: close") | dim}),
+        })) | size(WIDTH, EQUAL, 72);
+    });
+
+    return CatchEvent(rendered, [this](const Event& event) {
+        if (event == Event::Escape) {
+            d_pickerOpen = false;
             return true;
         }
         return false;
@@ -135,10 +324,26 @@ Component RsansApp::makeProjectTab() {
     Components inputs;
     std::vector<std::pair<FormField*, Component>> rows;
     for (FormField& field : d_form.fields()) {
+        // Each font is one row: a button opening the picker, which fills in
+        // both the font's name and its file
+        const bool isFontName = field.key == "header.fontName" || field.key == "layout.fontName";
+        const bool isFontPath = field.key == "header.fontPath" || field.key == "layout.fontPath";
+        if (isFontPath) {
+            continue;
+        }
+        if (isFontName) {
+            const FontTarget target = field.key == "header.fontName" ? FontTarget::Header : FontTarget::Layout;
+            std::string* label = target == FontTarget::Header ? &d_headerFontLabel : &d_layoutFontLabel;
+            Component button = Button(label, [this, target] { openFontPicker(target); }, ButtonOption::Ascii());
+            inputs.push_back(button);
+            rows.emplace_back(&field, button);
+            continue;
+        }
+
         InputOption option = singleLineInput();
         option.on_change = [this] { d_form.apply(); };
         option.placeholder = field.kind == FieldKind::Path ? "path to file" : "";
-        Component input = Input(&field.text, option);
+        Component input = TextInput(&field.text, option);
         inputs.push_back(input);
         rows.emplace_back(&field, input);
     }
@@ -155,7 +360,37 @@ Component RsansApp::makeProjectTab() {
                 }
                 lines.push_back(text(section) | bold);
             }
-            const std::vector<std::string> errors = d_form.errorsFor(field->key);
+            std::vector<std::string> errors = d_form.errorsFor(field->key);
+
+            // Font rows: show the chosen family and file, and the file's errors too
+            const bool isHeaderFont = field->key == "header.fontName";
+            if (isHeaderFont || field->key == "layout.fontName") {
+                const FontKeys keys = fontKeys(isHeaderFont ? FontTarget::Header : FontTarget::Layout);
+                const std::vector<std::string> pathErrors = d_form.errorsFor(keys.path);
+                errors.insert(errors.end(), pathErrors.begin(), pathErrors.end());
+                // A missing font is one problem, not two
+                if (std::count(errors.begin(), errors.end(), requiredMessage) > 1) {
+                    errors.erase(std::find(errors.begin(), errors.end(), requiredMessage));
+                }
+                const ProjectData& project = d_form.project();
+                const std::string& family = isHeaderFont ? project.header.fontName : project.layout.fontName;
+                const std::string& path = isHeaderFont ? project.header.fontPath : project.layout.fontPath;
+                std::string& label = isHeaderFont ? d_headerFontLabel : d_layoutFontLabel;
+                label = family.empty() ? "Choose a font..." : family;
+                Element fontRow = hbox({
+                    text("  " + field->label) | size(WIDTH, EQUAL, labelWidth),
+                    text(errors.empty() ? "  " : "! ") | color(ftxui::Color::Red),
+                    input->Render(),
+                    text("  " + path) | dim,
+                });
+                lines.push_back(fontRow);
+                for (const std::string& error : errors) {
+                    if (error != requiredMessage) {
+                        lines.push_back(text(std::string(labelWidth + 2, ' ') + error) | color(ftxui::Color::Red));
+                    }
+                }
+                continue;
+            }
             Element row = hbox({
                 text("  " + field->label) | size(WIDTH, EQUAL, labelWidth),
                 text(errors.empty() ? "  " : "! ") | color(ftxui::Color::Red),
@@ -264,8 +499,8 @@ bool RsansApp::runStep(Step step) {
 }
 
 Component RsansApp::makeRunTab() {
-    Component outputInput = Input(&outputPath, "path/to/video.mp4", singleLineInput());
-    Component ffmpegInput = Input(&ffmpegPath, "ffmpeg", singleLineInput());
+    Component outputInput = TextInput(&outputPath, "path/to/video.mp4", singleLineInput());
+    Component ffmpegInput = TextInput(&ffmpegPath, "ffmpeg", singleLineInput());
 
     struct StepButton {
         Step step;
@@ -402,6 +637,7 @@ int runTui(const std::string& ffmpegPath) {
     {
         // Scoped so the app (and its worker thread) ends before the screen
         RsansApp app(ffmpegPath, post, screen.ExitLoopClosure());
+        app.scanFonts();  // In the background, so the UI appears straight away
         screen.Loop(app.component());
     }
     return 0;

@@ -60,6 +60,10 @@ class ProjectForm {
     // length when its path changes, and re-runs validation
     void apply();
 
+    // Sets one field's text (by validation key) and applies the form.
+    // Returns false if there is no such field.
+    bool setFieldText(const std::string& key, const std::string& text);
+
     // Replaces the tokens, e.g. with the results of analyze or rhyme
     void setTokens(std::vector<Token> tokens);
 

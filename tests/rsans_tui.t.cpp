@@ -434,3 +434,181 @@ TEST(RsansAppTest, TypingIntoFieldUpdatesProjectAndErrors) {
     EXPECT_EQ(app.form().project().header.title, "Hi");
     EXPECT_TRUE(app.form().errorsFor("header.title").empty());
 }
+
+// Font picker
+
+namespace {
+
+std::vector<FontInfo> pickerFonts() {
+    return {
+        {"DejaVu Sans", "Book", "/fonts/DejaVuSans.ttf"},
+        {"DejaVu Sans Mono", "Book", "/fonts/DejaVuSansMono.ttf"},
+        {"Noto Serif", "Regular", "/fonts/NotoSerif.ttf"},
+    };
+}
+
+void type(RsansApp& app, const std::string& text) {
+    for (const char c : text) {
+        app.component()->OnEvent(ftxui::Event::Character(c));
+    }
+}
+
+} // namespace
+
+TEST(FontPickerTest, TypingAndEnterChoosesMatchingFont) {
+    // Given
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.setFonts(pickerFonts());
+    app.openFontPicker(RsansApp::FontTarget::Header);
+
+    // When: the search box has focus in the open picker
+    type(app, "mono");
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then: both the name and the file are filled in
+    EXPECT_FALSE(app.fontPickerOpen());
+    EXPECT_EQ(app.form().project().header.fontName, "DejaVu Sans Mono");
+    EXPECT_EQ(app.form().project().header.fontPath, "/fonts/DejaVuSansMono.ttf");
+    EXPECT_EQ(app.form().project().layout.fontName, "");
+}
+
+TEST(FontPickerTest, ArrowDownAndEnterChoosesHighlightedFont) {
+    // Given
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.setFonts(pickerFonts());
+    app.openFontPicker(RsansApp::FontTarget::Layout);
+    type(app, "dejavu");
+
+    // When: down into the list, then down to the second match
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then
+    EXPECT_EQ(app.form().project().layout.fontName, "DejaVu Sans Mono");
+}
+
+TEST(FontPickerTest, EscapeClosesWithoutChanging) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.setFonts(pickerFonts());
+    app.openFontPicker(RsansApp::FontTarget::Header);
+    type(app, "noto");
+
+    app.component()->OnEvent(ftxui::Event::Escape);
+
+    EXPECT_FALSE(app.fontPickerOpen());
+    EXPECT_EQ(app.form().project().header.fontName, "");
+}
+
+TEST(FontPickerTest, PickerShowsMatchCountAndHighlightedFile) {
+    // Given
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.setFonts(pickerFonts());
+    app.openFontPicker(RsansApp::FontTarget::Header);
+    type(app, "dejavu");
+
+    // When
+    const std::string screen = renderToString(app.component());
+
+    // Then
+    EXPECT_TRUE(contains(screen, "Header font")) << screen;
+    EXPECT_TRUE(contains(screen, "2 of 3 fonts")) << screen;
+    EXPECT_TRUE(contains(screen, "/fonts/DejaVuSans.ttf")) << screen;
+}
+
+TEST(FontPickerTest, ProjectTabShowsChosenFontNameAndFile) {
+    // Given
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.setFonts(pickerFonts());
+    EXPECT_TRUE(contains(renderToString(app.component()), "Choose a font..."));
+
+    // When
+    app.openFontPicker(RsansApp::FontTarget::Header);
+    type(app, "noto");
+    app.component()->OnEvent(ftxui::Event::Return);
+    const std::string screen = renderToString(app.component());
+
+    // Then
+    EXPECT_TRUE(contains(screen, "Noto Serif")) << screen;
+    EXPECT_TRUE(contains(screen, "/fonts/NotoSerif.ttf")) << screen;
+}
+
+TEST(FontPickerTest, TypedFontFileCanBeChosenDirectly) {
+    const std::string dejaVu = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
+    if (!std::filesystem::exists(dejaVu)) {
+        GTEST_SKIP() << "DejaVu Sans not installed";
+    }
+    // Given: no installed fonts listed at all
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.openFontPicker(RsansApp::FontTarget::Layout);
+
+    // When
+    type(app, dejaVu);
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then: the family is read from the file
+    EXPECT_EQ(app.form().project().layout.fontName, "DejaVu Sans");
+    EXPECT_EQ(app.form().project().layout.fontPath, dejaVu);
+    EXPECT_TRUE(app.form().errorsFor("layout.fontPath").empty());
+}
+
+TEST(FontPickerTest, ScanFontsLoadsSystemFontsInBackground) {
+    // Given
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+
+    // When
+    app.scanFonts();
+    EXPECT_TRUE(app.fontsScanning());
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while (app.fontsScanning() && std::chrono::steady_clock::now() < deadline) {
+        ui.runPending();
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    // Then
+    EXPECT_FALSE(app.fontsScanning());
+    if (app.fonts().empty()) {
+        GTEST_SKIP() << "No fonts installed";
+    }
+    EXPECT_FALSE(app.fonts().front().family.empty());
+}
+
+TEST(FontPickerTest, EnterOnFontButtonOpensPicker) {
+    // Given: focus starts on the tab bar; Header font is the 5th row of the Project tab
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.setFonts(pickerFonts());
+    for (int i = 0; i < 5; ++i) {
+        app.component()->OnEvent(ftxui::Event::ArrowDown);
+    }
+
+    // When
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then
+    EXPECT_TRUE(app.fontPickerOpen()) << renderToString(app.component());
+}
+
+
+TEST(RsansAppTest, OneDownPressMovesOneRowGivenFieldsWithValues) {
+    // Given: Title size, Width and Height already have values, which FTXUI's
+    // input would otherwise use the first Down press on (cursor to the end)
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+
+    // When: tab bar -> Title -> Title size -> Artist
+    for (int i = 0; i < 3; ++i) {
+        app.component()->OnEvent(ftxui::Event::ArrowDown);
+    }
+    app.component()->OnEvent(ftxui::Event::Character('X'));
+
+    // Then
+    EXPECT_EQ(app.form().project().header.artist, "X");
+}

@@ -201,6 +201,17 @@ void ProjectForm::apply() {
     d_validation = d_project.validate();
 }
 
+bool ProjectForm::setFieldText(const std::string& key, const std::string& text) {
+    for (FormField& field : d_fields) {
+        if (field.key == key) {
+            field.text = text;
+            apply();
+            return true;
+        }
+    }
+    return false;
+}
+
 void ProjectForm::setTokens(std::vector<Token> tokens) {
     d_project.tokens = std::move(tokens);
     d_validation = d_project.validate();
