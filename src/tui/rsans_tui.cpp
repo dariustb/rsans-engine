@@ -1,7 +1,9 @@
 #include <rsans_tui.h>
 
 #include <rsans_export.h>
+#include <rsans_io.h>
 #include <rsans_rhyme.h>
+#include <rsans_title.h>
 #include <rsans_whisper.h>
 
 #include <ftxui/component/component.hpp>
@@ -10,6 +12,7 @@
 #include <ftxui/component/screen_interactive.hpp>
 #include <ftxui/dom/elements.hpp>
 #include <ftxui/screen/color.hpp>
+#include <ftxui/screen/terminal.hpp>
 
 #include <algorithm>
 #include <array>
@@ -149,6 +152,7 @@ RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void
 , d_form(defaultProject())
 , d_quit(std::move(quit))
 , d_post(post)
+, d_startEntries({"New project", "Load project", "Credits", "Quit"})
 , d_tabNames({"Project", "Run", "Lyrics"})
 , d_runner(std::move(post)) {
     Component tabs = Container::Tab({makeProjectTab(), makeRunTab(), makeLyricsTab()}, &d_tab);
@@ -168,7 +172,8 @@ RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void
 
     // The font picker opens on top of everything else, and the file dialog on
     // top of that (the picker can open it to pick a font file)
-    Component withPicker = Modal(rendered, makeFontPicker(), &d_pickerOpen);
+    Component screens = Container::Tab({makeStartScreen(), makeCredits(), rendered}, &d_screen);
+    Component withPicker = Modal(screens, makeFontPicker(), &d_pickerOpen);
     Component withDialogs = Modal(withPicker, makeFileDialog(), &d_fileDialogOpen);
 
     d_root = CatchEvent(withDialogs, [this](const Event& event) {
@@ -185,6 +190,120 @@ RsansApp::~RsansApp() {
     if (d_fontScan.joinable()) {
         d_fontScan.join();
     }
+}
+
+void RsansApp::newProject() {
+    d_form.reset(defaultProject());
+    outputPath.clear();
+    d_tab = 0;
+    d_screen = static_cast<int>(Screen::Editor);
+}
+
+std::string RsansApp::loadProject(const std::string& path) {
+    try {
+        ProjectData project(readFile(path));
+        d_form.reset(std::move(project));
+    } catch (const std::exception& e) {
+        return std::string("Can't load project: ") + e.what();
+    }
+    d_tab = 0;
+    d_screen = static_cast<int>(Screen::Editor);
+    return "";
+}
+
+void RsansApp::chooseStartEntry() {
+    switch (d_startSelected) {
+    case 0:
+        newProject();
+        break;
+    case 1:
+        openFileDialog("Load project", {".json"}, false, "",
+                       [this](const std::string& path) { return loadProject(path); });
+        break;
+    case 2:
+        d_screen = static_cast<int>(Screen::Credits);
+        break;
+    default:
+        d_quit();
+        break;
+    }
+}
+
+Component RsansApp::makeStartScreen() {
+    MenuOption option = MenuOption::Vertical();
+    option.on_enter = [this] { chooseStartEntry(); };
+    Component menu = Menu(&d_startEntries, &d_startSelected, option);
+
+    return Renderer(menu, [menu] {
+        // The block-letter title needs a wide terminal; otherwise plain text
+        const bool fits = Terminal::Size().dimx >= titleArtWidth + 2;
+        Element title = fits ? titleArt() : text("R S A N S") | bold | color(ftxui::Color::BlueLight);
+        return vbox({
+            filler(),
+            title | hcenter,
+            text(""),
+            text("Lyric Alignment & Visualization Engine") | dim | hcenter,
+            text(""),
+            text(""),
+            menu->Render() | size(WIDTH, GREATER_THAN, 20) | border | hcenter,
+            filler(),
+            text("Up/Down: choose   Enter: select   Ctrl+C: quit") | dim | hcenter,
+        });
+    });
+}
+
+Component RsansApp::makeCredits() {
+    Component back = Button("Back", [this] { d_screen = static_cast<int>(Screen::Start); },
+                            ButtonOption::Ascii());
+
+    Component rendered = Renderer(back, [back] {
+        struct Credit {
+            const char* name;
+            const char* use;
+            const char* license;
+        };
+        static const std::array<Credit, 11> credits = {{
+            {"whisper.cpp", "Speech recognition and word timing", "MIT"},
+            {"CMU Pronouncing Dictionary", "Pronunciations for rhyme detection", "BSD-2-Clause"},
+            {"FFmpeg", "Audio conversion and video rendering", "LGPL/GPL"},
+            {"libass", "Subtitle rendering", "ISC"},
+            {"libsndfile", "Reading audio files", "LGPL-2.1"},
+            {"fontconfig", "Finding installed fonts", "MIT-style"},
+            {"FTXUI", "This terminal interface", "MIT"},
+            {"CLI11", "Command line parsing", "BSD-3-Clause"},
+            {"nlohmann/json", "Project files", "MIT"},
+            {"dr_libs", "Audio decoding", "Public domain / MIT-0"},
+            {"stb", "Image reading", "Public domain / MIT"},
+        }};
+        Elements rows;
+        for (const Credit& credit : credits) {
+            rows.push_back(hbox({
+                text(credit.name) | bold | size(WIDTH, EQUAL, 30),
+                text(credit.use) | size(WIDTH, EQUAL, 40),
+                text(credit.license) | dim,
+            }));
+        }
+        return vbox({
+            filler(),
+            text("RSANS Lyric Alignment & Visualization Engine") | bold | hcenter,
+            text(""),
+            text("Built with") | dim | hcenter,
+            text(""),
+            vbox(std::move(rows)) | hcenter,
+            text(""),
+            back->Render() | hcenter,
+            filler(),
+            text("Enter or Esc: back   Ctrl+C: quit") | dim | hcenter,
+        });
+    });
+
+    return CatchEvent(rendered, [this](const Event& event) {
+        if (event == Event::Escape) {
+            d_screen = static_cast<int>(Screen::Start);
+            return true;
+        }
+        return false;
+    });
 }
 
 void RsansApp::scanFonts() {

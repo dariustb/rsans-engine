@@ -15,7 +15,8 @@
 #include <thread>
 #include <vector>
 
-// The interactive RSANS application: a Project tab to fill in settings, a
+// The interactive RSANS application. It opens on a start screen (new project,
+// load project, credits, quit), then an editor with a Project tab to fill in settings, a
 // Run tab to run the pipeline steps with progress, cancel and a log, and a
 // Lyrics tab previewing the transcribed words in their rhyme colors. Fonts
 // are chosen from the system's installed fonts with a type-to-search picker,
@@ -33,6 +34,15 @@ class RsansApp {
     ~RsansApp();  // Waits for a font scan in progress
 
     ftxui::Component component() const { return d_root; }
+
+    enum class Screen { Start, Credits, Editor };
+    Screen screen() const { return static_cast<Screen>(d_screen); }
+
+    // Starts a blank project (with default settings) in the editor
+    void newProject();
+    // Loads a project JSON file into the editor. Returns "" on success, or
+    // why it couldn't be loaded (the current project is left unchanged).
+    std::string loadProject(const std::string& path);
 
     ProjectForm& form() { return d_form; }
     StepRunner& runner() { return d_runner; }
@@ -105,12 +115,21 @@ class RsansApp {
     bool d_showAllFiles = false;
     std::string d_fileError;
 
+    // The start screen
+    int d_screen = 0;  // A Screen
+    std::vector<std::string> d_startEntries;
+    int d_startSelected = 0;
+
     std::vector<std::string> d_tabNames;
     int d_tab = 0;
     ftxui::Component d_root;
     // Last, so it is destroyed first: it waits for the worker, which uses the
     // members above
     StepRunner d_runner;
+
+    ftxui::Component makeStartScreen();
+    ftxui::Component makeCredits();
+    void chooseStartEntry();
 
     ftxui::Component makeProjectTab();
     ftxui::Component makeRunTab();

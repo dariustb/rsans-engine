@@ -201,6 +201,16 @@ void ProjectForm::apply() {
     d_validation = d_project.validate();
 }
 
+void ProjectForm::reset(ProjectData project) {
+    d_project = std::move(project);
+    // Its length was measured or read when it was loaded
+    d_measuredAudioPath = d_project.audio.path;
+    for (FormField& field : d_fields) {
+        field.text = field.read(d_project);
+    }
+    apply();
+}
+
 bool ProjectForm::setFieldText(const std::string& key, const std::string& text) {
     for (FormField& field : d_fields) {
         if (field.key == key) {

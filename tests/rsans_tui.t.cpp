@@ -1,5 +1,6 @@
 #include <rsans_project_form.h>
 #include <rsans_step_runner.h>
+#include <rsans_title.h>
 #include <rsans_tui.h>
 
 #include <rsans_test_utils.h>
@@ -290,6 +291,7 @@ TEST(StepRunnerTest, LogKeepsOnlyMostRecentLines) {
 TEST(RsansAppTest, ProjectTabShowsFieldsAndErrors) {
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
 
     const std::string screen = renderToString(app.component());
 
@@ -305,6 +307,7 @@ TEST(RsansAppTest, ProjectTabSpellsOutErrorsOtherThanRequired) {
     // Given
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
     fieldFor(app.form(), "video.width").text = "12a";
     fieldFor(app.form(), "audio.path").text = "/nonexistent/song.wav";
     app.form().apply();
@@ -321,6 +324,7 @@ TEST(RsansAppTest, RunTabShowsStepsAndWhyTheyCantRun) {
     // Given
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
 
     // When: the tab bar has focus at start; move right to "Run"
     app.component()->OnEvent(ftxui::Event::ArrowRight);
@@ -336,6 +340,7 @@ TEST(RsansAppTest, RunTabShowsStepsAndWhyTheyCantRun) {
 TEST(RsansAppTest, ProblemsForExportIncludeOutputPath) {
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
 
     const std::vector<std::string> problems = app.problemsFor(RsansApp::Step::Export);
     EXPECT_NE(std::find(problems.begin(), problems.end(), "output video: is required"), problems.end());
@@ -349,6 +354,7 @@ TEST(RsansAppTest, ProblemsForExportIncludeOutputPath) {
 TEST(RsansAppTest, RunStepDoesNothingGivenStepNotReady) {
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
 
     EXPECT_FALSE(app.runStep(RsansApp::Step::Analyze));
     EXPECT_EQ(app.runner().state(), StepRunner::State::Idle);
@@ -358,6 +364,7 @@ TEST(RsansAppTest, RunStepDetectsRhymesAndShowsThemInLyricsTab) {
     // Given: a small dictionary and transcribed words
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
     const std::filesystem::path dict = std::filesystem::temp_directory_path() / "rsans_tui_test.dict";
     std::ofstream(dict) << "cat K AE1 T\nhat HH AE1 T\ndog D AO1 G\n";
     fieldFor(app.form(), "cmudict").text = dict.string();
@@ -392,6 +399,7 @@ TEST(RsansAppTest, RunStepReportsFailureGivenMissingModel) {
     // Given: inputs analyze checks are present, but the model file is empty junk
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
     const std::string audio = writeTestWav("rsans_tui_analyze.wav", 1, 16000);
     const std::filesystem::path model = std::filesystem::temp_directory_path() / "rsans_tui_model.bin";
     std::ofstream(model) << "not a model";
@@ -415,6 +423,7 @@ TEST(RsansAppTest, CtrlCQuitsApp) {
     ManualPost ui;
     bool quit = false;
     RsansApp app("ffmpeg", ui.post(), [&] { quit = true; });
+    app.newProject();
 
     EXPECT_TRUE(app.component()->OnEvent(ftxui::Event::CtrlC));
     EXPECT_TRUE(quit);
@@ -424,6 +433,7 @@ TEST(RsansAppTest, TypingIntoFieldUpdatesProjectAndErrors) {
     // Given: focus starts on the tab bar; down moves into the first field (Title)
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
     ASSERT_FALSE(app.form().errorsFor("header.title").empty());
     app.component()->OnEvent(ftxui::Event::ArrowDown);
 
@@ -461,6 +471,7 @@ TEST(FontPickerTest, TypingAndEnterChoosesMatchingFont) {
     // Given
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
     app.setFonts(pickerFonts());
     app.openFontPicker(RsansApp::FontTarget::Header);
 
@@ -479,6 +490,7 @@ TEST(FontPickerTest, ArrowDownAndEnterChoosesHighlightedFont) {
     // Given
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
     app.setFonts(pickerFonts());
     app.openFontPicker(RsansApp::FontTarget::Layout);
     type(app, "dejavu");
@@ -495,6 +507,7 @@ TEST(FontPickerTest, ArrowDownAndEnterChoosesHighlightedFont) {
 TEST(FontPickerTest, EscapeClosesWithoutChanging) {
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
     app.setFonts(pickerFonts());
     app.openFontPicker(RsansApp::FontTarget::Header);
     type(app, "noto");
@@ -509,6 +522,7 @@ TEST(FontPickerTest, PickerShowsMatchCountAndHighlightedFile) {
     // Given
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
     app.setFonts(pickerFonts());
     app.openFontPicker(RsansApp::FontTarget::Header);
     type(app, "dejavu");
@@ -526,6 +540,7 @@ TEST(FontPickerTest, ProjectTabShowsChosenFontNameAndFile) {
     // Given
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
     app.setFonts(pickerFonts());
     EXPECT_TRUE(contains(renderToString(app.component()), "Choose a font..."));
 
@@ -548,6 +563,7 @@ TEST(FontPickerTest, TypedFontFileCanBeChosenDirectly) {
     // Given: no installed fonts listed at all
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
     app.openFontPicker(RsansApp::FontTarget::Layout);
 
     // When
@@ -564,6 +580,7 @@ TEST(FontPickerTest, ScanFontsLoadsSystemFontsInBackground) {
     // Given
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
 
     // When
     app.scanFonts();
@@ -586,6 +603,7 @@ TEST(FontPickerTest, EnterOnFontButtonOpensPicker) {
     // Given: focus starts on the tab bar; Header font is the 5th row of the Project tab
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
     app.setFonts(pickerFonts());
     for (int i = 0; i < 5; ++i) {
         app.component()->OnEvent(ftxui::Event::ArrowDown);
@@ -604,6 +622,7 @@ TEST(RsansAppTest, OneDownPressMovesOneRowGivenFieldsWithValues) {
     // input would otherwise use the first Down press on (cursor to the end)
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
 
     // When: tab bar -> Title -> Title size -> Artist
     for (int i = 0; i < 3; ++i) {
@@ -645,6 +664,7 @@ TEST(FileDialogTest, EnterChoosesFirstMatchingFileForField) {
     DialogFolder folder;
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
     app.form().setFieldText("header.media", (folder.root / "missing.png").string());
     app.browseFor("header.media");
     ASSERT_TRUE(app.fileDialogOpen());
@@ -664,6 +684,7 @@ TEST(FileDialogTest, ListNavigationOpensFolderThenChoosesFile) {
     DialogFolder folder;
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
     app.form().setFieldText("audio.path", folder.root.string());
     app.browseFor("audio.path");
 
@@ -684,6 +705,7 @@ TEST(FileDialogTest, BackspaceInEmptySearchGoesUpAndEscapeCloses) {
     DialogFolder folder;
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
     app.form().setFieldText("audio.path", (folder.root / "sub").string());
     app.browseFor("audio.path");
 
@@ -699,6 +721,7 @@ TEST(FileDialogTest, SavingOutputAddsMp4ToTypedName) {
     DialogFolder folder;
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
     app.outputPath = (folder.root / "old.mp4").string();
     app.browseFor("output");
     EXPECT_EQ(app.fileQuery, "old.mp4");
@@ -719,6 +742,7 @@ TEST(FileDialogTest, SavingOutputRejectsAssName) {
     DialogFolder folder;
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
     app.outputPath = (folder.root / "lyrics.ass").string();
     app.browseFor("output");
 
@@ -734,6 +758,7 @@ TEST(FileDialogTest, FontPickerBrowseRejectsNonFontAndAcceptsFont) {
     std::ofstream(folder.root / "fake.ttf") << "not a font";
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
     app.form().setFieldText("layout.fontPath", (folder.root / "fake.ttf").string());
     app.openFontPicker(RsansApp::FontTarget::Layout);
 
@@ -772,6 +797,7 @@ TEST(FileDialogTest, ProjectTabBrowseButtonOpensDialog) {
     // Given: Cover image is the 6th row; Right moves from its input to Browse
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
     EXPECT_TRUE(contains(renderToString(app.component()), "Browse"));
     for (int i = 0; i < 6; ++i) {
         app.component()->OnEvent(ftxui::Event::ArrowDown);
@@ -786,4 +812,172 @@ TEST(FileDialogTest, ProjectTabBrowseButtonOpensDialog) {
     const std::string screen = renderToString(app.component());
     EXPECT_TRUE(contains(screen, "Cover image")) << screen;
     EXPECT_TRUE(contains(screen, ".png .jpg")) << screen;
+}
+
+// Start screen
+
+TEST(StartScreenTest, AppOpensOnStartScreenWithOptions) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+
+    const std::string screen = renderToString(app.component());
+
+    EXPECT_EQ(app.screen(), RsansApp::Screen::Start);
+    for (const char* option : {"New project", "Load project", "Credits", "Quit"}) {
+        EXPECT_TRUE(contains(screen, option)) << option << "\n" << screen;
+    }
+}
+
+TEST(StartScreenTest, NewProjectOpensEditorWithDefaults) {
+    // Given: a project was being edited
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    app.form().setFieldText("header.title", "Old Song");
+    app.outputPath = "old.mp4";
+
+    // When: New project, from the start screen
+    RsansApp fresh("ffmpeg", ui.post(), [] {});
+    fresh.component()->OnEvent(ftxui::Event::Return);
+    app.newProject();
+
+    // Then
+    EXPECT_EQ(fresh.screen(), RsansApp::Screen::Editor);
+    EXPECT_TRUE(contains(renderToString(fresh.component()), "Title size"));
+    EXPECT_EQ(app.form().project().header.title, "");
+    EXPECT_EQ(fieldFor(app.form(), "header.title").text, "");
+    EXPECT_EQ(app.form().project().video.width, 1920);
+    EXPECT_EQ(app.outputPath, "");
+}
+
+TEST(StartScreenTest, CreditsListsLibrariesAndEscapeGoesBack) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    ASSERT_EQ(app.screen(), RsansApp::Screen::Credits);
+    const std::string screen = renderToString(app.component());
+    for (const char* name : {"whisper.cpp", "CMU Pronouncing Dictionary", "FFmpeg", "FTXUI"}) {
+        EXPECT_TRUE(contains(screen, name)) << name << "\n" << screen;
+    }
+
+    app.component()->OnEvent(ftxui::Event::Escape);
+    EXPECT_EQ(app.screen(), RsansApp::Screen::Start);
+
+    // Enter on Back also returns
+    app.component()->OnEvent(ftxui::Event::Return);
+    app.component()->OnEvent(ftxui::Event::Return);
+    EXPECT_EQ(app.screen(), RsansApp::Screen::Start);
+}
+
+TEST(StartScreenTest, QuitCallsQuit) {
+    ManualPost ui;
+    bool quit = false;
+    RsansApp app("ffmpeg", ui.post(), [&] { quit = true; });
+
+    for (int i = 0; i < 3; ++i) {
+        app.component()->OnEvent(ftxui::Event::ArrowDown);
+    }
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    EXPECT_TRUE(quit);
+}
+
+namespace {
+
+// A saved project: title, artist, sizes and one transcribed word
+std::filesystem::path writeTestProject(const std::filesystem::path& folder) {
+    ProjectData project = defaultProject();
+    project.header.title = "Loaded Song";
+    project.header.artist = "Some Artist";
+    project.video.width = 1280;
+    project.audio.length = 12.5;
+    project.tokens.emplace_back(0, "hello", 0, 500, 0, std::nullopt);
+    const std::filesystem::path path = folder / "song.json";
+    std::ofstream(path) << project.toJson();
+    return path;
+}
+
+} // namespace
+
+TEST(StartScreenTest, LoadProjectChoosesJsonFileAndOpensEditor) {
+    // Given: Load project opens the file dialog, listing .json files
+    DialogFolder folder;
+    const std::filesystem::path path = writeTestProject(folder.root);
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::Return);
+    ASSERT_TRUE(app.fileDialogOpen());
+    EXPECT_TRUE(contains(renderToString(app.component()), "Load project"));
+
+    // When
+    type(app, path.string());
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then: every field shows the loaded values, and the words are kept
+    EXPECT_FALSE(app.fileDialogOpen());
+    EXPECT_EQ(app.screen(), RsansApp::Screen::Editor);
+    EXPECT_EQ(fieldFor(app.form(), "header.title").text, "Loaded Song");
+    EXPECT_EQ(fieldFor(app.form(), "video.width").text, "1280");
+    EXPECT_EQ(app.form().project().header.artist, "Some Artist");
+    EXPECT_DOUBLE_EQ(app.form().project().audio.length, 12.5);
+    ASSERT_EQ(app.form().project().tokens.size(), 1u);
+    EXPECT_EQ(app.form().project().tokens[0].text, "hello");
+}
+
+TEST(StartScreenTest, LoadProjectReportsBadFileAndStaysOpen) {
+    DialogFolder folder;
+    std::ofstream(folder.root / "broken.json") << "{ not json";
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+
+    EXPECT_NE(app.loadProject((folder.root / "broken.json").string()), "");
+    EXPECT_NE(app.loadProject((folder.root / "missing.json").string()), "");
+    EXPECT_EQ(app.screen(), RsansApp::Screen::Start);
+
+    // Through the dialog, the reason is shown and it stays open
+    app.openFileDialog("Load project", {".json"}, false, folder.root.string(),
+                       [&app](const std::string& p) { return app.loadProject(p); });
+    type(app, "broken");
+    app.component()->OnEvent(ftxui::Event::Return);
+    EXPECT_TRUE(app.fileDialogOpen());
+    EXPECT_TRUE(contains(renderToString(app.component()), "Can't load project")) << renderToString(app.component());
+}
+
+// Title art
+
+TEST(TitleArtTest, AnsiLineAppliesColorsAndResets) {
+    auto screen = ftxui::Screen::Create(ftxui::Dimension::Fixed(6), ftxui::Dimension::Fixed(1));
+    ftxui::Render(screen, ansiLine("a\033[0;94;47mb\033[0;34mc\033[0md\033[97;100me\033[39;49mf"));
+
+    EXPECT_EQ(screen.PixelAt(0, 0).character, "a");
+    EXPECT_EQ(screen.PixelAt(0, 0).foreground_color, ftxui::Color());
+    EXPECT_EQ(screen.PixelAt(1, 0).foreground_color, ftxui::Color(ftxui::Color::BlueLight));
+    EXPECT_EQ(screen.PixelAt(1, 0).background_color, ftxui::Color(ftxui::Color::GrayLight));
+    EXPECT_EQ(screen.PixelAt(2, 0).foreground_color, ftxui::Color(ftxui::Color::Blue));
+    EXPECT_EQ(screen.PixelAt(2, 0).background_color, ftxui::Color());  // 0 reset the background
+    EXPECT_EQ(screen.PixelAt(3, 0).foreground_color, ftxui::Color());
+    EXPECT_EQ(screen.PixelAt(4, 0).foreground_color, ftxui::Color(ftxui::Color::White));
+    EXPECT_EQ(screen.PixelAt(4, 0).background_color, ftxui::Color(ftxui::Color::GrayDark));
+    EXPECT_EQ(screen.PixelAt(5, 0).foreground_color, ftxui::Color());
+    EXPECT_EQ(screen.PixelAt(5, 0).background_color, ftxui::Color());
+}
+
+TEST(TitleArtTest, TitleArtIsFullSizeWithColoredBlocks) {
+    auto screen = ftxui::Screen::Create(ftxui::Dimension::Fixed(titleArtWidth),
+                                        ftxui::Dimension::Fixed(titleArtHeight));
+    ftxui::Render(screen, titleArt());
+
+    // First row of the R, and the colors title_text.py gives it
+    EXPECT_EQ(screen.PixelAt(0, 0).character, "▄");
+    EXPECT_EQ(screen.PixelAt(0, 0).foreground_color, ftxui::Color(ftxui::Color::White));
+    EXPECT_EQ(screen.PixelAt(2, 0).foreground_color, ftxui::Color(ftxui::Color::BlueLight));
+    EXPECT_EQ(screen.PixelAt(0, 1).background_color, ftxui::Color(ftxui::Color::GrayLight));
+    // Every row fills the full width, the last ends with spaces
+    EXPECT_EQ(screen.PixelAt(titleArtWidth - 1, 0).character, "▄");
+    EXPECT_EQ(screen.PixelAt(0, titleArtHeight - 1).character, "▀");
 }

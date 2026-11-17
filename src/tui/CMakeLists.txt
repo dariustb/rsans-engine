@@ -3,6 +3,7 @@ add_library(rsans_tui
     rsans_fonts.cpp
     rsans_project_form.cpp
     rsans_step_runner.cpp
+    rsans_title.cpp
     rsans_tui.cpp
 )
 

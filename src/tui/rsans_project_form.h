@@ -60,6 +60,9 @@ class ProjectForm {
     // length when its path changes, and re-runs validation
     void apply();
 
+    // Replaces the whole project (new or loaded) and refills every field
+    void reset(ProjectData project);
+
     // Sets one field's text (by validation key) and applies the form.
     // Returns false if there is no such field.
     bool setFieldText(const std::string& key, const std::string& text);

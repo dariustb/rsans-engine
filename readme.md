@@ -69,7 +69,13 @@ rsans
 rsans --ffmpeg /opt/ffmpeg/bin/ffmpeg   # with a specific ffmpeg binary
 ```
 
-The UI has three tabs:
+It opens on a start screen with the RSANS title and four options:
+- **New project:** a blank project with default settings.
+- **Load project:** choose a project `.json` file (the same format the command line uses) with the file browser. Its settings and any transcribed words are loaded; relative paths in it are read from the folder `rsans` was started in, as on the command line.
+- **Credits:** the libraries RSANS is built on.
+- **Quit**
+
+The project editor has three tabs:
 - **Project:** every setting, grouped into Song, Audio, Video, Lyrics, Analysis and Colors. Problems are checked as you type. A red `!` marks a field that needs attention: on its own it means the value is required, and any other problem (a missing file, a non-number) is written underneath. Choosing an audio file shows its length.
 - **Run:** the output video path and FFmpeg path, then buttons for **Analyze**, **Detect rhymes**, **Export** and **Full run**. A step's button is dimmed until its settings are complete, and the Checks list shows what each step is still missing. While a step runs you get a progress bar, the current stage and a live log, and **Cancel** stops it (a cancelled export deletes its partial video).
 - **Lyrics:** the transcribed words, one row per line with its start time, with rhyming words shown in their rhyme color.
@@ -88,7 +94,7 @@ New projects start with 1920x1080 video on black, standard text sizes and six rh
 | Esc | Close the font picker or file browser |
 | Ctrl+C | Quit (cancels a running step first) |
 
-Settings are not saved yet: quitting discards them, and the UI can't open an existing project file.
+Projects can be loaded but not saved yet: quitting discards changes made in the UI.
 
 ### Command line
 ```sh
@@ -199,7 +205,7 @@ Tests that run FFmpeg are skipped if `ffmpeg` is not on the `PATH`. The export t
 - Fonts render in their regular style only (no bold or italic)
 - A font that isn't installed on the system must be in the same folder as the other font
 - Only one transcription can run at a time per process
-- The interactive UI doesn't save or open project files yet, and the Whisper model is chosen by file path
+- The interactive UI can load project files but not save them yet, and the Whisper model is chosen by file path
 
 <!-- CI Test Badges -->
 [repo-size]:   https://img.shields.io/github/repo-size/dariustb/rsans-engine
