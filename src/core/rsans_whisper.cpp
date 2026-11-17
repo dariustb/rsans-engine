@@ -7,11 +7,98 @@
 #define DR_WAV_IMPLEMENTATION
 #include <dr_wav.h>
 
+#include <cstddef>
+#include <deque>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 namespace {
+
+// Routes whisper.cpp and ggml logging to a handler for as long as it exists,
+// then restores the default (stderr). ggml sends a message in pieces, so text
+// is buffered until a full line arrives. The last few lines are kept so
+// errors can include them.
+class WhisperLogCapture {
+  private:
+    static constexpr std::size_t maxRecentLines = 10;
+
+    const WhisperLogHandler& d_onLog;
+    std::string d_partialLine;
+    WhisperLogLevel d_lastLevel = WhisperLogLevel::Info;
+    std::deque<std::string> d_recentLines;
+
+    static WhisperLogLevel toLogLevel(ggml_log_level level, WhisperLogLevel previous) {
+        switch (level) {
+        case GGML_LOG_LEVEL_DEBUG: return WhisperLogLevel::Debug;
+        case GGML_LOG_LEVEL_WARN:  return WhisperLogLevel::Warn;
+        case GGML_LOG_LEVEL_ERROR: return WhisperLogLevel::Error;
+        case GGML_LOG_LEVEL_CONT:  return previous;
+        default:                   return WhisperLogLevel::Info;
+        }
+    }
+
+    static void callback(ggml_log_level level, const char* text, void* userData) {
+        auto* self = static_cast<WhisperLogCapture*>(userData);
+        if (self == nullptr || text == nullptr) {
+            return;
+        }
+        self->d_lastLevel = toLogLevel(level, self->d_lastLevel);
+        for (const char* c = text; *c != '\0'; ++c) {
+            if (*c == '\n') {
+                self->emitLine();
+            } else {
+                self->d_partialLine += *c;
+            }
+        }
+    }
+
+    void emitLine() {
+        if (d_partialLine.empty()) {
+            return;
+        }
+        d_recentLines.push_back(d_partialLine);
+        if (d_recentLines.size() > maxRecentLines) {
+            d_recentLines.pop_front();
+        }
+        if (d_onLog) {
+            // An exception must not unwind through whisper's C code
+            try {
+                d_onLog(d_lastLevel, d_partialLine);
+            } catch (...) {
+            }
+        }
+        d_partialLine.clear();
+    }
+
+  public:
+    explicit WhisperLogCapture(const WhisperLogHandler& onLog)
+    : d_onLog(onLog) {
+        whisper_log_set(&WhisperLogCapture::callback, this);
+    }
+
+    ~WhisperLogCapture() {
+        whisper_log_set(nullptr, nullptr);
+    }
+
+    WhisperLogCapture(const WhisperLogCapture&) = delete;
+    WhisperLogCapture& operator=(const WhisperLogCapture&) = delete;
+    WhisperLogCapture(WhisperLogCapture&&) = delete;
+    WhisperLogCapture& operator=(WhisperLogCapture&&) = delete;
+
+    // Appends the most recent log lines to an error message
+    std::string withRecentOutput(const std::string& message) {
+        emitLine();
+        if (d_recentLines.empty()) {
+            return message;
+        }
+        std::string result = message + "\nLast Whisper output:";
+        for (const std::string& line : d_recentLines) {
+            result += "\n  " + line;
+        }
+        return result;
+    }
+};
 
 std::vector<float> loadAudioFile(const std::string& audioPath) {
     std::vector<float> audioData;
@@ -66,10 +153,12 @@ std::vector<float> loadAudioFile(const std::string& audioPath) {
 
 }
 
-ProjectData tokenizeAudio(const ProjectData& project) {
+ProjectData tokenizeAudio(const ProjectData& project,
+                          const WhisperLogHandler& onLog) {
     std::vector<Token> tokens = extractTokensFromAudio(
         project.audio.path,
-        project.model.base
+        project.model.base,
+        onLog
     );
     ProjectData result(project.toJson());
     return ProjectData(std::move(result), tokens);
@@ -77,7 +166,8 @@ ProjectData tokenizeAudio(const ProjectData& project) {
 
 std::vector<Token> extractTokensFromAudio(
     const std::string& audioPath,
-    const std::string& modelPath
+    const std::string& modelPath,
+    const WhisperLogHandler& onLog
 ) {
     std::vector<Token> tokens;
 
@@ -86,13 +176,16 @@ std::vector<Token> extractTokensFromAudio(
         throw std::runtime_error("Audio file contains no samples: " + audioPath);
     }
 
+    WhisperLogCapture logCapture(onLog);
+
     whisper_context_params cparams = whisper_context_default_params();
     cparams.use_gpu = false;
     cparams.dtw_token_timestamps = true;
 
     whisper_context* ctx = whisper_init_from_file_with_params(modelPath.c_str(), cparams);
     if (!ctx) {
-        throw std::runtime_error("Failed to load Whisper model: " + modelPath);
+        throw std::runtime_error(
+            logCapture.withRecentOutput("Failed to load Whisper model: " + modelPath));
     }
 
     whisper_full_params wparams = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
@@ -106,7 +199,8 @@ std::vector<Token> extractTokensFromAudio(
 
     if (whisper_full(ctx, wparams, audioData.data(), audioData.size()) != 0) {
         whisper_free(ctx);
-        throw std::runtime_error("Whisper failed to transcribe audio: " + audioPath);
+        throw std::runtime_error(
+            logCapture.withRecentOutput("Whisper failed to transcribe audio: " + audioPath));
     }
 
     const int nSegments = whisper_full_n_segments(ctx);

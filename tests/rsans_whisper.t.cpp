@@ -9,6 +9,7 @@
 #include <fstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -104,6 +105,56 @@ TEST(WhisperTest, ExtractTokensFromAudioThrowsGivenNonExistentModel) {
 
     // When / Then
     expectExtractThrows(audioPath, modelPath, "Failed to load Whisper model");
+    std::filesystem::remove(audioPath);
+}
+
+TEST(WhisperTest, ExtractTokensFromAudioWritesNothingToStderrGivenNonExistentModel) {
+    // Given: valid audio, so whisper.cpp runs and logs while failing to load the model
+    const std::string audioPath = writeTestWav("rsans_test_log_stderr.wav", 1, 16000);
+    const std::string modelPath = "/nonexistent/path/to/model.bin";
+
+    // When
+    testing::internal::CaptureStderr();
+    EXPECT_THROW(extractTokensFromAudio(audioPath, modelPath), std::runtime_error);
+    const std::string stderrOutput = testing::internal::GetCapturedStderr();
+
+    // Then
+    EXPECT_EQ(stderrOutput, "");
+    std::filesystem::remove(audioPath);
+}
+
+TEST(WhisperTest, ExtractTokensFromAudioSendsLogLinesToHandlerGivenNonExistentModel) {
+    // Given
+    const std::string audioPath = writeTestWav("rsans_test_log_handler.wav", 1, 16000);
+    const std::string modelPath = "/nonexistent/path/to/model.bin";
+    std::vector<std::pair<WhisperLogLevel, std::string>> lines;
+    const WhisperLogHandler onLog = [&](WhisperLogLevel level, const std::string& line) {
+        lines.emplace_back(level, line);
+    };
+
+    // When
+    EXPECT_THROW(extractTokensFromAudio(audioPath, modelPath, onLog), std::runtime_error);
+
+    // Then: complete lines, and an error line naming the model
+    ASSERT_FALSE(lines.empty());
+    bool hasErrorAboutModel = false;
+    for (const auto& [level, line] : lines) {
+        EXPECT_EQ(line.find('\n'), std::string::npos) << "Line contains a newline: " << line;
+        if (level == WhisperLogLevel::Error && line.find(modelPath) != std::string::npos) {
+            hasErrorAboutModel = true;
+        }
+    }
+    EXPECT_TRUE(hasErrorAboutModel);
+    std::filesystem::remove(audioPath);
+}
+
+TEST(WhisperTest, ExtractTokensFromAudioIncludesWhisperOutputInErrorGivenNonExistentModel) {
+    // Given
+    const std::string audioPath = writeTestWav("rsans_test_log_error.wav", 1, 16000);
+    const std::string modelPath = "/nonexistent/path/to/model.bin";
+
+    // When / Then
+    expectExtractThrows(audioPath, modelPath, "Last Whisper output:");
     std::filesystem::remove(audioPath);
 }
 
