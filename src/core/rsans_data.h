@@ -86,7 +86,13 @@ struct ProjectData {
     ProjectData() = default;  // Blank project: not valid until mandatory values are filled in.
     ProjectData(const std::string& jsonContent);
     ProjectData(ProjectData base, std::vector<Token>& newTokens);
-    ProjectData(ProjectData&& other) noexcept;
+
+    // Copyable and movable; every member copies or moves on its own
+    ProjectData(const ProjectData& other) = default;
+    ProjectData(ProjectData&& other) noexcept = default;
+    ProjectData& operator=(const ProjectData& other) = default;
+    ProjectData& operator=(ProjectData&& other) noexcept = default;
+    ~ProjectData() = default;
 
     std::string toJson() const;
 
@@ -95,5 +101,9 @@ struct ProjectData {
     std::vector<ValidationError> validate() const;
     bool isValid() const;
 };
+
+// Returns the length of the audio file in seconds, or -1.0 if libsndfile
+// cannot open it.
+double getAudioDuration(const std::string& audioPath);
 
 #endif

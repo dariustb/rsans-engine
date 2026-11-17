@@ -4,6 +4,8 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <cstdint>
+#include <type_traits>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -1040,4 +1042,86 @@ TEST_F(ProjectValidationTest, ReportsTokenErrorsGivenInvalidToken) {
     EXPECT_TRUE(hasErrorFor(errors, "tokens[0].endMs"));
     EXPECT_TRUE(hasErrorFor(errors, "tokens[0].lineIndex"));
     EXPECT_TRUE(hasErrorFor(errors, "tokens[0].rhymeIndex"));
+}
+
+static_assert(std::is_copy_constructible_v<ProjectData>);
+static_assert(std::is_copy_assignable_v<ProjectData>);
+static_assert(std::is_nothrow_move_constructible_v<ProjectData>);
+static_assert(std::is_nothrow_move_assignable_v<ProjectData>);
+
+TEST_F(ProjectValidationTest, CopyConstructorCopiesEveryMember) {
+    // Given
+    project.cmudict = "dict";
+    project.tokens = {Token(0, "day", 0, 500, 0, 1)};
+    project.colorSwatch = {Color("#FF8800")};
+
+    // When
+    const ProjectData copy(project);
+
+    // Then
+    EXPECT_EQ(copy.toJson(), project.toJson());
+}
+
+TEST_F(ProjectValidationTest, CopyIsIndependentOfOriginal) {
+    // Given
+    project.tokens = {Token(0, "day", 0, 500, 0, std::nullopt)};
+    ProjectData copy(project);
+
+    // When
+    copy.header.title = "Changed";
+    copy.tokens[0].text = "way";
+
+    // Then
+    EXPECT_EQ(project.header.title, "Title");
+    EXPECT_EQ(project.tokens[0].text, "day");
+}
+
+TEST_F(ProjectValidationTest, CopyAssignmentReplacesEveryMember) {
+    // Given
+    ProjectData target;
+
+    // When
+    target = project;
+
+    // Then
+    EXPECT_EQ(target.toJson(), project.toJson());
+    EXPECT_TRUE(target.isValid());
+}
+
+TEST(AudioDurationTest, ReturnsLengthInSecondsGivenWavFile) {
+    // Given: a 2 second, 16 kHz mono 16-bit WAV
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() / "rsans_duration_test.wav";
+    const uint32_t sampleRate = 16000;
+    const uint32_t dataSize = sampleRate * 2 * 2;
+    {
+        std::ofstream out(path, std::ios::binary);
+        const auto write32 = [&](uint32_t v) { out.write(reinterpret_cast<const char*>(&v), 4); };
+        const auto write16 = [&](uint16_t v) { out.write(reinterpret_cast<const char*>(&v), 2); };
+        out.write("RIFF", 4);
+        write32(36 + dataSize);
+        out.write("WAVEfmt ", 8);
+        write32(16);
+        write16(1);
+        write16(1);
+        write32(sampleRate);
+        write32(sampleRate * 2);
+        write16(2);
+        write16(16);
+        out.write("data", 4);
+        write32(dataSize);
+        const std::vector<char> silence(dataSize, 0);
+        out.write(silence.data(), static_cast<std::streamsize>(silence.size()));
+    }
+
+    // When
+    const double seconds = getAudioDuration(path.string());
+
+    // Then
+    EXPECT_DOUBLE_EQ(seconds, 2.0);
+    std::filesystem::remove(path);
+}
+
+TEST(AudioDurationTest, ReturnsNegativeOneGivenNonExistentFile) {
+    EXPECT_EQ(getAudioDuration("/nonexistent/path/to/audio.wav"), -1.0);
 }

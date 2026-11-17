@@ -13,8 +13,6 @@
 
 using json = nlohmann::json;
 
-namespace {
-
 double getAudioDuration(const std::string& audioPath) {
     SF_INFO info{};
     SNDFILE* f = sf_open(audioPath.c_str(), SFM_READ, &info);
@@ -26,6 +24,8 @@ double getAudioDuration(const std::string& audioPath) {
     sf_close(f);
     return seconds;
 }
+
+namespace {
 
 bool isExistingFile(const std::string& path) {
     std::error_code ec;
@@ -130,17 +130,6 @@ ProjectData::ProjectData(ProjectData base, std::vector<Token>& newTokens)
 : ProjectData(std::move(base)) {
     tokens = std::move(newTokens);
 }
-
-ProjectData::ProjectData(ProjectData&& other) noexcept
-: header(other.header)
-, audio(other.audio)
-, video(other.video)
-, layout(other.layout)
-, model(other.model)
-, cmudict(std::move(other.cmudict))
-, tokens(std::move(other.tokens))
-, colorSwatch(std::move(other.colorSwatch))
-{}
 
 std::string ProjectData::toJson() const {
     json j;
