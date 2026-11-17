@@ -821,7 +821,8 @@ class ProjectValidationTest : public ::testing::Test {
         project.header.titleSize = 64;
         project.header.artist = "Artist";
         project.header.artistSize = 36;
-        project.header.media = touch("cover.png");
+        project.header.media = (dir / "cover.bmp").string();
+        writeTestBmp(project.header.media);
         project.audio.path = touch("song.wav");
         project.audio.length = 42.0;
         project.video.width = 1920;
@@ -1201,4 +1202,37 @@ TEST(StepValidationTest, ValidateForFullReportsEveryInputGivenBlankProject) {
         EXPECT_TRUE(hasErrorFor(errors, field)) << "No error for " << field;
     }
     EXPECT_FALSE(hasErrorFor(errors, "tokens"));
+}
+
+TEST_F(ProjectValidationTest, ReportsNotAnImageGivenNonImageMedia) {
+    // Given: a file that exists but isn't an image, such as a video
+    project.header.media = touch("cover.mp4");
+
+    // When
+    const std::vector<ValidationError> errors = project.validate();
+
+    // Then
+    ASSERT_EQ(errors.size(), 1);
+    EXPECT_EQ(errors[0].field, "header.media");
+    EXPECT_NE(errors[0].message.find("image"), std::string::npos);
+}
+
+TEST_F(ProjectValidationTest, ReportsNotAnImageGivenImageExtensionWithOtherContent) {
+    // Given: the check reads the file's contents, not its name
+    project.header.media = touch("cover.png");
+
+    // Then
+    EXPECT_TRUE(hasErrorFor(project.validateForExport(), "header.media"));
+}
+
+TEST_F(ProjectValidationTest, ReportsOnlyMissingFileGivenNonExistentMedia) {
+    // Given
+    project.header.media = (dir / "missing.png").string();
+
+    // When
+    const std::vector<ValidationError> errors = project.validate();
+
+    // Then: one error for the missing file, not a second about the format
+    ASSERT_EQ(errors.size(), 1);
+    EXPECT_NE(errors[0].message.find("file not found"), std::string::npos);
 }

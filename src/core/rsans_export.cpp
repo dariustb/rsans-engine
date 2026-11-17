@@ -6,7 +6,6 @@
 #include <rsans_process.h>
 #include <rsans_task.h>
 
-#include <array>
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
@@ -19,24 +18,6 @@
 #include <vector>
 
 namespace  {
-
-bool isImageFile(const std::string& path)
-{
-    std::filesystem::path p(path);
-    if (!p.has_extension())
-        return false;
-
-    std::string ext = p.extension().string();
-    std::transform(ext.begin(), ext.end(), ext.begin(),
-                    [](unsigned char c){ return std::tolower(c); });
-
-    static constexpr std::array<const char*, 7> imageExts = {
-        ".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tif", ".tiff"
-    };
-
-    return std::any_of(imageExts.begin(), imageExts.end(),
-                        [&](const char* e){ return ext == e; });
-}
 
 // Escapes a value placed inside an ffmpeg filtergraph (e.g. movie=<path>).
 // ffmpeg parses these in two passes, each with its own special characters,
@@ -132,7 +113,7 @@ int executeFfmpegBuild(const ProjectData& data,
     std::ostringstream filterGraph;
     filterGraph << "movie=" << escapeFilterValue(data.header.media) << ","
                 << "scale=" << data.video.width << ":-1"
-                << (isImageFile(data.header.media) ? "[cover];[0:v][cover]" : "[hdr];[0:v][hdr]")
+                << "[cover];[0:v][cover]"
                 << "overlay=0:0,"
                 << "subtitles=" << escapeFilterValue(assPath)
                 << ":fontsdir=" << escapeFilterValue(fontsDir.string());

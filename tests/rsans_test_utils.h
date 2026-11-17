@@ -42,4 +42,29 @@ inline std::string writeTestWav(const std::string& name,
     return path.string();
 }
 
+// Writes a 1x1 24-bit BMP image to path
+inline void writeTestBmp(const std::string& path) {
+    std::ofstream out(path, std::ios::binary);
+    const auto write32 = [&](uint32_t v) { out.write(reinterpret_cast<const char*>(&v), 4); };
+    const auto write16 = [&](uint16_t v) { out.write(reinterpret_cast<const char*>(&v), 2); };
+
+    out.write("BM", 2);
+    write32(58);       // file size: 14 + 40 header bytes + 4 pixel bytes
+    write32(0);        // reserved
+    write32(54);       // offset to pixels
+    write32(40);       // BITMAPINFOHEADER size
+    write32(1);        // width
+    write32(1);        // height
+    write16(1);        // planes
+    write16(24);       // bits per pixel
+    write32(0);        // no compression
+    write32(4);        // pixel data size (row padded to 4 bytes)
+    write32(2835);     // 72 DPI
+    write32(2835);
+    write32(0);        // palette colors
+    write32(0);        // important colors
+    const char pixel[4] = {0, 0, 0x7f, 0};  // one red-ish pixel + padding
+    out.write(pixel, 4);
+}
+
 #endif

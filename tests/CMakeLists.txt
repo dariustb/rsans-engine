@@ -14,12 +14,14 @@ add_executable(test_rsans)
 target_link_libraries(test_rsans
 	PUBLIC
 		GTest::gtest_main
+		rsans_cli
 		rsans_core
 )
 target_include_directories(test_rsans PUBLIC ./)
 
 target_sources(test_rsans
 	PRIVATE
+		rsans_args.t.cpp
 		rsans_ass.t.cpp
 		rsans_data.t.cpp
 		rsans_export.t.cpp

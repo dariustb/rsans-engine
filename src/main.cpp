@@ -64,6 +64,14 @@ int main(int argc, char** argv) {
             const int code = exportVideo(rhymedData, args.full.output, args.ffmpegPath);
             return code;
         }
+        case CommandType::Tui:
+            // TODO: launch the FTXUI interface once it exists
+            std::cerr << "The interactive interface is not built yet. "
+                         "Use a subcommand; see rsans --help." << std::endl;
+            return 1;
+        case CommandType::Help:
+            std::cout << args.helpText;
+            return 1;
         default:
             std::cerr << "No command selected" << std::endl;
             return 1;

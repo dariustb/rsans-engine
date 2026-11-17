@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 #include <sndfile.h>
+#include <stb_image.h>
 
 #include <algorithm>
 #include <cctype>
@@ -31,6 +32,15 @@ namespace {
 bool isExistingFile(const std::string& path) {
     std::error_code ec;
     return std::filesystem::is_regular_file(path, ec);
+}
+
+// True if stb_image (used by rsans_ass.cpp to size the cover) can read the
+// file as an image. Only reads the header, so it is cheap.
+bool isReadableImage(const std::string& path) {
+    int width = 0;
+    int height = 0;
+    int channels = 0;
+    return stbi_info(path.c_str(), &width, &height, &channels) != 0;
 }
 
 bool isHexColor(const std::string& value) {
@@ -232,6 +242,10 @@ void checkHeader(const ProjectData& p, Validator& v) {
     v.requireText("header.artist", p.header.artist);
     v.requirePositive("header.artistSize", p.header.artistSize);
     v.requireFile("header.media", p.header.media);
+    // Only images are supported as the cover (not video)
+    if (isExistingFile(p.header.media) && !isReadableImage(p.header.media)) {
+        v.addError("header.media", "must be a PNG, JPEG, BMP, GIF or TGA image");
+    }
 }
 
 void checkAudioPath(const ProjectData& p, Validator& v) {

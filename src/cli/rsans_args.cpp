@@ -5,6 +5,8 @@
 #include <cstdlib>
 #include <string>
 
+#include <unistd.h>
+
 namespace {
     const std::string APP_DESCRIPTION =
         "RSANS Lyric Alignment & Visualization Engine\n\n"
@@ -13,6 +15,11 @@ namespace {
 }
 
 Args parseArgs(int argc, char** argv) {
+    const bool interactiveTerminal = isatty(STDIN_FILENO) != 0 && isatty(STDOUT_FILENO) != 0;
+    return parseArgs(argc, argv, interactiveTerminal);
+}
+
+Args parseArgs(int argc, char** argv, bool interactiveTerminal) {
     Args opts;
 
     CLI::App app{APP_DESCRIPTION};
@@ -54,8 +61,11 @@ Args parseArgs(int argc, char** argv) {
         opts.command = CommandType::Export;
     } else if (full->parsed()) {
         opts.command = CommandType::Full;
+    } else if (interactiveTerminal) {
+        opts.command = CommandType::Tui;
     } else {
-        throw std::runtime_error("No subcommand specified");
+        opts.command = CommandType::Help;
+        opts.helpText = app.help();
     }
 
     return opts;
