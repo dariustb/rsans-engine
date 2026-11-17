@@ -75,7 +75,7 @@ It opens on a start screen with the RSANS title and four options:
 - **Credits:** the libraries RSANS is built on.
 - **Quit**
 
-The project editor has three tabs:
+The project editor has three tabs, with **Save**, **Save as** and **Menu** (back to the start screen; Esc does the same) at the top right. Menu waits while a step is running, since its results belong to the open project. The tabs:
 - **Project:** every setting, grouped into Song, Audio, Video, Lyrics, Analysis and Colors. Problems are checked as you type. A red `!` marks a field that needs attention: on its own it means the value is required, and any other problem (a missing file, a non-number) is written underneath. Choosing an audio file shows its length.
 - **Run:** the output video path and FFmpeg path, then buttons for **Analyze**, **Detect rhymes**, **Export** and **Full run**. A step's button is dimmed until its settings are complete, and the Checks list shows what each step is still missing. While a step runs you get a progress bar, the current stage and a live log, and **Cancel** stops it (a cancelled export deletes its partial video).
 - **Lyrics:** the transcribed words, one row per line with its start time, with rhyming words shown in their rhyme color.
@@ -99,11 +99,11 @@ New projects start with 1920x1080 video on black, standard text sizes and six rh
 | Arrow keys / Tab | Move between tabs, fields and buttons |
 | Enter | Press a button, open the font or model picker, or choose a font, model, file or folder |
 | Backspace | In the file browser with nothing typed: go up a folder |
-| Esc | Close the font picker, model picker or file browser |
+| Esc | Close the open dialog; in the editor with none open, back to the start menu |
 | Ctrl+S | Save the project |
 | Ctrl+C | Quit (cancels a running step first; asks to save unsaved changes) |
 
-Press **Ctrl+S**, or **Save** at the top right, to save the project, including the transcribed words, as a `.rsans` file (JSON inside, the same format the command line uses). A new project asks where to save it first, suggesting a name from the song title; after that Ctrl+S saves straight to the same file. **Save as** saves a copy somewhere else, and asks before replacing a different file. The file name is shown at the top, with `*` while there are unsaved changes, and quitting with unsaved changes asks whether to save first. Projects can be saved at any point, even with settings still missing.
+Press **Ctrl+S**, or **Save** at the top right, to save the project, including the transcribed words, as a `.rsans` file (JSON inside, the same format the command line uses). A new project asks where to save it first, suggesting a name from the song title; after that Ctrl+S saves straight to the same file. **Save as** saves a copy somewhere else, and asks before replacing a different file. The file name is shown at the top, with `*` while there are unsaved changes, and quitting or going back to the start menu with unsaved changes asks whether to save first. Projects can be saved at any point, even with settings still missing.
 
 ### Command line
 ```sh

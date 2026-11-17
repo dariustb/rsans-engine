@@ -193,10 +193,11 @@ RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void
     Component tabBar = Toggle(&d_tabNames, &d_tab);
     Component saveButton = Button("Save", [this] { save(); }, ButtonOption::Ascii());
     Component saveAsButton = Button("Save as", [this] { saveAs(); }, ButtonOption::Ascii());
-    Component header = Container::Horizontal({tabBar, saveButton, saveAsButton});
+    Component menuButton = Button("Menu", [this] { goToMenu(); }, ButtonOption::Ascii());
+    Component header = Container::Horizontal({tabBar, saveButton, saveAsButton, menuButton});
     Component layout = Container::Vertical({header, tabs});
 
-    Component rendered = Renderer(layout, [this, tabBar, saveButton, saveAsButton, tabs] {
+    Component rendered = Renderer(layout, [this, tabBar, saveButton, saveAsButton, menuButton, tabs] {
         // The project file's name, "*" while there are unsaved changes
         const bool unsaved = hasUnsavedChanges();
         if (unsaved) {
@@ -210,12 +211,14 @@ RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void
             : text(d_saveMessage) | color(ftxui::Color::Green);
         return vbox({
             hbox({text(" RSANS ") | bold | inverted, text(" "), tabBar->Render(), filler(),
-                  fileStatus, text("  "), saveButton->Render(), saveAsButton->Render(), text("  "),
+                  fileStatus, text("  "), saveButton->Render(), saveAsButton->Render(),
+                  // Not while a step runs: its results belong to this project
+                  d_runner.isRunning() ? menuButton->Render() | dim : menuButton->Render(), text("  "),
                   text(stateText(d_runner) + " ") | dim}),
             separator(),
             tabs->Render() | flex,
             separator(),
-            text(" Arrows/Tab: move   Enter: press   Ctrl+S: save   Ctrl+C: quit") | dim,
+            text(" Arrows/Tab: move   Enter: press   Ctrl+S: save   Esc: menu   Ctrl+C: quit") | dim,
         }) | border;
     });
 
@@ -229,20 +232,23 @@ RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void
 
     d_root = CatchEvent(withDialogs, [this](const Event& event) {
         if (event == Event::CtrlC) {
-            // Unsaved work: ask first (a second Ctrl+C quits anyway)
+            // Unsaved work: ask first (Ctrl+C at the prompt quits anyway)
             if (hasUnsavedChanges() && !d_quitPromptOpen) {
-                d_pickerOpen = false;
-                d_modelPickerOpen = false;
-                d_fileDialogOpen = false;
-                d_quitPromptOpen = true;
+                askBeforeLeaving(Leave::Quit);
                 return true;
             }
             quitNow();
             return true;
         }
         const bool dialogOpen = d_pickerOpen || d_modelPickerOpen || d_fileDialogOpen || d_quitPromptOpen;
-        if (event == Event::CtrlS && d_screen == static_cast<int>(Screen::Editor) && !dialogOpen) {
+        const bool inEditor = d_screen == static_cast<int>(Screen::Editor);
+        if (event == Event::CtrlS && inEditor && !dialogOpen) {
             save();
+            return true;
+        }
+        // Esc closes an open dialog (handled by the dialog); otherwise it's the menu
+        if (event == Event::Escape && inEditor && !dialogOpen) {
+            goToMenu();
             return true;
         }
         return false;
@@ -253,6 +259,43 @@ RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void
 void RsansApp::quitNow() {
     d_runner.cancel();  // The runner's destructor waits for it to stop
     d_quit();
+}
+
+void RsansApp::showStartScreen() {
+    d_pickerOpen = false;
+    d_modelPickerOpen = false;
+    d_fileDialogOpen = false;
+    d_quitPromptOpen = false;
+    d_startSelected = 0;
+    d_screen = static_cast<int>(Screen::Start);
+}
+
+void RsansApp::leave(Leave how) {
+    if (how == Leave::Quit) {
+        quitNow();
+    } else if (how == Leave::Menu) {
+        showStartScreen();
+    }
+}
+
+void RsansApp::askBeforeLeaving(Leave how) {
+    d_pickerOpen = false;
+    d_modelPickerOpen = false;
+    d_fileDialogOpen = false;
+    d_promptLeave = how;
+    d_quitPromptOpen = true;
+}
+
+bool RsansApp::goToMenu() {
+    if (d_screen != static_cast<int>(Screen::Editor) || d_runner.isRunning()) {
+        return false;
+    }
+    if (hasUnsavedChanges()) {
+        askBeforeLeaving(Leave::Menu);
+    } else {
+        showStartScreen();
+    }
+    return true;
 }
 
 void RsansApp::markSaved() {
@@ -290,19 +333,19 @@ std::string RsansApp::saveProject(const std::string& path) {
     d_savedJson = json;
     d_saveMessage = "Saved " + target.filename().string();
     d_overwriteCandidate.clear();
-    if (d_quitAfterSave) {
-        quitNow();
-    }
+    const Leave then = d_afterSave;
+    d_afterSave = Leave::None;
+    leave(then);
     return "";
 }
 
 void RsansApp::save() {
-    d_quitAfterSave = false;  // Only "Save and quit" quits after saving
+    d_afterSave = Leave::None;  // Only saving from the unsaved-changes prompt leaves
     saveOrAsk();
 }
 
 void RsansApp::saveAs() {
-    d_quitAfterSave = false;
+    d_afterSave = Leave::None;
     askWhereToSave();
 }
 
@@ -351,23 +394,29 @@ void RsansApp::askWhereToSave() {
 }
 
 Component RsansApp::makeQuitPrompt() {
-    Component saveAndQuit = Button("Save and quit", [this] {
+    Component saveFirst = Button("Save", [this] {
         d_quitPromptOpen = false;
-        d_quitAfterSave = true;
-        saveOrAsk();  // Quits once saved (if it asks where, cancelling stays)
+        d_afterSave = d_promptLeave;
+        saveOrAsk();  // Leaves once saved (if it asks where, cancelling stays)
     }, ButtonOption::Ascii());
-    Component quit = Button("Quit without saving", [this] { quitNow(); }, ButtonOption::Ascii());
+    Component discard = Button("Don't save", [this] {
+        d_quitPromptOpen = false;
+        leave(d_promptLeave);
+    }, ButtonOption::Ascii());
     Component cancel = Button("Cancel", [this] { d_quitPromptOpen = false; }, ButtonOption::Ascii());
-    Component buttons = Container::Horizontal({saveAndQuit, quit, cancel});
+    Component buttons = Container::Horizontal({saveFirst, discard, cancel});
 
-    Component rendered = Renderer(buttons, [this, saveAndQuit, quit, cancel] {
+    Component rendered = Renderer(buttons, [this, saveFirst, discard, cancel] {
         const std::string name = d_projectPath.empty()
             ? "This project"
             : std::filesystem::path(d_projectPath).filename().string();
+        const std::string question = d_promptLeave == Leave::Menu ? "Save before going back to the menu?"
+                                                                  : "Save before quitting?";
         return window(text(" Unsaved changes "), vbox({
             text(name + " has unsaved changes."),
+            text(question),
             text(""),
-            hbox({saveAndQuit->Render(), text(" "), quit->Render(), text(" "), cancel->Render()}),
+            hbox({saveFirst->Render(), text(" "), discard->Render(), text(" "), cancel->Render()}),
         }));
     });
     return CatchEvent(rendered, [this](const Event& event) {

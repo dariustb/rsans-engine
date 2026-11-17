@@ -57,6 +57,11 @@ class RsansApp {
     void saveAs();  // Asks where, with the file dialog
     bool quitPromptOpen() const { return d_quitPromptOpen; }
 
+    // Leaves the editor for the start screen, asking first if there are
+    // unsaved changes. Returns false (and stays) while a step is running,
+    // since its results belong to this project.
+    bool goToMenu();
+
     ProjectForm& form() { return d_form; }
     StepRunner& runner() { return d_runner; }
 
@@ -157,12 +162,18 @@ class RsansApp {
     std::string d_savedJson;       // The project as last loaded or saved
     std::string d_saveMessage;     // e.g. "Saved song.rsans", until the next change
     std::string d_overwriteCandidate;  // An existing file Save as was asked to replace
-    bool d_quitPromptOpen = false;
-    bool d_quitAfterSave = false;
+    // Leaving the project (quitting or going to the menu) with unsaved changes
+    enum class Leave { None, Quit, Menu };
+    bool d_quitPromptOpen = false;  // Asks whether to save first
+    Leave d_promptLeave = Leave::Quit;  // What the prompt is for
+    Leave d_afterSave = Leave::None;    // What to do once saved ("Save" in the prompt)
     void markSaved();
     void quitNow();
-    void saveOrAsk();       // save() without changing d_quitAfterSave
-    void askWhereToSave();  // saveAs() without changing d_quitAfterSave
+    void showStartScreen();
+    void leave(Leave how);
+    void askBeforeLeaving(Leave how);
+    void saveOrAsk();       // save() without changing d_afterSave
+    void askWhereToSave();  // saveAs() without changing d_afterSave
 
     // The start screen
     int d_screen = 0;  // A Screen

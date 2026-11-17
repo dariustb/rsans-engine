@@ -1461,3 +1461,132 @@ TEST(SaveProjectTest, LoadListsRsansAndOlderJsonProjects) {
     EXPECT_EQ(std::find(names.begin(), names.end(), "notes.txt"), names.end());
     EXPECT_EQ(app.loadProject((folder.root / "old.json").string()), "");
 }
+
+// Back to the start menu
+
+TEST(MenuTest, EscapeGoesToMenuWhenSavedAndNewProjectStartsFresh) {
+    // Given
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    EXPECT_TRUE(contains(renderToString(app.component()), "Menu"));
+
+    // When
+    app.component()->OnEvent(ftxui::Event::Escape);
+
+    // Then: the start screen, with New project highlighted
+    EXPECT_EQ(app.screen(), RsansApp::Screen::Start);
+    app.component()->OnEvent(ftxui::Event::Return);
+    EXPECT_EQ(app.screen(), RsansApp::Screen::Editor);
+}
+
+TEST(MenuTest, MenuButtonIsAtEndOfHeader) {
+    // Given: focus on the tab bar (Project)
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+
+    // When: right past the tabs, Save and Save as, to Menu
+    for (int i = 0; i < 5; ++i) {
+        app.component()->OnEvent(ftxui::Event::ArrowRight);
+    }
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then
+    EXPECT_EQ(app.screen(), RsansApp::Screen::Start);
+}
+
+TEST(MenuTest, EscapeClosesOpenDialogInsteadOfLeaving) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    app.openFontPicker(RsansApp::FontTarget::Header);
+
+    app.component()->OnEvent(ftxui::Event::Escape);
+
+    EXPECT_FALSE(app.fontPickerOpen());
+    EXPECT_EQ(app.screen(), RsansApp::Screen::Editor);
+}
+
+TEST(MenuTest, UnsavedChangesAskBeforeGoingToMenu) {
+    // Given
+    ManualPost ui;
+    bool quit = false;
+    RsansApp app("ffmpeg", ui.post(), [&] { quit = true; });
+    app.newProject();
+    app.form().setFieldText("header.title", "Draft");
+
+    // When
+    EXPECT_TRUE(app.goToMenu());
+
+    // Then: asked, not gone
+    ASSERT_TRUE(app.quitPromptOpen());
+    EXPECT_EQ(app.screen(), RsansApp::Screen::Editor);
+    EXPECT_TRUE(contains(renderToString(app.component()), "going back to the menu"));
+
+    // Cancel stays
+    app.component()->OnEvent(ftxui::Event::Escape);
+    EXPECT_FALSE(app.quitPromptOpen());
+    EXPECT_EQ(app.screen(), RsansApp::Screen::Editor);
+
+    // Don't save goes to the menu, discarding the change
+    app.goToMenu();
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    app.component()->OnEvent(ftxui::Event::Return);
+    EXPECT_EQ(app.screen(), RsansApp::Screen::Start);
+    EXPECT_FALSE(quit);
+    app.newProject();
+    EXPECT_EQ(app.form().project().header.title, "");
+}
+
+TEST(MenuTest, SaveFromMenuPromptSavesThenGoesToMenu) {
+    // Given: a new project, so saving asks where
+    DialogFolder folder;
+    ManualPost ui;
+    bool quit = false;
+    RsansApp app("ffmpeg", ui.post(), [&] { quit = true; });
+    app.newProject();
+    app.form().setFieldText("header.title", "Draft");
+    app.goToMenu();
+
+    // When: Save, then a name in the save dialog
+    app.component()->OnEvent(ftxui::Event::Return);
+    ASSERT_TRUE(app.fileDialogOpen());
+    app.fileQuery.clear();
+    type(app, (folder.root / "draft").string());
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then
+    EXPECT_TRUE(std::filesystem::exists(folder.root / "draft.rsans"));
+    EXPECT_EQ(app.screen(), RsansApp::Screen::Start);
+    EXPECT_FALSE(quit);
+
+    // And a later ordinary save doesn't leave
+    ASSERT_EQ(app.loadProject((folder.root / "draft.rsans").string()), "");
+    app.form().setFieldText("header.title", "Draft 2");
+    app.save();
+    EXPECT_EQ(app.screen(), RsansApp::Screen::Editor);
+}
+
+TEST(MenuTest, MenuWaitsWhileStepRuns) {
+    // Given: a step running (a model download that hangs)
+    FakeWhisperCpp whisper;
+    whisper.setMode("slow");
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    app.whisperDir = whisper.root.string();
+    app.refreshWhisperModels();
+    ASSERT_TRUE(app.downloadModel("medium"));
+
+    // When / Then
+    EXPECT_FALSE(app.goToMenu());
+    app.component()->OnEvent(ftxui::Event::Escape);
+    EXPECT_EQ(app.screen(), RsansApp::Screen::Editor);
+    EXPECT_FALSE(app.quitPromptOpen());
+
+    app.runner().cancel();
+    ASSERT_TRUE(ui.waitUntilFinished(app.runner()));
+    EXPECT_TRUE(app.goToMenu());
+    EXPECT_EQ(app.screen(), RsansApp::Screen::Start);
+}
