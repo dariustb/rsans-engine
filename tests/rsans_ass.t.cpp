@@ -78,7 +78,8 @@ ProjectData createTestProjectData(
     })";
 
     ProjectData data(json.str());
-    return ProjectData(std::move(data), const_cast<std::vector<Token>&>(tokens));
+    data.tokens = tokens;
+    return data;
 }
 
 TEST(AssTest, AssConstructorCreatesValidOutputGivenBasicTokens) {

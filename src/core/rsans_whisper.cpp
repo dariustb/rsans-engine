@@ -160,8 +160,9 @@ ProjectData tokenizeAudio(const ProjectData& project,
         project.model.base,
         onLog
     );
-    ProjectData result(project.toJson());
-    return ProjectData(std::move(result), tokens);
+    ProjectData result = project;
+    result.tokens = std::move(tokens);
+    return result;
 }
 
 std::vector<Token> extractTokensFromAudio(

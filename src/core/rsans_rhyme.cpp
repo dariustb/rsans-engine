@@ -204,7 +204,7 @@ ProjectData detectRhymes(const ProjectData& project) {
     CMUDict dict(project.cmudict);
 
     // Copy the project to modify tokens
-    ProjectData result(project.toJson());
+    ProjectData result = project;
 
     if (result.tokens.empty()) {
         return result;

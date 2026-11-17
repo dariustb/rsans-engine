@@ -316,43 +316,6 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMultipleLinesGivenDifferentLin
     EXPECT_EQ(data.tokens[2].lineIndex, 2);
 }
 
-TEST(ProjectDataTest, ProjectDataConstructorReplacesTokensGivenBaseAndNewTokens) {
-    // Given
-    const std::string json = R"({
-        "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
-        "audio": {"path": "original.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
-        "model": {"path": "models/base.bin"},
-        "colorSwatch": [],
-        "tokens": [
-            {
-                "id": 1,
-                "text": "old",
-                "startMs": 0,
-                "endMs": 500,
-                "lineIndex": 0,
-                "rhymeIndex": null
-            }
-        ]
-    })";
-    ProjectData base(json);
-    std::vector<Token> newTokens = {
-        {2, "new", 100, 600, 0, std::nullopt}
-    };
-
-    // When
-    ProjectData data(std::move(base), newTokens);
-
-    // Then
-    EXPECT_EQ(data.tokens.size(), 1);
-    EXPECT_EQ(data.tokens[0].id, 2);
-    EXPECT_EQ(data.tokens[0].text, "new");
-    EXPECT_EQ(data.audio.path, "original.wav");
-    EXPECT_EQ(data.video.width, 1920);
-    EXPECT_EQ(data.layout.fontName, "Arial");
-}
-
 TEST(ProjectDataTest, ProjectDataMoveConstructorPreservesDataGivenSource) {
     // Given
     const std::string json = R"({

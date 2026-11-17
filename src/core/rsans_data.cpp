@@ -127,11 +127,6 @@ ProjectData::ProjectData(const std::string& jsonContent) {
     }
 }
 
-ProjectData::ProjectData(ProjectData base, std::vector<Token>& newTokens)
-: ProjectData(std::move(base)) {
-    tokens = std::move(newTokens);
-}
-
 std::string ProjectData::toJson() const {
     json j;
 

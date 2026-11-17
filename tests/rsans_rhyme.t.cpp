@@ -685,3 +685,28 @@ TEST(DetectRhymesTest, DetectRhymesAssignsNonNegativeIndexGivenRhymingTokens) {
     ASSERT_TRUE(result.tokens[0].rhymeIndex.has_value());
     EXPECT_GE(result.tokens[0].rhymeIndex.value(), 0);
 }
+
+TEST(DetectRhymesTest, DetectRhymesPreservesNonTokenFieldsGivenProject) {
+    // Given
+    TempDictFile dictFile("cat K AE1 T\nhat HH AE1 T\n");
+    const std::vector<Token> tokens = {
+        {0, "cat", 0, 100, 0, std::nullopt},
+        {1, "hat", 100, 200, 0, std::nullopt}
+    };
+    ProjectData input(createTestProjectJson(tokens, dictFile.path()));
+    input.colorSwatch = {Color("#FF8800"), Color("#00AAFF")};
+
+    // When
+    ProjectData result = detectRhymes(input);
+
+    // Then: apart from the tokens' rhyme groups, nothing changes
+    ASSERT_EQ(result.tokens.size(), input.tokens.size());
+    for (size_t i = 0; i < result.tokens.size(); ++i) {
+        EXPECT_EQ(result.tokens[i].text, input.tokens[i].text);
+        EXPECT_EQ(result.tokens[i].startMs, input.tokens[i].startMs);
+        EXPECT_EQ(result.tokens[i].endMs, input.tokens[i].endMs);
+        EXPECT_EQ(result.tokens[i].lineIndex, input.tokens[i].lineIndex);
+    }
+    result.tokens = input.tokens;
+    EXPECT_EQ(result.toJson(), input.toJson());
+}

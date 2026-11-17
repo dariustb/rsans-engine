@@ -85,7 +85,6 @@ struct ProjectData {
 
     ProjectData() = default;  // Blank project: not valid until mandatory values are filled in.
     ProjectData(const std::string& jsonContent);
-    ProjectData(ProjectData base, std::vector<Token>& newTokens);
 
     // Copyable and movable; every member copies or moves on its own
     ProjectData(const ProjectData& other) = default;
