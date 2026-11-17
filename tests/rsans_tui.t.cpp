@@ -25,6 +25,8 @@
 #include <thread>
 #include <vector>
 
+#include <unistd.h>
+
 namespace {
 
 // Stands in for the UI thread: the worker queues tasks, the test runs them
@@ -611,4 +613,177 @@ TEST(RsansAppTest, OneDownPressMovesOneRowGivenFieldsWithValues) {
 
     // Then
     EXPECT_EQ(app.form().project().header.artist, "X");
+}
+
+// File dialog
+
+namespace {
+
+// A temporary folder holding cover.png, notes.txt and sub/song.wav
+struct DialogFolder {
+    std::filesystem::path root =
+        std::filesystem::temp_directory_path() / ("rsans_dialog_" + std::to_string(::getpid()));
+
+    DialogFolder() {
+        std::filesystem::remove_all(root);
+        std::filesystem::create_directories(root / "sub");
+        writeTestBmp((root / "cover.png").string());
+        std::ofstream(root / "notes.txt") << "x";
+        std::ofstream(root / "sub" / "song.wav") << "x";
+    }
+    ~DialogFolder() { std::filesystem::remove_all(root); }
+    DialogFolder(const DialogFolder&) = delete;
+    DialogFolder& operator=(const DialogFolder&) = delete;
+    DialogFolder(DialogFolder&&) = delete;
+    DialogFolder& operator=(DialogFolder&&) = delete;
+};
+
+} // namespace
+
+TEST(FileDialogTest, EnterChoosesFirstMatchingFileForField) {
+    // Given: the cover field points into the folder, so the dialog starts there
+    DialogFolder folder;
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.form().setFieldText("header.media", (folder.root / "missing.png").string());
+    app.browseFor("header.media");
+    ASSERT_TRUE(app.fileDialogOpen());
+    EXPECT_EQ(app.fileBrowser()->directory(), folder.root);
+
+    // When: images only, so notes.txt is hidden; type part of the name and Enter
+    type(app, "cov");
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then
+    EXPECT_FALSE(app.fileDialogOpen());
+    EXPECT_EQ(app.form().project().header.media, (folder.root / "cover.png").string());
+    EXPECT_TRUE(app.form().errorsFor("header.media").empty());
+}
+
+TEST(FileDialogTest, ListNavigationOpensFolderThenChoosesFile) {
+    DialogFolder folder;
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.form().setFieldText("audio.path", folder.root.string());
+    app.browseFor("audio.path");
+
+    // Down into the list (sub/ is highlighted, below ..), Enter opens it
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::Return);
+    EXPECT_EQ(app.fileBrowser()->directory(), folder.root / "sub");
+    EXPECT_TRUE(app.fileDialogOpen());
+
+    // song.wav is now highlighted
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    EXPECT_FALSE(app.fileDialogOpen());
+    EXPECT_EQ(app.form().project().audio.path, (folder.root / "sub" / "song.wav").string());
+}
+
+TEST(FileDialogTest, BackspaceInEmptySearchGoesUpAndEscapeCloses) {
+    DialogFolder folder;
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.form().setFieldText("audio.path", (folder.root / "sub").string());
+    app.browseFor("audio.path");
+
+    app.component()->OnEvent(ftxui::Event::Backspace);
+    EXPECT_EQ(app.fileBrowser()->directory(), folder.root);
+
+    app.component()->OnEvent(ftxui::Event::Escape);
+    EXPECT_FALSE(app.fileDialogOpen());
+    EXPECT_EQ(app.form().project().audio.path, (folder.root / "sub").string());
+}
+
+TEST(FileDialogTest, SavingOutputAddsMp4ToTypedName) {
+    DialogFolder folder;
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.outputPath = (folder.root / "old.mp4").string();
+    app.browseFor("output");
+    EXPECT_EQ(app.fileQuery, "old.mp4");
+
+    // When: replace the name and press Enter
+    for (int i = 0; i < 7; ++i) {
+        app.component()->OnEvent(ftxui::Event::Backspace);
+    }
+    type(app, "clip");
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then
+    EXPECT_FALSE(app.fileDialogOpen());
+    EXPECT_EQ(app.outputPath, (folder.root / "clip.mp4").string());
+}
+
+TEST(FileDialogTest, SavingOutputRejectsAssName) {
+    DialogFolder folder;
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.outputPath = (folder.root / "lyrics.ass").string();
+    app.browseFor("output");
+
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    EXPECT_TRUE(app.fileDialogOpen());
+    EXPECT_EQ(app.outputPath, (folder.root / "lyrics.ass").string());
+    EXPECT_TRUE(contains(renderToString(app.component()), "can't be an .ass file"));
+}
+
+TEST(FileDialogTest, FontPickerBrowseRejectsNonFontAndAcceptsFont) {
+    DialogFolder folder;
+    std::ofstream(folder.root / "fake.ttf") << "not a font";
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.form().setFieldText("layout.fontPath", (folder.root / "fake.ttf").string());
+    app.openFontPicker(RsansApp::FontTarget::Layout);
+
+    // When: the picker's Browse files button (search -> list -> buttons row -> right)
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    app.component()->OnEvent(ftxui::Event::Return);
+    ASSERT_TRUE(app.fileDialogOpen()) << renderToString(app.component());
+    type(app, "fake");
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then: not a font, so it stays open with the reason
+    EXPECT_TRUE(app.fileDialogOpen());
+    EXPECT_TRUE(contains(renderToString(app.component()), "Not a font file")) << renderToString(app.component());
+
+    // When: a real font is typed instead
+    const std::string dejaVu = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
+    if (!std::filesystem::exists(dejaVu)) {
+        GTEST_SKIP() << "DejaVu Sans not installed";
+    }
+    for (int i = 0; i < 4; ++i) {
+        app.component()->OnEvent(ftxui::Event::Backspace);  // "fake"
+    }
+    type(app, dejaVu);
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then: both dialogs close and the font is filled in from the file
+    EXPECT_FALSE(app.fileDialogOpen());
+    EXPECT_FALSE(app.fontPickerOpen());
+    EXPECT_EQ(app.form().project().layout.fontName, "DejaVu Sans");
+    EXPECT_EQ(app.form().project().layout.fontPath, dejaVu);
+}
+
+TEST(FileDialogTest, ProjectTabBrowseButtonOpensDialog) {
+    // Given: Cover image is the 6th row; Right moves from its input to Browse
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    EXPECT_TRUE(contains(renderToString(app.component()), "Browse"));
+    for (int i = 0; i < 6; ++i) {
+        app.component()->OnEvent(ftxui::Event::ArrowDown);
+    }
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+
+    // When
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then
+    ASSERT_TRUE(app.fileDialogOpen());
+    const std::string screen = renderToString(app.component());
+    EXPECT_TRUE(contains(screen, "Cover image")) << screen;
+    EXPECT_TRUE(contains(screen, ".png .jpg")) << screen;
 }

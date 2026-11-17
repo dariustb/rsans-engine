@@ -15,6 +15,7 @@
 #include <array>
 #include <cstdint>
 #include <cstdio>
+#include <filesystem>
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -103,6 +104,14 @@ FontKeys fontKeys(RsansApp::FontTarget target) {
         : FontKeys{"layout.fontName", "layout.fontPath"};
 }
 
+// File types the dialog lists for each path setting (empty: every file)
+const std::vector<std::string> imageTypes = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tga"};
+const std::vector<std::string> audioTypes = {".wav", ".flac", ".ogg", ".oga", ".opus", ".mp3", ".aif", ".aiff"};
+const std::vector<std::string> modelTypes = {".bin"};
+const std::vector<std::string> dictTypes = {".dict", ".txt"};
+const std::vector<std::string> fontTypes = {".ttf", ".otf", ".ttc"};
+const std::vector<std::string> videoTypes = {".mp4", ".mkv", ".mov", ".webm"};
+
 InputOption singleLineInput() {
     InputOption option = InputOption::Default();
     option.multiline = false;
@@ -157,10 +166,12 @@ RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void
         }) | border;
     });
 
-    // The font picker opens on top of everything else
+    // The font picker opens on top of everything else, and the file dialog on
+    // top of that (the picker can open it to pick a font file)
     Component withPicker = Modal(rendered, makeFontPicker(), &d_pickerOpen);
+    Component withDialogs = Modal(withPicker, makeFileDialog(), &d_fileDialogOpen);
 
-    d_root = CatchEvent(withPicker, [this](const Event& event) {
+    d_root = CatchEvent(withDialogs, [this](const Event& event) {
         if (event == Event::CtrlC) {
             d_runner.cancel();  // The runner's destructor waits for it to stop
             d_quit();
@@ -270,11 +281,25 @@ Component RsansApp::makeFontPicker() {
     Component list = Menu(&d_matchLabels, &d_matchSelected, listOption);
 
     Component rescan = Button("Rescan fonts", [this] { scanFonts(); }, ButtonOption::Ascii());
+    Component browse = Button("Browse files", [this] {
+        const ProjectData& project = d_form.project();
+        const std::string& current = d_pickerTarget == FontTarget::Header ? project.header.fontPath
+                                                                           : project.layout.fontPath;
+        openFileDialog("Font file", fontTypes, false, current, [this](const std::string& path) {
+            const std::optional<FontInfo> font = fontFromFile(path);
+            if (!font) {
+                return std::string("Not a font file this program can read");
+            }
+            chooseFont(*font);
+            return std::string();
+        });
+    }, ButtonOption::Ascii());
     Component cancel = Button("Cancel", [this] { d_pickerOpen = false; }, ButtonOption::Ascii());
 
-    Component container = Container::Vertical({search, list, Container::Horizontal({rescan, cancel})});
+    Component container =
+        Container::Vertical({search, list, Container::Horizontal({rescan, browse, cancel})});
 
-    Component rendered = Renderer(container, [this, search, list, rescan, cancel] {
+    Component rendered = Renderer(container, [this, search, list, rescan, browse, cancel] {
         const std::string title = d_pickerTarget == FontTarget::Header ? " Header font " : " Lyrics font ";
 
         std::string status;
@@ -306,7 +331,7 @@ Component RsansApp::makeFontPicker() {
             list->Render() | vscroll_indicator | frame | size(HEIGHT, LESS_THAN, 14),
             separator(),
             text(selectedPath.empty() ? " " : selectedPath) | dim,
-            hbox({rescan->Render(), text(" "), cancel->Render(), filler(),
+            hbox({rescan->Render(), text(" "), browse->Render(), text(" "), cancel->Render(), filler(),
                   text("Enter: choose  Esc: close") | dim}),
         })) | size(WIDTH, EQUAL, 72);
     });
@@ -320,9 +345,210 @@ Component RsansApp::makeFontPicker() {
     });
 }
 
+void RsansApp::openFileDialog(std::string title, std::vector<std::string> extensions, bool saveMode,
+                              const std::string& current, FileChosen onChoose) {
+    d_browser.emplace(std::move(extensions), saveMode, current);
+    d_fileTitle = std::move(title);
+    d_onFileChosen = std::move(onChoose);
+    d_showAllFiles = false;
+    fileQuery.clear();
+    d_fileError.clear();
+    refreshFileLabels();
+    d_fileDialogOpen = true;
+}
+
+void RsansApp::browseFor(const std::string& key) {
+    if (key == "output") {
+        openFileDialog("Save video as", videoTypes, true, outputPath, [this](const std::string& path) {
+            std::filesystem::path chosen(path);
+            if (!chosen.has_extension()) {
+                chosen += ".mp4";
+            }
+            if (chosen.extension() == ".ass") {
+                return std::string("The video can't be an .ass file (that name is used for the subtitles)");
+            }
+            outputPath = chosen.string();
+            return std::string();
+        });
+        return;
+    }
+    if (key == "ffmpeg") {
+        openFileDialog("FFmpeg program", {}, false, ffmpegPath, [this](const std::string& path) {
+            ffmpegPath = path;
+            return std::string();
+        });
+        return;
+    }
+
+    std::vector<std::string> types;
+    if (key == "header.media") {
+        types = imageTypes;
+    } else if (key == "audio.path") {
+        types = audioTypes;
+    } else if (key == "model.path") {
+        types = modelTypes;
+    } else if (key == "cmudict") {
+        types = dictTypes;
+    } else if (key == "header.fontPath" || key == "layout.fontPath") {
+        types = fontTypes;
+    }
+    std::string title = key;
+    std::string current;
+    for (const FormField& field : d_form.fields()) {
+        if (field.key == key) {
+            title = field.label;
+            current = field.text;
+        }
+    }
+    openFileDialog(title, types, false, current, [this, key](const std::string& path) {
+        d_form.setFieldText(key, path);
+        return std::string();
+    });
+}
+
+void RsansApp::refreshFileLabels() {
+    if (!d_browser) {
+        return;
+    }
+    // When the browser changed the text (a starting file name, or cleared on
+    // entering a folder), put the cursor at its end, ready to type
+    if (fileQuery != d_browser->query()) {
+        fileQuery = d_browser->query();
+        d_fileCursor = static_cast<int>(fileQuery.size());
+    }
+    d_fileLabels.clear();
+    for (const FileBrowser::Entry& entry : d_browser->entries()) {
+        d_fileLabels.push_back(entry.isDirectory ? entry.name + "/" : entry.name);
+    }
+    // Highlight the first real entry rather than ".."
+    const std::vector<FileBrowser::Entry>& entries = d_browser->entries();
+    d_fileSelected = entries.size() > 1 && entries.front().isParent ? 1 : 0;
+}
+
+void RsansApp::finishFileAction(const std::optional<std::string>& chosen) {
+    d_fileError.clear();
+    if (chosen) {
+        const std::string error = d_onFileChosen ? d_onFileChosen(*chosen) : std::string();
+        if (error.empty()) {
+            d_fileDialogOpen = false;
+            return;
+        }
+        d_fileError = error;
+    }
+    refreshFileLabels();
+}
+
+Component RsansApp::makeFileDialog() {
+    InputOption searchOption = singleLineInput();
+    searchOption.on_change = [this] {
+        if (d_browser) {
+            d_browser->setQuery(fileQuery);
+            d_fileError.clear();
+            refreshFileLabels();
+        }
+    };
+    searchOption.on_enter = [this] {
+        if (d_browser) {
+            finishFileAction(d_browser->submitQuery());
+        }
+    };
+    searchOption.cursor_position = &d_fileCursor;
+    Component search = TextInput(&fileQuery, "", searchOption);
+
+    MenuOption listOption = MenuOption::Vertical();
+    listOption.on_enter = [this] {
+        if (d_browser) {
+            finishFileAction(d_browser->activate(static_cast<std::size_t>(std::max(d_fileSelected, 0))));
+        }
+    };
+    Component list = Menu(&d_fileLabels, &d_fileSelected, listOption);
+
+    CheckboxOption showAllOption = CheckboxOption::Simple();
+    showAllOption.on_change = [this] {
+        if (d_browser) {
+            d_browser->setShowAllFiles(d_showAllFiles);
+            refreshFileLabels();
+        }
+    };
+    Component showAll = Maybe(Checkbox("Show all files", &d_showAllFiles, showAllOption),
+                              [this] { return d_browser && d_browser->hasExtensionFilter(); });
+    Component up = Button("Up", [this] {
+        if (d_browser) {
+            d_browser->goUp();
+            refreshFileLabels();
+        }
+    }, ButtonOption::Ascii());
+    Component cancel = Button("Cancel", [this] { d_fileDialogOpen = false; }, ButtonOption::Ascii());
+
+    Component container =
+        Container::Vertical({search, list, Container::Horizontal({showAll, up, cancel})});
+
+    Component rendered = Renderer(container, [this, search, list, showAll, up, cancel] {
+        if (!d_browser) {
+            return text("");
+        }
+        const FileBrowser& browser = *d_browser;
+
+        // What's listed, or what went wrong
+        Element status;
+        if (!d_fileError.empty()) {
+            status = text(d_fileError) | color(ftxui::Color::Red);
+        } else if (!browser.error().empty()) {
+            status = text(browser.error()) | color(ftxui::Color::Red);
+        } else if (browser.hasExtensionFilter() && !browser.showAllFiles()) {
+            std::string types;
+            for (const std::string& extension : browser.extensions()) {
+                types += (types.empty() ? "" : " ") + extension;
+            }
+            status = text("Showing folders and " + types + " files") | dim;
+        } else {
+            status = text("Showing all files") | dim;
+        }
+
+        Element listing = d_fileLabels.empty() ? text("(nothing here)") | dim
+                                               : list->Render() | vscroll_indicator | frame;
+        const std::string hint = browser.saveMode() ? "Enter: open folder / save  Esc: close"
+                                                    : "Enter: open  Backspace: up  Esc: close";
+        return window(text(" " + d_fileTitle + " "), vbox({
+            hbox({text("Folder ") | bold, text(browser.directory().string()) | dim}),
+            hbox({text(browser.saveMode() ? "Name   " : "Search ") | bold, search->Render() | flex}),
+            status,
+            separator(),
+            listing | size(HEIGHT, LESS_THAN, 16),
+            separator(),
+            hbox({showAll->Render(), text(" "), up->Render(), text(" "), cancel->Render(), filler(),
+                  text(hint) | dim}),
+        })) | size(WIDTH, EQUAL, 80);
+    });
+
+    return CatchEvent(rendered, [this](const Event& event) {
+        if (event == Event::Escape) {
+            d_fileDialogOpen = false;
+            return true;
+        }
+        // Backspace with nothing typed goes up a folder (opening files only;
+        // when saving, the box holds the file name)
+        if (event == Event::Backspace && fileQuery.empty() && d_browser && !d_browser->saveMode()) {
+            d_browser->goUp();
+            refreshFileLabels();
+            return true;
+        }
+        return false;
+    });
+}
+
+Component RsansApp::browseButton(const std::string& key) {
+    return Button("Browse", [this, key] { browseFor(key); }, ButtonOption::Ascii());
+}
+
 Component RsansApp::makeProjectTab() {
+    struct Row {
+        FormField* field;
+        Component input;
+        Component browse;  // Null for fields that aren't paths
+    };
     Components inputs;
-    std::vector<std::pair<FormField*, Component>> rows;
+    std::vector<Row> rows;
     for (FormField& field : d_form.fields()) {
         // Each font is one row: a button opening the picker, which fills in
         // both the font's name and its file
@@ -336,7 +562,7 @@ Component RsansApp::makeProjectTab() {
             std::string* label = target == FontTarget::Header ? &d_headerFontLabel : &d_layoutFontLabel;
             Component button = Button(label, [this, target] { openFontPicker(target); }, ButtonOption::Ascii());
             inputs.push_back(button);
-            rows.emplace_back(&field, button);
+            rows.push_back({&field, button, nullptr});
             continue;
         }
 
@@ -344,15 +570,24 @@ Component RsansApp::makeProjectTab() {
         option.on_change = [this] { d_form.apply(); };
         option.placeholder = field.kind == FieldKind::Path ? "path to file" : "";
         Component input = TextInput(&field.text, option);
-        inputs.push_back(input);
-        rows.emplace_back(&field, input);
+        if (field.kind == FieldKind::Path) {
+            // Typed, or picked with the file dialog
+            Component browse = browseButton(field.key);
+            inputs.push_back(Container::Horizontal({input, browse}));
+            rows.push_back({&field, input, browse});
+        } else {
+            inputs.push_back(input);
+            rows.push_back({&field, input, nullptr});
+        }
     }
 
     Component container = Container::Vertical(inputs);
     return Renderer(container, [this, rows] {
         Elements lines;
         std::string section;
-        for (const auto& [field, input] : rows) {
+        for (const Row& entry : rows) {
+            FormField* const field = entry.field;
+            const Component& input = entry.input;
             if (field->section != section) {
                 section = field->section;
                 if (!lines.empty()) {
@@ -395,6 +630,7 @@ Component RsansApp::makeProjectTab() {
                 text("  " + field->label) | size(WIDTH, EQUAL, labelWidth),
                 text(errors.empty() ? "  " : "! ") | color(ftxui::Color::Red),
                 input->Render() | flex,
+                entry.browse ? hbox({text(" "), entry.browse->Render()}) : text(""),
             });
             lines.push_back(row);
             // A missing value is shown by the "!" alone (explained once at the
@@ -501,6 +737,8 @@ bool RsansApp::runStep(Step step) {
 Component RsansApp::makeRunTab() {
     Component outputInput = TextInput(&outputPath, "path/to/video.mp4", singleLineInput());
     Component ffmpegInput = TextInput(&ffmpegPath, "ffmpeg", singleLineInput());
+    Component outputBrowse = browseButton("output");
+    Component ffmpegBrowse = browseButton("ffmpeg");
 
     struct StepButton {
         Step step;
@@ -524,12 +762,13 @@ Component RsansApp::makeRunTab() {
     buttons.push_back(cancelButton);
 
     Component container = Container::Vertical({
-        outputInput,
-        ffmpegInput,
+        Container::Horizontal({outputInput, outputBrowse}),
+        Container::Horizontal({ffmpegInput, ffmpegBrowse}),
         Container::Horizontal(buttons),
     });
 
-    return Renderer(container, [this, outputInput, ffmpegInput, steps, cancelButton] {
+    return Renderer(container, [this, outputInput, ffmpegInput, outputBrowse, ffmpegBrowse, steps,
+                                cancelButton] {
         // Buttons for steps that can't run are dimmed (pressing them does nothing)
         Elements buttonRow;
         Elements checks;
@@ -568,8 +807,10 @@ Component RsansApp::makeRunTab() {
               });
 
         return vbox({
-            hbox({text("  Output video") | size(WIDTH, EQUAL, labelWidth), outputInput->Render() | flex}),
-            hbox({text("  FFmpeg") | size(WIDTH, EQUAL, labelWidth), ffmpegInput->Render() | flex}),
+            hbox({text("  Output video") | size(WIDTH, EQUAL, labelWidth), outputInput->Render() | flex,
+                  text(" "), outputBrowse->Render()}),
+            hbox({text("  FFmpeg") | size(WIDTH, EQUAL, labelWidth), ffmpegInput->Render() | flex,
+                  text(" "), ffmpegBrowse->Render()}),
             text(""),
             hbox(std::move(buttonRow)),
             text(""),

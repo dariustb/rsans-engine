@@ -21,7 +21,7 @@ It can be used two ways:
 - Karaoke-style word highlighting
 - Video export with burned-in visuals using FFmpeg
 - Project checks before each step, listing every missing or invalid setting at once
-- Interactive terminal UI with live validation, progress, cancelling, a log, and a font picker for installed fonts
+- Interactive terminal UI with live validation, progress, cancelling, a log, a file browser for every path, and a font picker for installed fonts
 - File-driven CLI workflow with JSON project state for scripting
 
 ## Requirements
@@ -74,15 +74,18 @@ The UI has three tabs:
 - **Run:** the output video path and FFmpeg path, then buttons for **Analyze**, **Detect rhymes**, **Export** and **Full run**. A step's button is dimmed until its settings are complete, and the Checks list shows what each step is still missing. While a step runs you get a progress bar, the current stage and a live log, and **Cancel** stops it (a cancelled export deletes its partial video).
 - **Lyrics:** the transcribed words, one row per line with its start time, with rhyming words shown in their rhyme color.
 
-Fonts are chosen from the fonts installed on your system. Press Enter on **Header font** or **Lyrics font** to open the picker, type part of a name to filter the list, and press Enter to choose; Esc closes it. Typing a path to a font file uses that file even if it isn't installed. Fonts are scanned in the background at startup, and the picker has a **Rescan fonts** button for fonts installed while it is running.
+Every file path can be typed, or picked with its **Browse** button (move right from the path, or Tab to it). The file browser starts in the folder of the current path and lists folders plus the file types that setting accepts (images for the cover, audio files, `.bin` models, and so on); tick **Show all files** to see everything. Type to filter the list, or type a path (`~` works) and press Enter to go straight to it. Enter opens a folder or chooses a file, Backspace with nothing typed goes up a folder, and Esc closes it. For the output video the typed text is the file name to save as, and `.mp4` is added if there's no extension.
+
+Fonts are chosen from the fonts installed on your system. Press Enter on **Header font** or **Lyrics font** to open the picker, type part of a name to filter the list, and press Enter to choose; Esc closes it. Typing a path to a font file, or using **Browse files**, uses that file even if it isn't installed. Fonts are scanned in the background at startup, and the picker has a **Rescan fonts** button for fonts installed while it is running.
 
 New projects start with 1920x1080 video on black, standard text sizes and six rhyme colors. When `rsans` is started from the repository folder, the bundled `data/cmudict.dict` is filled in too.
 
 | Key | Action |
 |---|---|
 | Arrow keys / Tab | Move between tabs, fields and buttons |
-| Enter | Press a button, open the font picker, or choose a font |
-| Esc | Close the font picker |
+| Enter | Press a button, open the font picker, or choose a font, file or folder |
+| Backspace | In the file browser with nothing typed: go up a folder |
+| Esc | Close the font picker or file browser |
 | Ctrl+C | Quit (cancels a running step first) |
 
 Settings are not saved yet: quitting discards them, and the UI can't open an existing project file.

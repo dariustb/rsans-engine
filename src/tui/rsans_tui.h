@@ -1,6 +1,7 @@
 #ifndef INCLUDED_RSANS_TUI
 #define INCLUDED_RSANS_TUI
 
+#include <rsans_file_browser.h>
 #include <rsans_fonts.h>
 #include <rsans_project_form.h>
 #include <rsans_step_runner.h>
@@ -17,7 +18,8 @@
 // The interactive RSANS application: a Project tab to fill in settings, a
 // Run tab to run the pipeline steps with progress, cancel and a log, and a
 // Lyrics tab previewing the transcribed words in their rhyme colors. Fonts
-// are chosen from the system's installed fonts with a type-to-search picker.
+// are chosen from the system's installed fonts with a type-to-search picker,
+// and every file path can be typed or picked with a file dialog.
 class RsansApp {
   public:
     // post: runs a task on the UI thread and redraws (see StepRunner).
@@ -57,6 +59,20 @@ class RsansApp {
     bool fontPickerOpen() const { return d_pickerOpen; }
     std::string fontQuery;  // The picker's search text
 
+    // Called with the path chosen in the file dialog. Returns "" to accept it
+    // (the dialog closes) or an error to show (the dialog stays open).
+    using FileChosen = std::function<std::string(const std::string&)>;
+
+    // Opens the file dialog. extensions: file types listed by default (see
+    // FileBrowser); saveMode: for a file to be written, which may not exist
+    void openFileDialog(std::string title, std::vector<std::string> extensions, bool saveMode,
+                        const std::string& current, FileChosen onChoose);
+    // Opens the file dialog for a project field (by key) or "output"/"ffmpeg"
+    void browseFor(const std::string& key);
+    bool fileDialogOpen() const { return d_fileDialogOpen; }
+    const FileBrowser* fileBrowser() const { return d_browser ? &*d_browser : nullptr; }
+    std::string fileQuery;  // The file dialog's search (or, saving, file name) text
+
     std::string outputPath;  // Edited on the Run tab
     std::string ffmpegPath;  // App-wide setting, not saved in the project
 
@@ -78,6 +94,17 @@ class RsansApp {
     std::string d_headerFontLabel;
     std::string d_layoutFontLabel;
 
+    // The file dialog
+    std::optional<FileBrowser> d_browser;
+    bool d_fileDialogOpen = false;
+    std::string d_fileTitle;
+    FileChosen d_onFileChosen;
+    std::vector<std::string> d_fileLabels;
+    int d_fileSelected = 0;
+    int d_fileCursor = 0;  // In the search box
+    bool d_showAllFiles = false;
+    std::string d_fileError;
+
     std::vector<std::string> d_tabNames;
     int d_tab = 0;
     ftxui::Component d_root;
@@ -89,6 +116,11 @@ class RsansApp {
     ftxui::Component makeRunTab();
     ftxui::Component makeLyricsTab() const;
     ftxui::Component makeFontPicker();
+    ftxui::Component makeFileDialog();
+    ftxui::Component browseButton(const std::string& key);
+
+    void refreshFileLabels();
+    void finishFileAction(const std::optional<std::string>& chosen);
 
     void refreshFontMatches();
     void chooseSelectedFont();
