@@ -1,17 +1,24 @@
 #include <rsans_whisper.h>
 
 #include <rsans_data.h>
+#include <rsans_process.h>
 
 #include <whisper.h>
 
 #define DR_WAV_IMPLEMENTATION
 #include <dr_wav.h>
 
+#include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <deque>
+#include <filesystem>
 #include <stdexcept>
 #include <string>
+#include <system_error>
 #include <vector>
+
+#include <unistd.h>
 
 namespace {
 
@@ -124,6 +131,31 @@ struct TranscriptionCallbacks {
     }
 };
 
+// A unique path in the temp directory, deleted when this goes out of scope
+class TempWavFile {
+  private:
+    std::filesystem::path d_path;
+
+  public:
+    TempWavFile() {
+        static std::atomic<unsigned> counter{0};
+        const auto now = std::chrono::steady_clock::now().time_since_epoch().count();
+        d_path = std::filesystem::temp_directory_path() /
+                 ("rsans-whisper-" + std::to_string(getpid()) + "-" +
+                  std::to_string(counter++) + "-" + std::to_string(now) + ".wav");
+    }
+    ~TempWavFile() {
+        std::error_code ec;
+        std::filesystem::remove(d_path, ec);
+    }
+    TempWavFile(const TempWavFile&) = delete;
+    TempWavFile& operator=(const TempWavFile&) = delete;
+    TempWavFile(TempWavFile&&) = delete;
+    TempWavFile& operator=(TempWavFile&&) = delete;
+
+    std::string path() const { return d_path.string(); }
+};
+
 std::vector<float> loadAudioFile(const std::string& audioPath) {
     std::vector<float> audioData;
 
@@ -177,19 +209,80 @@ std::vector<float> loadAudioFile(const std::string& audioPath) {
 
 }
 
+bool isWhisperReadyAudio(const std::string& audioPath) {
+    drwav wav;
+    if (!drwav_init_file(&wav, audioPath.c_str(), nullptr)) {
+        return false;
+    }
+    const bool ready = wav.sampleRate == WHISPER_SAMPLE_RATE &&
+                       (wav.channels == 1 || wav.channels == 2);
+    drwav_uninit(&wav);
+    return ready;
+}
+
+void convertAudioForWhisper(const std::string& inputPath,
+                            const std::string& outputPath,
+                            const std::string& ffmpegPath,
+                            const CancelFlag* cancel) {
+    const std::vector<std::string> args = {
+        ffmpegPath, "-nostdin", "-nostats", "-loglevel", "error", "-y",
+        "-i", inputPath,
+        "-vn",                                   // Ignore embedded cover art
+        "-ar", std::to_string(WHISPER_SAMPLE_RATE),
+        "-ac", "1",
+        "-c:a", "pcm_s16le", "-f", "wav",
+        outputPath
+    };
+
+    std::vector<std::string> errorLines;
+    int exitCode = -1;
+    try {
+        exitCode = runProcess(args, [&](const std::string& line) {
+            errorLines.push_back(line);
+        }, cancel);
+    } catch (const CancelledError&) {
+        throw CancelledError("Audio conversion cancelled");
+    }
+
+    if (exitCode != 0) {
+        std::string message = "Failed to convert audio for transcription: " + inputPath;
+        for (const std::string& line : errorLines) {
+            message += "\n  " + line;
+        }
+        throw std::runtime_error(message);
+    }
+}
+
 ProjectData tokenizeAudio(const ProjectData& project,
+                          const std::string& ffmpegPath,
                           const WhisperLogHandler& onLog,
                           const ProgressHandler& onProgress,
                           const CancelFlag* cancel) {
-    std::vector<Token> tokens = extractTokensFromAudio(
-        project.audio.path,
+    throwIfCancelled(cancel, "Transcription cancelled");
+
+    ProjectData result = project;
+
+    // Whisper only reads 16 kHz WAV, so convert anything else to a temp file
+    std::string whisperAudioPath = project.audio.path;
+    TempWavFile convertedAudio;
+    if (!isWhisperReadyAudio(project.audio.path)) {
+        convertAudioForWhisper(project.audio.path, convertedAudio.path(), ffmpegPath, cancel);
+        whisperAudioPath = convertedAudio.path();
+
+        // libsndfile can't read every format ffmpeg can (e.g. AAC), so the
+        // length may be missing; the converted WAV has the same duration
+        if (result.audio.length <= 0.0) {
+            result.audio.length = getAudioDuration(whisperAudioPath);
+        }
+    }
+
+    result.tokens = extractTokensFromAudio(
+        whisperAudioPath,
         project.model.base,
         onLog,
         onProgress,
         cancel
     );
-    ProjectData result = project;
-    result.tokens = std::move(tokens);
     return result;
 }
 

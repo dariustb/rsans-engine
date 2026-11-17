@@ -40,14 +40,6 @@ namespace {
 
 const char* const testFont = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
 
-bool ffmpegAvailable() {
-    try {
-        return runProcess({"ffmpeg", "-version"}) == 0;
-    } catch (const std::runtime_error&) {
-        return false;
-    }
-}
-
 class ExportTest : public ::testing::Test {
   protected:
     std::filesystem::path dir;

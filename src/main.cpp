@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
             const std::string json = readFile(args.analyze.input);
             const ProjectData data(json);
             requireReady(data.validateForAnalyze(), "analyze");
-            const ProjectData tokenizedData = tokenizeAudio(data);
+            const ProjectData tokenizedData = tokenizeAudio(data, args.ffmpegPath);
             writeFile(args.analyze.output, tokenizedData.toJson());
             break;
         }
@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
             const std::string json = readFile(args.full.input);
             const ProjectData data(json);
             requireReady(data.validateForFull(), "run");
-            const ProjectData tokenizedData = tokenizeAudio(data);
+            const ProjectData tokenizedData = tokenizeAudio(data, args.ffmpegPath);
             const ProjectData rhymedData = detectRhymes(tokenizedData);
             const int code = exportVideo(rhymedData, args.full.output, args.ffmpegPath);
             return code;

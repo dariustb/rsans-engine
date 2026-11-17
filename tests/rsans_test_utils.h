@@ -1,9 +1,12 @@
 #ifndef INCLUDED_RSANS_TEST_UTILS
 #define INCLUDED_RSANS_TEST_UTILS
 
+#include <rsans_process.h>
+
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -40,6 +43,15 @@ inline std::string writeTestWav(const std::string& name,
     out.write(silence.data(), static_cast<std::streamsize>(silence.size()));
 
     return path.string();
+}
+
+// True if an ffmpeg binary can be run from PATH
+inline bool ffmpegAvailable() {
+    try {
+        return runProcess({"ffmpeg", "-version"}) == 0;
+    } catch (const std::runtime_error&) {
+        return false;
+    }
 }
 
 // Writes a 1x1 24-bit BMP image to path

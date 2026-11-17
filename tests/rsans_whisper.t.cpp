@@ -1,6 +1,7 @@
 #include <rsans_whisper.h>
 
 #include <rsans_data.h>
+#include <rsans_process.h>
 #include <rsans_test_utils.h>
 
 #include <gtest/gtest.h>
@@ -351,4 +352,178 @@ TEST(WhisperTest, ExtractTokensFromAudioDoesNotReportProgressGivenFailedModelLoa
     // Then
     EXPECT_FALSE(progressReported);
     std::filesystem::remove(audioPath);
+}
+
+// Audio conversion for Whisper
+
+namespace {
+
+const std::string missingModel = "/nonexistent/path/to/model.bin";
+
+// Counts temp files left by tokenizeAudio's conversion
+std::size_t countConversionTempFiles() {
+    std::size_t count = 0;
+    for (const auto& entry : std::filesystem::directory_iterator(std::filesystem::temp_directory_path())) {
+        if (entry.path().filename().string().rfind("rsans-whisper-", 0) == 0) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+ProjectData projectWithAudio(const std::string& audioPath) {
+    ProjectData project;
+    project.audio.path = audioPath;
+    project.model.base = missingModel;
+    return project;
+}
+
+} // namespace
+
+TEST(WhisperAudioTest, IsWhisperReadyAudioAcceptsOnly16kHzMonoOrStereoWav) {
+    // Given
+    const std::string mono16k = writeTestWav("rsans_ready_mono.wav", 1, 16000);
+    const std::string stereo16k = writeTestWav("rsans_ready_stereo.wav", 2, 16000);
+    const std::string stereo44k = writeTestWav("rsans_ready_44k.wav", 2, 44100);
+    const std::string threeChannel = writeTestWav("rsans_ready_3ch.wav", 3, 16000);
+    const std::string notAudio = (std::filesystem::temp_directory_path() / "rsans_ready_text.wav").string();
+    std::ofstream(notAudio) << "not audio";
+
+    // Then
+    EXPECT_TRUE(isWhisperReadyAudio(mono16k));
+    EXPECT_TRUE(isWhisperReadyAudio(stereo16k));
+    EXPECT_FALSE(isWhisperReadyAudio(stereo44k));
+    EXPECT_FALSE(isWhisperReadyAudio(threeChannel));
+    EXPECT_FALSE(isWhisperReadyAudio(notAudio));
+    EXPECT_FALSE(isWhisperReadyAudio("/nonexistent/audio.wav"));
+
+    for (const std::string& path : {mono16k, stereo16k, stereo44k, threeChannel, notAudio}) {
+        std::filesystem::remove(path);
+    }
+}
+
+TEST(WhisperAudioTest, ConvertAudioForWhisperProduces16kHzMonoWavGiven44kStereoWav) {
+    if (!ffmpegAvailable()) {
+        GTEST_SKIP() << "ffmpeg not found";
+    }
+    // Given: 2 seconds at 44.1 kHz stereo
+    const std::string input = writeTestWav("rsans_convert_in.wav", 2, 44100, 2000);
+    const std::string output = (std::filesystem::temp_directory_path() / "rsans_convert_out.wav").string();
+
+    // When
+    convertAudioForWhisper(input, output, "ffmpeg");
+
+    // Then
+    EXPECT_TRUE(isWhisperReadyAudio(output));
+    EXPECT_NEAR(getAudioDuration(output), 2.0, 0.01);
+    std::filesystem::remove(input);
+    std::filesystem::remove(output);
+}
+
+TEST(WhisperAudioTest, ConvertAudioForWhisperProducesWavGivenFlac) {
+    if (!ffmpegAvailable()) {
+        GTEST_SKIP() << "ffmpeg not found";
+    }
+    // Given: a compressed format libsndfile and dr_wav aren't asked to read
+    const std::filesystem::path dir = std::filesystem::temp_directory_path();
+    const std::string flac = (dir / "rsans convert in.flac").string();
+    ASSERT_EQ(runProcess({"ffmpeg", "-nostdin", "-y", "-loglevel", "error",
+                          "-f", "lavfi", "-i", "sine=frequency=440:duration=1:sample_rate=48000",
+                          flac}), 0);
+    const std::string output = (dir / "rsans convert out.wav").string();
+
+    // When
+    convertAudioForWhisper(flac, output, "ffmpeg");
+
+    // Then
+    EXPECT_TRUE(isWhisperReadyAudio(output));
+    EXPECT_NEAR(getAudioDuration(output), 1.0, 0.01);
+    std::filesystem::remove(flac);
+    std::filesystem::remove(output);
+}
+
+TEST(WhisperAudioTest, ConvertAudioForWhisperThrowsWithFfmpegErrorGivenNonAudioFile) {
+    if (!ffmpegAvailable()) {
+        GTEST_SKIP() << "ffmpeg not found";
+    }
+    // Given
+    const std::filesystem::path dir = std::filesystem::temp_directory_path();
+    const std::string input = (dir / "rsans_convert_bad.mp3").string();
+    std::ofstream(input) << "not audio";
+    const std::string output = (dir / "rsans_convert_bad_out.wav").string();
+
+    // When / Then
+    try {
+        convertAudioForWhisper(input, output, "ffmpeg");
+        FAIL() << "Expected std::runtime_error";
+    } catch (const std::runtime_error& e) {
+        const std::string message = e.what();
+        EXPECT_NE(message.find("Failed to convert audio"), std::string::npos) << message;
+        EXPECT_NE(message.find('\n'), std::string::npos) << "No ffmpeg output in: " << message;
+    }
+    std::filesystem::remove(input);
+    std::filesystem::remove(output);
+}
+
+TEST(WhisperAudioTest, ConvertAudioForWhisperThrowsCancelledGivenCancelAlreadyRequested) {
+    // Given
+    const std::string input = writeTestWav("rsans_convert_cancel.wav", 2, 44100);
+    CancelFlag cancel;
+    cancel.request();
+
+    // When / Then
+    EXPECT_THROW(convertAudioForWhisper(input, input + ".out.wav", "ffmpeg", &cancel), CancelledError);
+    std::filesystem::remove(input);
+}
+
+TEST(WhisperAudioTest, TokenizeAudioConvertsAudioGiven44kWav) {
+    if (!ffmpegAvailable()) {
+        GTEST_SKIP() << "ffmpeg not found";
+    }
+    // Given: audio that used to be rejected outright
+    const std::string audio = writeTestWav("rsans_tokenize_44k.wav", 2, 44100);
+    const std::size_t tempFilesBefore = countConversionTempFiles();
+
+    // When
+    std::string message;
+    try {
+        tokenizeAudio(projectWithAudio(audio), "ffmpeg");
+    } catch (const std::runtime_error& e) {
+        message = e.what();
+    }
+
+    // Then: conversion succeeded, so the failure is now the missing model
+    EXPECT_NE(message.find("Failed to load Whisper model"), std::string::npos) << message;
+
+    // And the converted temp file is deleted
+    EXPECT_EQ(countConversionTempFiles(), tempFilesBefore);
+    std::filesystem::remove(audio);
+}
+
+TEST(WhisperAudioTest, TokenizeAudioSkipsConversionGiven16kWav) {
+    // Given: ffmpeg path that can't run, which is fine because none is needed
+    const std::string audio = writeTestWav("rsans_tokenize_16k.wav", 1, 16000);
+
+    // When / Then
+    try {
+        tokenizeAudio(projectWithAudio(audio), "/nonexistent/ffmpeg");
+        FAIL() << "Expected std::runtime_error";
+    } catch (const std::runtime_error& e) {
+        EXPECT_NE(std::string(e.what()).find("Failed to load Whisper model"), std::string::npos) << e.what();
+    }
+    std::filesystem::remove(audio);
+}
+
+TEST(WhisperAudioTest, TokenizeAudioThrowsGivenUnconvertibleAudioAndMissingFfmpeg) {
+    // Given
+    const std::string audio = writeTestWav("rsans_tokenize_noffmpeg.wav", 2, 44100);
+
+    // When / Then
+    try {
+        tokenizeAudio(projectWithAudio(audio), "/nonexistent/ffmpeg");
+        FAIL() << "Expected std::runtime_error";
+    } catch (const std::runtime_error& e) {
+        EXPECT_NE(std::string(e.what()).find("/nonexistent/ffmpeg"), std::string::npos) << e.what();
+    }
+    std::filesystem::remove(audio);
 }
