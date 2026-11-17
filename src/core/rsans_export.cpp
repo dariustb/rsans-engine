@@ -40,6 +40,47 @@ bool isImageFile(const std::string& path)
                         [&](const char* e){ return ext == e; });
 }
 
+// Quotes one argument so the shell passes it through unchanged, whatever
+// spaces or special characters it contains.
+std::string shellQuote(const std::string& arg) {
+#ifdef _WIN32
+    // cmd.exe: wrap in double quotes (Windows paths cannot contain '"')
+    return "\"" + arg + "\"";
+#else
+    // POSIX sh: wrap in single quotes; an embedded ' becomes '\''
+    std::string quoted = "'";
+    for (const char c : arg) {
+        if (c == '\'') {
+            quoted += "'\\''";
+        } else {
+            quoted += c;
+        }
+    }
+    quoted += "'";
+    return quoted;
+#endif
+}
+
+// Escapes a value placed inside an ffmpeg filtergraph (e.g. movie=<path>).
+// ffmpeg parses these in two passes, each with its own special characters,
+// so the value is escaped once per pass. See "Notes on filtergraph escaping"
+// in the ffmpeg-filters documentation.
+std::string escapeFilterValue(const std::string& value) {
+    const auto escapeChars = [](const std::string& input, const std::string& special) {
+        std::string escaped;
+        for (const char c : input) {
+            if (special.find(c) != std::string::npos) {
+                escaped += '\\';
+            }
+            escaped += c;
+        }
+        return escaped;
+    };
+
+    const std::string optionLevel = escapeChars(value, "\\':");
+    return escapeChars(optionLevel, "\\'[],;");
+}
+
 // Runs a shell command, capturing stdout and stderr instead of letting them
 // reach the terminal. Each line is passed to onOutput; ffmpeg ends its progress
 // updates with '\r', so that counts as a line break too. Returns the exit code
@@ -108,20 +149,30 @@ int executeFfmpegBuild(const ProjectData& data,
         ? layoutFontDir
         : layoutFontDir.parent_path();
 
+    std::ostringstream colorSource;
+    colorSource << "color=c=" << escapeFilterValue(data.video.background)
+                << ":s=" << data.video.width << "x" << data.video.height
+                << ":d=" << data.audio.length;
+
+    std::ostringstream filterGraph;
+    filterGraph << "movie=" << escapeFilterValue(data.header.media) << ","
+                << "scale=" << data.video.width << ":-1"
+                << (isImageFile(data.header.media) ? "[cover];[0:v][cover]" : "[hdr];[0:v][hdr]")
+                << "overlay=0:0,"
+                << "subtitles=" << escapeFilterValue(assPath)
+                << ":fontsdir=" << escapeFilterValue(fontsDir.string());
+
+    // Every value that comes from the project or the caller is quoted, so paths
+    // containing spaces or shell characters reach ffmpeg as single arguments
     std::ostringstream cmd;
     // -nostdin stops ffmpeg from reading keypresses meant for the caller (e.g. a TUI)
-    cmd << ffmpegPath << " -nostdin -y ";
-    cmd << "-f lavfi -i color=c=" << data.video.background << ":s=" << data.video.width << "x"
-        << data.video.height << ":d=" << data.audio.length << " ";
-    cmd << "-i " << data.audio.path << " ";
-    cmd << "-vf " << "\"movie=" << data.header.media << ","
-        << "scale=" << data.video.width << ":-1"
-        << (isImageFile(data.header.media) ? "[cover];[0:v][cover]" : "[hdr];[0:v][hdr]")
-        << "overlay=0:0,";
-    cmd << "subtitles=" << assPath << ":fontsdir=" << fontsDir.string() << "\" ";
+    cmd << shellQuote(ffmpegPath) << " -nostdin -y ";
+    cmd << "-f lavfi -i " << shellQuote(colorSource.str()) << " ";
+    cmd << "-i " << shellQuote(data.audio.path) << " ";
+    cmd << "-vf " << shellQuote(filterGraph.str()) << " ";
     cmd << "-c:v libx264 -c:a aac -shortest ";
-    cmd << outputVideoPath;
-    
+    cmd << shellQuote(outputVideoPath);
+
     // Execute ffmpeg
     std::deque<std::string> recentOutput;
     const int result = runCapturingOutput(cmd.str(), onOutput, recentOutput);
