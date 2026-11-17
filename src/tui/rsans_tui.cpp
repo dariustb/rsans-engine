@@ -12,6 +12,10 @@
 #include <ftxui/component/event.hpp>
 #include <ftxui/component/screen_interactive.hpp>
 #include <ftxui/dom/elements.hpp>
+#include <ftxui/dom/node.hpp>
+#include <ftxui/dom/requirement.hpp>
+#include <ftxui/screen/box.hpp>
+#include <ftxui/screen/screen.hpp>
 #include <ftxui/screen/color.hpp>
 #include <ftxui/screen/terminal.hpp>
 
@@ -119,6 +123,59 @@ const std::vector<std::string> dictTypes = {".dict", ".txt"};
 const std::vector<std::string> fontTypes = {".ttf", ".otf", ".ttc"};
 const std::vector<std::string> videoTypes = {".mp4", ".mkv", ".mov", ".webm"};
 
+// Colors a dialog's frame so it stands out from the screen behind it: the
+// box-drawing characters around its edge, and the separator lines across it.
+// The title and the contents keep their own colors.
+class FrameColor : public Node {
+  public:
+    FrameColor(Element child, ftxui::Color frameColor)
+    : Node(Elements{std::move(child)})
+    , d_color(frameColor) {}
+
+    void ComputeRequirement() override {
+        Node::ComputeRequirement();
+        requirement_ = children_[0]->requirement();
+    }
+
+    void SetBox(Box box) override {
+        Node::SetBox(box);
+        children_[0]->SetBox(box);
+    }
+
+    void Render(Screen& screen) override {
+        Node::Render(screen);
+        for (int y = box_.y_min; y <= box_.y_max; ++y) {
+            // Edges, plus whole rows that are separators. (FTXUI joins │ and ─
+            // into ├ only after everything is drawn, so look for the ─.)
+            const bool edgeRow = y == box_.y_min || y == box_.y_max;
+            const bool separatorRow = box_.x_min + 1 <= box_.x_max &&
+                                      screen.PixelAt(box_.x_min + 1, y).character == "\u2500";
+            for (int x = box_.x_min; x <= box_.x_max; ++x) {
+                const bool edge = edgeRow || separatorRow || x == box_.x_min || x == box_.x_max;
+                Pixel& pixel = screen.PixelAt(x, y);
+                if (edge && isBoxDrawing(pixel.character)) {
+                    pixel.foreground_color = d_color;
+                }
+            }
+        }
+    }
+
+  private:
+    ftxui::Color d_color;
+
+    // U+2500-U+257F, which is E2 94 80 to E2 95 BF in UTF-8
+    static bool isBoxDrawing(const std::string& character) {
+        return character.size() == 3 && static_cast<unsigned char>(character[0]) == 0xE2 &&
+               (static_cast<unsigned char>(character[1]) == 0x94 ||
+                static_cast<unsigned char>(character[1]) == 0x95);
+    }
+};
+
+// A pop-up dialog: a titled window with a yellow frame
+Element dialogWindow(const std::string& title, Element content) {
+    return std::make_shared<FrameColor>(window(text(title), std::move(content)), ftxui::Color::YellowLight);
+}
+
 // Project files are JSON, saved with their own extension. Older .json
 // projects can still be opened.
 const std::string projectExtension = ".rsans";
@@ -207,7 +264,7 @@ RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void
             ? "New project"
             : std::filesystem::path(d_projectPath).filename().string();
         Element fileStatus = d_saveMessage.empty()
-            ? text(name + (unsaved ? " *" : "")) | (unsaved ? color(ftxui::Color::Yellow) : dim)
+            ? text(name + (unsaved ? " *" : "")) | (unsaved ? color(ftxui::Color::YellowLight) : dim)
             : text(d_saveMessage) | color(ftxui::Color::Green);
         return vbox({
             hbox({text(" RSANS ") | bold | inverted, text(" "), tabBar->Render(), filler(),
@@ -412,7 +469,7 @@ Component RsansApp::makeQuitPrompt() {
             : std::filesystem::path(d_projectPath).filename().string();
         const std::string question = d_promptLeave == Leave::Menu ? "Save before going back to the menu?"
                                                                   : "Save before quitting?";
-        return window(text(" Unsaved changes "), vbox({
+        return dialogWindow(" Unsaved changes ", vbox({
             text(name + " has unsaved changes."),
             text(question),
             text(""),
@@ -616,7 +673,7 @@ Component RsansApp::makeModelPicker() {
                       text("\u2713 installed") | dim}),
             });
         }
-        return window(text(" Whisper model "), body) | size(WIDTH, EQUAL, 50);
+        return dialogWindow(" Whisper model ", body) | size(WIDTH, EQUAL, 50);
     });
 
     return CatchEvent(rendered, [this](const Event& event) {
@@ -889,7 +946,7 @@ Component RsansApp::makeFontPicker() {
             }
         }
 
-        return window(text(title), vbox({
+        return dialogWindow(title, vbox({
             hbox({text("Search ") | bold, search->Render() | flex}),
             text(status) | dim,
             separator(),
@@ -1074,7 +1131,7 @@ Component RsansApp::makeFileDialog() {
                                                : list->Render() | vscroll_indicator | frame;
         const std::string hint = browser.saveMode() ? "Enter: open folder / save  Esc: close"
                                                     : "Enter: open  Backspace: up  Esc: close";
-        return window(text(" " + d_fileTitle + " "), vbox({
+        return dialogWindow(" " + d_fileTitle + " ", vbox({
             hbox({text("Folder ") | bold, text(elideLeft(browser.directory().string(), 70)) | dim}),
             hbox({text(browser.saveMode() ? "Name   " : "Search ") | bold, search->Render() | flex}),
             status,
@@ -1180,7 +1237,7 @@ Component RsansApp::makeProjectTab() {
                 Element status = text("");
                 if (d_runner.isRunning() && d_runner.name().rfind("Download ", 0) == 0) {
                     status = text("  " + d_runner.name() + "... " + percent(d_runner.progress())) |
-                             color(ftxui::Color::Yellow);
+                             color(ftxui::Color::YellowLight);
                 }
                 lines.push_back(hbox({
                     text("  " + field->label) | size(WIDTH, EQUAL, labelWidth),

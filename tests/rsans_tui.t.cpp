@@ -1590,3 +1590,63 @@ TEST(MenuTest, MenuWaitsWhileStepRuns) {
     EXPECT_TRUE(app.goToMenu());
     EXPECT_EQ(app.screen(), RsansApp::Screen::Start);
 }
+
+// Dialog frames
+
+namespace {
+
+// Where a dialog's top-left corner is: the "╭" that isn't the app's own (0, 0)
+std::pair<int, int> dialogCorner(const ftxui::Screen& screen) {
+    for (int y = 1; y < screen.dimy(); ++y) {
+        for (int x = 1; x < screen.dimx(); ++x) {
+            if (screen.PixelAt(x, y).character == "╭") {
+                return {x, y};
+            }
+        }
+    }
+    return {-1, -1};
+}
+
+} // namespace
+
+TEST(DialogFrameTest, DialogFramesAreYellowButTitlesAndAppFrameAreNot) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    app.setFonts(pickerFonts());
+
+    const auto check = [&](const std::string& which) {
+        auto screen = ftxui::Screen::Create(ftxui::Dimension::Fixed(120), ftxui::Dimension::Fixed(60));
+        ftxui::Render(screen, app.component()->Render());
+        const auto [x, y] = dialogCorner(screen);
+        ASSERT_GE(x, 0) << which;
+        const ftxui::Color yellow(ftxui::Color::YellowLight);
+        EXPECT_EQ(screen.PixelAt(x, y).foreground_color, yellow) << which;      // ╭
+        EXPECT_EQ(screen.PixelAt(x, y + 1).foreground_color, yellow) << which;  // │
+        EXPECT_NE(screen.PixelAt(x + 2, y).foreground_color, yellow) << which;  // Title
+        EXPECT_NE(screen.PixelAt(0, 0).foreground_color, yellow) << which;      // The app
+        // Separator rows are yellow all the way across
+        for (int row = y + 1; row < screen.dimy(); ++row) {
+            if (screen.PixelAt(x, row).character == "├") {
+                EXPECT_EQ(screen.PixelAt(x + 5, row).foreground_color, yellow) << which;
+                break;
+            }
+        }
+    };
+
+    app.openFontPicker(RsansApp::FontTarget::Header);
+    check("font picker");
+    app.component()->OnEvent(ftxui::Event::Escape);
+
+    app.browseFor("audio.path");
+    check("file dialog");
+    app.component()->OnEvent(ftxui::Event::Escape);
+
+    app.openModelPicker();
+    check("model picker");
+    app.component()->OnEvent(ftxui::Event::Escape);
+
+    app.form().setFieldText("header.title", "x");
+    app.goToMenu();
+    check("unsaved changes");
+}
