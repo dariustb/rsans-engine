@@ -3,7 +3,12 @@
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
+#include <filesystem>
+#include <fstream>
 #include <sstream>
+#include <string>
+#include <vector>
 
 using json = nlohmann::json;
 
@@ -818,4 +823,221 @@ TEST(ProjectDataTest, ToJsonRoundTripPreservesDataGivenCompleteProjectData) {
     EXPECT_EQ(restored.tokens[0].rhymeIndex.value(), original.tokens[0].rhymeIndex.value());
     EXPECT_FALSE(restored.tokens[1].rhymeIndex.has_value());
     EXPECT_EQ(restored.colorSwatch.size(), original.colorSwatch.size());
+}
+
+namespace {
+
+bool hasErrorFor(const std::vector<ValidationError>& errors, const std::string& field) {
+    return std::any_of(errors.begin(), errors.end(),
+                       [&](const ValidationError& e) { return e.field == field; });
+}
+
+// Creates empty placeholder files and a project that refers to them, so
+// validation (which only checks that files exist) sees a complete project
+class ProjectValidationTest : public ::testing::Test {
+  protected:
+    std::filesystem::path dir;
+    ProjectData project;
+
+    std::string touch(const std::string& name) {
+        const std::filesystem::path path = dir / name;
+        std::ofstream(path).put('x');
+        return path.string();
+    }
+
+    void SetUp() override {
+        dir = std::filesystem::temp_directory_path() / "rsans_validation_test";
+        std::filesystem::create_directories(dir);
+
+        project.header.fontName = "Arial";
+        project.header.fontPath = touch("font.ttf");
+        project.header.title = "Title";
+        project.header.titleSize = 64;
+        project.header.artist = "Artist";
+        project.header.artistSize = 36;
+        project.header.media = touch("cover.png");
+        project.audio.path = touch("song.wav");
+        project.audio.length = 42.0;
+        project.video.width = 1920;
+        project.video.height = 1080;
+        project.video.background = "black";
+        project.layout.fontName = "Arial";
+        project.layout.fontPath = project.header.fontPath;
+        project.layout.fontSize = 48;
+        project.layout.lineHeight = 60;
+        project.model.base = touch("model.bin");
+    }
+
+    void TearDown() override {
+        std::filesystem::remove_all(dir);
+    }
+};
+
+} // namespace
+
+TEST(ProjectDataTest, DefaultConstructorCreatesBlankProject) {
+    // When
+    const ProjectData project;
+
+    // Then
+    EXPECT_TRUE(project.audio.path.empty());
+    EXPECT_EQ(project.audio.length, 0.0);
+    EXPECT_EQ(project.video.width, 0);
+    EXPECT_EQ(project.layout.fontSize, 0);
+    EXPECT_TRUE(project.tokens.empty());
+    EXPECT_TRUE(project.colorSwatch.empty());
+}
+
+TEST(ProjectDataTest, ValidateReportsEveryMandatoryFieldGivenBlankProject) {
+    // Given
+    const ProjectData project;
+
+    // When
+    const std::vector<ValidationError> errors = project.validate();
+
+    // Then
+    EXPECT_FALSE(project.isValid());
+    for (const std::string field : {
+             "header.fontName", "header.fontPath", "header.title", "header.titleSize",
+             "header.artist", "header.artistSize",
+             "header.media", "audio.path", "audio.length", "video.width", "video.height",
+             "video.background", "layout.fontName", "layout.fontPath", "layout.fontSize",
+             "layout.lineHeight", "model.path"}) {
+        EXPECT_TRUE(hasErrorFor(errors, field)) << "No error for " << field;
+    }
+}
+
+TEST(ProjectDataTest, ValidateDoesNotRequireOptionalFieldsGivenBlankProject) {
+    // Given
+    const ProjectData project;
+
+    // When
+    const std::vector<ValidationError> errors = project.validate();
+
+    // Then
+    for (const std::string field : {"cmudict", "colorSwatch"}) {
+        EXPECT_FALSE(hasErrorFor(errors, field)) << "Unexpected error for " << field;
+    }
+}
+
+TEST_F(ProjectValidationTest, IsValidGivenCompleteProject) {
+    EXPECT_TRUE(project.validate().empty());
+    EXPECT_TRUE(project.isValid());
+}
+
+TEST_F(ProjectValidationTest, ReportsRequiredGivenEmptyTitleAndArtist) {
+    // Given
+    project.header.title = "";
+    project.header.artist = "";
+
+    // When
+    const std::vector<ValidationError> errors = project.validate();
+
+    // Then
+    ASSERT_EQ(errors.size(), 2);
+    EXPECT_TRUE(hasErrorFor(errors, "header.title"));
+    EXPECT_TRUE(hasErrorFor(errors, "header.artist"));
+}
+
+TEST_F(ProjectValidationTest, ReportsMissingFileGivenNonExistentAudioPath) {
+    // Given
+    project.audio.path = (dir / "missing.wav").string();
+
+    // When
+    const std::vector<ValidationError> errors = project.validate();
+
+    // Then
+    ASSERT_EQ(errors.size(), 1);
+    EXPECT_EQ(errors[0].field, "audio.path");
+    EXPECT_NE(errors[0].message.find("file not found"), std::string::npos);
+}
+
+TEST_F(ProjectValidationTest, ReportsMissingFileGivenDirectoryAsModelPath) {
+    // Given
+    project.model.base = dir.string();
+
+    // Then
+    EXPECT_TRUE(hasErrorFor(project.validate(), "model.path"));
+}
+
+TEST_F(ProjectValidationTest, ReportsOddDimensionsGivenOddWidthAndHeight) {
+    // Given
+    project.video.width = 1921;
+    project.video.height = 1081;
+
+    // When
+    const std::vector<ValidationError> errors = project.validate();
+
+    // Then
+    EXPECT_TRUE(hasErrorFor(errors, "video.width"));
+    EXPECT_TRUE(hasErrorFor(errors, "video.height"));
+}
+
+TEST_F(ProjectValidationTest, ReportsNegativeAudioLengthGivenUnreadableAudio) {
+    // Given: the JSON loader sets -1 when libsndfile cannot read the file
+    project.audio.length = -1.0;
+
+    // Then
+    EXPECT_TRUE(hasErrorFor(project.validate(), "audio.length"));
+}
+
+TEST_F(ProjectValidationTest, IsValidGivenExistingCmudict) {
+    // Given
+    project.cmudict = touch("cmudict.dict");
+
+    // Then
+    EXPECT_TRUE(project.isValid());
+}
+
+TEST_F(ProjectValidationTest, ReportsMissingFileGivenNonExistentCmudict) {
+    // Given
+    project.cmudict = (dir / "missing.dict").string();
+
+    // Then
+    EXPECT_TRUE(hasErrorFor(project.validate(), "cmudict"));
+}
+
+TEST_F(ProjectValidationTest, ReportsBadColorGivenNonHexSwatchEntry) {
+    // Given
+    project.colorSwatch = {Color("#FF8800"), Color("#GG0000")};
+
+    // When
+    const std::vector<ValidationError> errors = project.validate();
+
+    // Then
+    ASSERT_EQ(errors.size(), 1);
+    EXPECT_EQ(errors[0].field, "colorSwatch[1]");
+}
+
+TEST_F(ProjectValidationTest, ReportsEmptySwatchGivenTokensWithRhymeGroups) {
+    // Given
+    project.tokens = {Token(0, "day", 0, 500, 0, 0), Token(1, "way", 500, 1000, 0, 0)};
+
+    // Then
+    EXPECT_TRUE(hasErrorFor(project.validate(), "colorSwatch"));
+}
+
+TEST_F(ProjectValidationTest, IsValidGivenTokensWithRhymeGroupsAndSwatch) {
+    // Given
+    project.tokens = {Token(0, "day", 0, 500, 0, 0), Token(1, "way", 500, 1000, 0, 0)};
+    project.colorSwatch = {Color("#FF8800")};
+
+    // Then
+    EXPECT_TRUE(project.isValid());
+}
+
+TEST_F(ProjectValidationTest, ReportsTokenErrorsGivenInvalidToken) {
+    // Given
+    project.tokens = {Token(0, "", -100, -200, -1, -1)};
+    project.colorSwatch = {Color("#FF8800")};
+
+    // When
+    const std::vector<ValidationError> errors = project.validate();
+
+    // Then
+    EXPECT_TRUE(hasErrorFor(errors, "tokens[0].text"));
+    EXPECT_TRUE(hasErrorFor(errors, "tokens[0].startMs"));
+    EXPECT_TRUE(hasErrorFor(errors, "tokens[0].endMs"));
+    EXPECT_TRUE(hasErrorFor(errors, "tokens[0].lineIndex"));
+    EXPECT_TRUE(hasErrorFor(errors, "tokens[0].rhymeIndex"));
 }

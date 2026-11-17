@@ -38,33 +38,38 @@ class Color {
     Color(const std::string& hexValue);
 };
 
+struct ValidationError {
+    std::string field;    // Dotted path matching the JSON keys, e.g. "audio.path"
+    std::string message;
+};
+
 struct ProjectData {
     struct HeaderData {
         std::string fontName;
         std::string fontPath;
         std::string title;
-        int titleSize;
+        int titleSize = 0;
         std::string artist;
-        int artistSize;
+        int artistSize = 0;
         std::string media;
     } header;
 
     struct AudioData {
         std::string path;
-        double length;
+        double length = 0.0;
     } audio;
 
     struct VideoConfig {
-        int width;
-        int height;
+        int width = 0;
+        int height = 0;
         std::string background;
     } video;
     
     struct LayoutConfig {
         std::string fontName;
         std::string fontPath;
-        int fontSize;
-        int lineHeight;
+        int fontSize = 0;
+        int lineHeight = 0;
     } layout;
 
     struct ModelPaths {
@@ -78,12 +83,17 @@ struct ProjectData {
 
     std::vector<Color> colorSwatch;
 
-    ProjectData() = delete;
+    ProjectData() = default;  // Blank project: not valid until mandatory values are filled in.
     ProjectData(const std::string& jsonContent);
     ProjectData(ProjectData base, std::vector<Token>& newTokens);
     ProjectData(ProjectData&& other) noexcept;
 
     std::string toJson() const;
+
+    // Checks that mandatory values are present and that every value present is
+    // usable. Returns one error per problem, or an empty vector if valid.
+    std::vector<ValidationError> validate() const;
+    bool isValid() const;
 };
 
 #endif
