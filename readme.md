@@ -40,7 +40,7 @@ sudo apt-get install build-essential cmake git pkg-config clang-tidy libass-dev 
 
 ### To run
 - **FFmpeg** on your `PATH` (or pass `--ffmpeg /path/to/ffmpeg`). Used to convert audio for transcription and to render the video.
-- **A Whisper model** in ggml format (`ggml-*.bin`). whisper.cpp's download script fetches one by size, e.g. `base.en`:
+- **A Whisper model** in ggml format (`ggml-*.bin`). The interactive UI lists whisper.cpp's models and can download them for you (see below). Or fetch one with whisper.cpp's download script, e.g. `base.en`:
   ```sh
   sh build/_deps/whisper-src/models/download-ggml-model.sh base.en
   ```
@@ -82,6 +82,14 @@ The project editor has three tabs:
 
 Every file path can be typed, or picked with its **Browse** button (move right from the path, or Tab to it). The file browser starts in the folder of the current path and lists folders plus the file types that setting accepts (images for the cover, audio files, `.bin` models, and so on); tick **Show all files** to see everything. Type to filter the list, or type a path (`~` works) and press Enter to go straight to it. Enter opens a folder or chooses a file, Backspace with nothing typed goes up a folder, and Esc closes it. For the output video the typed text is the file name to save as, and `.mp4` is added if there's no extension.
 
+The Whisper model is chosen from the models whisper.cpp offers. Press Enter on **Whisper model** to see one model per size: tiny.en, base.en, small.en, medium.en, large-v3 and large-v3-turbo (RSANS transcribes English, so the English-only versions are offered), plus any you've already installed. Tick **Show all** for every variant, including the multilingual and quantized ones. Installed models are marked ✓ and the rest show their download size, e.g. `medium.en (1.5 GiB)`; a `~` means the size is estimated. Choosing an installed model uses it. Choosing one that isn't installed asks first, then downloads it with whisper.cpp's own `download-ggml-model.sh` (using curl or wget). The download runs on the Run tab with progress, and can be cancelled; a failed or cancelled download leaves no partial file. **Other file...** picks any `.bin` model instead.
+
+The list of models and their sizes are read from a whisper.cpp checkout (its `models/download-ggml-model.sh` and `models/README.md`), and models are stored in its `models/` folder, where that script puts them. By default that's the copy CMake downloads to build RSANS (`build/_deps/whisper-src`). To use your own checkout, set it when configuring, or per run with an environment variable:
+```sh
+cmake -S . -B build -DRSANS_WHISPER_CPP_DIR=~/whisper.cpp
+WHISPER_CPP_DIR=~/whisper.cpp rsans
+```
+
 Fonts are chosen from the fonts installed on your system. Press Enter on **Header font** or **Lyrics font** to open the picker, type part of a name to filter the list, and press Enter to choose; Esc closes it. Typing a path to a font file, or using **Browse files**, uses that file even if it isn't installed. Fonts are scanned in the background at startup, and the picker has a **Rescan fonts** button for fonts installed while it is running.
 
 New projects start with 1920x1080 video on black, standard text sizes and six rhyme colors. When `rsans` is started from the repository folder, the bundled `data/cmudict.dict` is filled in too.
@@ -89,9 +97,9 @@ New projects start with 1920x1080 video on black, standard text sizes and six rh
 | Key | Action |
 |---|---|
 | Arrow keys / Tab | Move between tabs, fields and buttons |
-| Enter | Press a button, open the font picker, or choose a font, file or folder |
+| Enter | Press a button, open the font or model picker, or choose a font, model, file or folder |
 | Backspace | In the file browser with nothing typed: go up a folder |
-| Esc | Close the font picker or file browser |
+| Esc | Close the font picker, model picker or file browser |
 | Ctrl+C | Quit (cancels a running step first) |
 
 Projects can be loaded but not saved yet: quitting discards changes made in the UI.
@@ -205,7 +213,8 @@ Tests that run FFmpeg are skipped if `ffmpeg` is not on the `PATH`. The export t
 - Fonts render in their regular style only (no bold or italic)
 - A font that isn't installed on the system must be in the same folder as the other font
 - Only one transcription can run at a time per process
-- The interactive UI can load project files but not save them yet, and the Whisper model is chosen by file path
+- The interactive UI can load project files but not save them yet
+- Downloading models from the UI needs internet access, `sh`, and curl or wget; everything else runs offline
 
 <!-- CI Test Badges -->
 [repo-size]:   https://img.shields.io/github/repo-size/dariustb/rsans-engine

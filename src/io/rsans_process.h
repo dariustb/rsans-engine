@@ -17,6 +17,9 @@ using ProcessOutputHandler = std::function<void(const std::string& line)>;
 //   '\r' also ends a line. stdin is /dev/null.
 // - If cancel is requested, the process is sent SIGTERM, then SIGKILL if it
 //   has not exited within killTimeoutMs, and CancelledError is thrown.
+// - ownProcessGroup: start the process in a new process group and signal the
+//   whole group, so programs it starts (e.g. a shell script's curl) are
+//   stopped too. Off by default so a terminal's Ctrl+C still reaches it.
 //
 // Returns the exit code, or -1 if the process was ended by a signal.
 // Throws std::runtime_error if the program cannot be started.
@@ -24,6 +27,7 @@ using ProcessOutputHandler = std::function<void(const std::string& line)>;
 int runProcess(const std::vector<std::string>& args,
                const ProcessOutputHandler& onLine = {},
                const CancelFlag* cancel = nullptr,
-               int killTimeoutMs = 3000);
+               int killTimeoutMs = 3000,
+               bool ownProcessGroup = false);
 
 #endif

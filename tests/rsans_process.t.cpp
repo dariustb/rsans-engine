@@ -163,3 +163,20 @@ TEST(ProcessTest, RunProcessStopsProgramGivenHandlerThrows) {
                  std::logic_error);
     EXPECT_LT(Clock::now() - start, std::chrono::seconds(2));
 }
+
+TEST(ProcessTest, RunProcessStopsChildProcessesGivenOwnProcessGroupAndCancel) {
+    // Given: a shell whose child (sleep) holds the output pipe open
+    CancelFlag cancel;
+    std::thread canceller([&cancel] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        cancel.request();
+    });
+    const auto start = std::chrono::steady_clock::now();
+
+    // When
+    EXPECT_THROW(runProcess({"sh", "-c", "sleep 30; echo done"}, {}, &cancel, 3000, true), CancelledError);
+    canceller.join();
+
+    // Then: the whole group was stopped, not just the shell
+    EXPECT_LT(std::chrono::steady_clock::now() - start, std::chrono::seconds(5));
+}

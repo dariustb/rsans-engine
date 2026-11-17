@@ -31,6 +31,7 @@ target_sources(test_rsans
 		rsans_process.t.cpp
 		rsans_rhyme.t.cpp
 		rsans_tui.t.cpp
+		rsans_whisper_models.t.cpp
 		rsans_whisper.t.cpp
 )
 

@@ -2,6 +2,7 @@
 
 #include <rsans_export.h>
 #include <rsans_io.h>
+#include <rsans_process.h>
 #include <rsans_rhyme.h>
 #include <rsans_title.h>
 #include <rsans_whisper.h>
@@ -148,13 +149,16 @@ Component TextInput(StringRef content, StringRef placeholder, InputOption option
 } // namespace
 
 RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void()> quit)
-: ffmpegPath(std::move(ffmpeg))
+: whisperDir(defaultWhisperDir())
+, ffmpegPath(std::move(ffmpeg))
 , d_form(defaultProject())
 , d_quit(std::move(quit))
 , d_post(post)
 , d_startEntries({"New project", "Load project", "Credits", "Quit"})
 , d_tabNames({"Project", "Run", "Lyrics"})
 , d_runner(std::move(post)) {
+    refreshWhisperModels();
+
     Component tabs = Container::Tab({makeProjectTab(), makeRunTab(), makeLyricsTab()}, &d_tab);
     Component tabBar = Toggle(&d_tabNames, &d_tab);
     Component layout = Container::Vertical({tabBar, tabs});
@@ -174,7 +178,8 @@ RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void
     // top of that (the picker can open it to pick a font file)
     Component screens = Container::Tab({makeStartScreen(), makeCredits(), rendered}, &d_screen);
     Component withPicker = Modal(screens, makeFontPicker(), &d_pickerOpen);
-    Component withDialogs = Modal(withPicker, makeFileDialog(), &d_fileDialogOpen);
+    Component withModels = Modal(withPicker, makeModelPicker(), &d_modelPickerOpen);
+    Component withDialogs = Modal(withModels, makeFileDialog(), &d_fileDialogOpen);
 
     d_root = CatchEvent(withDialogs, [this](const Event& event) {
         if (event == Event::CtrlC) {
@@ -190,6 +195,204 @@ RsansApp::~RsansApp() {
     if (d_fontScan.joinable()) {
         d_fontScan.join();
     }
+}
+
+void RsansApp::refreshWhisperModels() {
+    d_models = listWhisperModels(whisperDir);
+    refreshModelList();
+}
+
+void RsansApp::refreshModelList() {
+    // The main models, or every one
+    d_modelIndexes.clear();
+    if (d_modelShowAll) {
+        for (std::size_t i = 0; i < d_models.size(); ++i) {
+            d_modelIndexes.push_back(i);
+        }
+    } else {
+        d_modelIndexes = mainWhisperModels(d_models);
+    }
+
+    // Names in a column, then "✓" or the download size
+    std::size_t nameWidth = 0;
+    for (const std::size_t index : d_modelIndexes) {
+        nameWidth = std::max(nameWidth, d_models[index].name.size());
+    }
+    d_modelLabels.clear();
+    for (const std::size_t index : d_modelIndexes) {
+        const WhisperModel& model = d_models[index];
+        const std::string mark = modelLabel(model).substr(model.name.size() + 1);
+        d_modelLabels.push_back(model.name + std::string(nameWidth - model.name.size() + 2, ' ') + mark);
+    }
+
+    // Keep the chosen model highlighted
+    d_modelSelected = 0;
+    for (std::size_t i = 0; i < d_modelIndexes.size(); ++i) {
+        if (d_models[d_modelIndexes[i]].path == d_form.project().model.base) {
+            d_modelSelected = static_cast<int>(i);
+        }
+    }
+}
+
+void RsansApp::openModelPicker() {
+    d_modelView = 0;
+    d_modelToDownload.reset();
+    refreshWhisperModels();
+    d_modelPickerOpen = true;
+}
+
+std::optional<std::string> RsansApp::modelAwaitingDownload() const {
+    if (d_modelPickerOpen && d_modelView == 1 && d_modelToDownload && *d_modelToDownload < d_models.size()) {
+        return d_models[*d_modelToDownload].name;
+    }
+    return std::nullopt;
+}
+
+void RsansApp::chooseSelectedModel() {
+    const auto row = static_cast<std::size_t>(std::max(d_modelSelected, 0));
+    if (row >= d_modelIndexes.size()) {
+        return;
+    }
+    const std::size_t index = d_modelIndexes[row];
+    if (d_models[index].installed) {
+        d_form.setFieldText("model.path", d_models[index].path);
+        d_modelPickerOpen = false;
+        return;
+    }
+    // Not installed: ask before downloading
+    d_modelToDownload = index;
+    d_modelView = 1;
+}
+
+bool RsansApp::downloadModel(const std::string& name) {
+    const auto found = std::find_if(d_models.begin(), d_models.end(),
+                                    [&](const WhisperModel& model) { return model.name == name; });
+    if (found == d_models.end() || d_runner.isRunning()) {
+        return false;
+    }
+    const std::string script = whisperDownloadScript(whisperDir);
+    const std::string modelsDir = whisperModelsDir(whisperDir);
+    const std::string target = found->path;
+
+    return d_runner.start("Download " + name, [script, modelsDir, name, target](const StepContext& context) {
+        context.onStage("Downloading " + name);
+        // The script skips models that already exist, so clear out an empty file
+        std::error_code ec;
+        if (std::filesystem::exists(target, ec) && std::filesystem::file_size(target, ec) == 0) {
+            std::filesystem::remove(target, ec);
+        }
+
+        try {
+            // Its own process group, so cancelling also stops the curl or wget it runs
+            const int exitCode = runProcess(
+                {"sh", script, name, modelsDir},
+                [&context](const std::string& line) {
+                    const std::optional<double> progress = parseDownloadProgress(line);
+                    if (progress) {
+                        context.onProgress(*progress);
+                    } else if (line.find_first_not_of(" 	") != std::string::npos) {
+                        context.onLog(line);
+                    }
+                },
+                context.cancel, 3000, true);
+            if (exitCode != 0) {
+                throw std::runtime_error("whisper.cpp's download script failed (exit code " +
+                                         std::to_string(exitCode) + "); see the log");
+            }
+            if (!std::filesystem::exists(target, ec) || std::filesystem::file_size(target, ec) == 0) {
+                throw std::runtime_error("The download finished but " + target + " is missing or empty");
+            }
+        } catch (...) {
+            // Don't leave a partial model behind: it would look installed
+            std::filesystem::remove(target, ec);
+            throw;
+        }
+
+        context.onProgress(1.0);
+        context.onLog("Saved " + target);
+        ProjectData result;
+        result.model.base = target;
+        return result;
+    }, [this](const ProjectData& result) {
+        d_form.setFieldText("model.path", result.model.base);
+        refreshWhisperModels();
+    });
+}
+
+Component RsansApp::makeModelPicker() {
+    // The list
+    MenuOption listOption = MenuOption::Vertical();
+    listOption.on_enter = [this] { chooseSelectedModel(); };
+    Component list = Menu(&d_modelLabels, &d_modelSelected, listOption);
+
+    CheckboxOption showAllOption = CheckboxOption::Simple();
+    showAllOption.on_change = [this] { refreshModelList(); };
+    Component showAll = Checkbox("Show all", &d_modelShowAll, showAllOption);
+    Component otherFile = Button("Other file...", [this] {
+        openFileDialog("Whisper model", {".bin"}, false, d_form.project().model.base,
+                       [this](const std::string& path) {
+                           d_form.setFieldText("model.path", path);
+                           d_modelPickerOpen = false;
+                           return std::string();
+                       });
+    }, ButtonOption::Ascii());
+    Component listView = Container::Vertical({list, Container::Horizontal({showAll, otherFile})});
+
+    // Confirming a download
+    Component download = Button("Download", [this] {
+        if (d_modelToDownload && *d_modelToDownload < d_models.size() &&
+            downloadModel(d_models[*d_modelToDownload].name)) {
+            d_modelPickerOpen = false;
+        }
+    }, ButtonOption::Ascii());
+    Component back = Button("Back", [this] { d_modelView = 0; }, ButtonOption::Ascii());
+    Component confirmView = Container::Horizontal({download, back});
+
+    Component views = Container::Tab({listView, confirmView}, &d_modelView);
+
+    Component rendered = Renderer(views, [this, list, showAll, otherFile, download, back] {
+        Element body;
+        if (d_modelView == 1 && d_modelToDownload && *d_modelToDownload < d_models.size()) {
+            const WhisperModel& model = d_models[*d_modelToDownload];
+            const std::string size = model.sizeBytes
+                ? " (" + std::string(model.sizeEstimated ? "about " : "") + formatSize(*model.sizeBytes) + ")"
+                : "";
+            body = vbox({
+                text("Download " + model.name + size + "?") | bold,
+                paragraph("Saved to " + whisperModelsDir(whisperDir)) | dim,
+                d_runner.isRunning()
+                    ? text("Wait for " + d_runner.name() + " to finish first") | color(ftxui::Color::Red)
+                    : text("Progress shows on the Run tab") | dim,
+                text(""),
+                hbox({d_runner.isRunning() ? download->Render() | dim : download->Render(), text(" "),
+                      back->Render()}),
+            });
+        } else {
+            Element listing = d_models.empty()
+                ? paragraph("No models found. Set WHISPER_CPP_DIR to a whisper.cpp checkout.") |
+                      color(ftxui::Color::Red)
+                : list->Render() | vscroll_indicator | frame | size(HEIGHT, LESS_THAN, 16);
+            body = vbox({
+                listing,
+                separator(),
+                hbox({showAll->Render(), text("  "), otherFile->Render(), filler(),
+                      text("\u2713 installed") | dim}),
+            });
+        }
+        return window(text(" Whisper model "), body) | size(WIDTH, EQUAL, 50);
+    });
+
+    return CatchEvent(rendered, [this](const Event& event) {
+        if (event == Event::Escape) {
+            if (d_modelView == 1) {
+                d_modelView = 0;
+            } else {
+                d_modelPickerOpen = false;
+            }
+            return true;
+        }
+        return false;
+    });
 }
 
 void RsansApp::newProject() {
@@ -676,6 +879,12 @@ Component RsansApp::makeProjectTab() {
         if (isFontPath) {
             continue;
         }
+        if (field.key == "model.path") {
+            Component button = Button(&d_modelButtonLabel, [this] { openModelPicker(); }, ButtonOption::Ascii());
+            inputs.push_back(button);
+            rows.push_back({&field, button, nullptr});
+            continue;
+        }
         if (isFontName) {
             const FontTarget target = field.key == "header.fontName" ? FontTarget::Header : FontTarget::Layout;
             std::string* label = target == FontTarget::Header ? &d_headerFontLabel : &d_layoutFontLabel;
@@ -715,6 +924,35 @@ Component RsansApp::makeProjectTab() {
                 lines.push_back(text(section) | bold);
             }
             std::vector<std::string> errors = d_form.errorsFor(field->key);
+
+            // The model row: its name if it's one of whisper.cpp's, a running
+            // download, and the file
+            if (field->key == "model.path") {
+                const std::string& path = d_form.project().model.base;
+                const auto known = std::find_if(d_models.begin(), d_models.end(),
+                                                [&](const WhisperModel& m) { return m.path == path; });
+                d_modelButtonLabel = path.empty()      ? "Choose a model..."
+                                     : known != d_models.end() ? known->name
+                                                               : std::filesystem::path(path).filename().string();
+                Element status = text("");
+                if (d_runner.isRunning() && d_runner.name().rfind("Download ", 0) == 0) {
+                    status = text("  " + d_runner.name() + "... " + percent(d_runner.progress())) |
+                             color(ftxui::Color::Yellow);
+                }
+                lines.push_back(hbox({
+                    text("  " + field->label) | size(WIDTH, EQUAL, labelWidth),
+                    text(errors.empty() ? "  " : "! ") | color(ftxui::Color::Red),
+                    input->Render(),
+                    status,
+                    text("  " + path) | dim,
+                }));
+                for (const std::string& error : errors) {
+                    if (error != requiredMessage) {
+                        lines.push_back(text(std::string(labelWidth + 2, ' ') + error) | color(ftxui::Color::Red));
+                    }
+                }
+                continue;
+            }
 
             // Font rows: show the chosen family and file, and the file's errors too
             const bool isHeaderFont = field->key == "header.fontName";

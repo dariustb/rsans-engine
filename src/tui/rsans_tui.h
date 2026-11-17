@@ -5,6 +5,7 @@
 #include <rsans_fonts.h>
 #include <rsans_project_form.h>
 #include <rsans_step_runner.h>
+#include <rsans_whisper_models.h>
 
 #include <ftxui/component/component_base.hpp>
 
@@ -69,6 +70,19 @@ class RsansApp {
     bool fontPickerOpen() const { return d_pickerOpen; }
     std::string fontQuery;  // The picker's search text
 
+    // Whisper models: a short list of the sizes whisper.cpp offers (all of
+    // them with "Show all"), marking which are installed. Choosing one that isn't asks to download it with
+    // whisper.cpp's own download script (run as a step, with progress).
+    std::string whisperDir;  // App-wide: the whisper.cpp checkout (see defaultWhisperDir)
+    void refreshWhisperModels();
+    const std::vector<WhisperModel>& whisperModels() const { return d_models; }
+    void openModelPicker();
+    bool modelPickerOpen() const { return d_modelPickerOpen; }
+    // The model waiting for the user to confirm its download, if any
+    std::optional<std::string> modelAwaitingDownload() const;
+    // Starts downloading a model (by name). False if it can't start now.
+    bool downloadModel(const std::string& name);
+
     // Called with the path chosen in the file dialog. Returns "" to accept it
     // (the dialog closes) or an error to show (the dialog stays open).
     using FileChosen = std::function<std::string(const std::string&)>;
@@ -104,6 +118,17 @@ class RsansApp {
     std::string d_headerFontLabel;
     std::string d_layoutFontLabel;
 
+    // The Whisper model picker
+    std::vector<WhisperModel> d_models;
+    std::vector<std::size_t> d_modelIndexes;  // The listed models, into d_models
+    std::vector<std::string> d_modelLabels;
+    int d_modelSelected = 0;
+    bool d_modelShowAll = false;
+    bool d_modelPickerOpen = false;
+    int d_modelView = 0;  // 0: the list, 1: confirm a download
+    std::optional<std::size_t> d_modelToDownload;
+    std::string d_modelButtonLabel;
+
     // The file dialog
     std::optional<FileBrowser> d_browser;
     bool d_fileDialogOpen = false;
@@ -136,6 +161,9 @@ class RsansApp {
     ftxui::Component makeLyricsTab() const;
     ftxui::Component makeFontPicker();
     ftxui::Component makeFileDialog();
+    ftxui::Component makeModelPicker();
+    void chooseSelectedModel();
+    void refreshModelList();
     ftxui::Component browseButton(const std::string& key);
 
     void refreshFileLabels();

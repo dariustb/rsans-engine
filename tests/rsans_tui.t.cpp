@@ -981,3 +981,222 @@ TEST(TitleArtTest, TitleArtIsFullSizeWithColoredBlocks) {
     EXPECT_EQ(screen.PixelAt(titleArtWidth - 1, 0).character, "▄");
     EXPECT_EQ(screen.PixelAt(0, titleArtHeight - 1).character, "▀");
 }
+
+// Whisper model picker
+
+namespace {
+
+// A stand-in whisper.cpp checkout. Its download script lists tiny, base.en,
+// medium and medium-q5_0, prints curl-style progress, and writes the model;
+// models/mode set to "fail" makes it fail, "slow" makes it hang (in a child).
+struct FakeWhisperCpp {
+    std::filesystem::path root =
+        std::filesystem::temp_directory_path() / ("rsans_fake_whisper_" + std::to_string(::getpid()));
+    std::filesystem::path models = root / "models";
+
+    FakeWhisperCpp() {
+        std::filesystem::remove_all(root);
+        std::filesystem::create_directories(models);
+        std::ofstream(models / "download-ggml-model.sh") << R"(#!/bin/sh
+models="tiny
+base.en
+medium
+medium-q5_0"
+mode=$(cat "$(dirname "$0")/mode" 2>/dev/null)
+echo "Downloading ggml model $1 from 'https://huggingface.co/ggerganov/whisper.cpp' ..."
+printf '  %% Total    %% Received %% Xferd  Average Speed\r\n'
+printf ' 50  142M   50 71.0M    0     0  10.0M      0\r'
+case "$mode" in
+    fail) printf partial > "$2/ggml-$1.bin"; echo "Failed to download ggml model $1"; exit 1 ;;
+    slow) printf partial > "$2/ggml-$1.bin"; sleep 30 ;;
+esac
+printf ' 100  142M  100  142M    0     0  10.0M      0\r'
+printf 'model' > "$2/ggml-$1.bin"
+echo "Done! Model '$1' saved in '$2/ggml-$1.bin'"
+)";
+        std::ofstream(models / "README.md") << R"(
+| Model  | Disk    | SHA   |
+| tiny   | 75 MiB  | `bd5` |
+| base.en| 142 MiB | `137` |
+| medium | 1.5 GiB | `fd9` |
+)";
+        std::ofstream(models / "ggml-tiny.bin") << "model";
+    }
+    ~FakeWhisperCpp() { std::filesystem::remove_all(root); }
+    FakeWhisperCpp(const FakeWhisperCpp&) = delete;
+    FakeWhisperCpp& operator=(const FakeWhisperCpp&) = delete;
+    FakeWhisperCpp(FakeWhisperCpp&&) = delete;
+    FakeWhisperCpp& operator=(FakeWhisperCpp&&) = delete;
+
+    void setMode(const std::string& mode) const { std::ofstream(models / "mode") << mode; }
+};
+
+} // namespace
+
+TEST(ModelPickerTest, PickerListsWhisperModelsWithSizesForUninstalled) {
+    FakeWhisperCpp whisper;
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    app.whisperDir = whisper.root.string();
+
+    app.openModelPicker();
+    const std::string screen = renderToString(app.component());
+
+    // Then: the main models, names in a column, and no quantized variant
+    EXPECT_TRUE(app.modelPickerOpen());
+    EXPECT_TRUE(contains(screen, "tiny     ✓")) << screen;
+    EXPECT_TRUE(contains(screen, "base.en  (142 MiB)")) << screen;
+    EXPECT_TRUE(contains(screen, "medium   (1.5 GiB)")) << screen;
+    EXPECT_FALSE(contains(screen, "medium-q5_0")) << screen;
+}
+
+TEST(ModelPickerTest, ShowAllListsEveryModel) {
+    FakeWhisperCpp whisper;
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    app.whisperDir = whisper.root.string();
+    app.openModelPicker();
+
+    // When: past the last model to the Show all checkbox, and tick it
+    for (int i = 0; i < 3; ++i) {
+        app.component()->OnEvent(ftxui::Event::ArrowDown);
+    }
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then
+    const std::string screen = renderToString(app.component());
+    EXPECT_TRUE(contains(screen, "medium-q5_0  (~")) << screen;
+}
+
+TEST(ModelPickerTest, ChoosingInstalledModelSetsPath) {
+    FakeWhisperCpp whisper;
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    app.whisperDir = whisper.root.string();
+    EXPECT_TRUE(contains(renderToString(app.component()), "Choose a model..."));
+
+    // When: tiny is highlighted first
+    app.openModelPicker();
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then
+    EXPECT_FALSE(app.modelPickerOpen());
+    EXPECT_EQ(app.form().project().model.base, (whisper.models / "ggml-tiny.bin").string());
+    EXPECT_TRUE(app.form().errorsFor("model.path").empty());
+    const std::string screen = renderToString(app.component());
+    EXPECT_TRUE(contains(screen, "[tiny]") || contains(screen, " tiny ")) << screen;
+}
+
+TEST(ModelPickerTest, UninstalledModelAsksThenDownloadsWithProgress) {
+    // Given
+    FakeWhisperCpp whisper;
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    app.whisperDir = whisper.root.string();
+    app.openModelPicker();
+
+    // When: base.en is chosen, a confirmation is shown first
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::Return);
+    ASSERT_EQ(app.modelAwaitingDownload(), "base.en");
+    const std::string prompt = renderToString(app.component());
+    EXPECT_TRUE(contains(prompt, "Download base.en (142 MiB)?")) << prompt;
+
+    // Esc goes back to the list without downloading
+    app.component()->OnEvent(ftxui::Event::Escape);
+    EXPECT_FALSE(app.modelAwaitingDownload().has_value());
+    EXPECT_TRUE(app.modelPickerOpen());
+
+    // When: confirmed with Download
+    app.component()->OnEvent(ftxui::Event::Return);
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then: it runs as a step and fills in the model when done
+    EXPECT_FALSE(app.modelPickerOpen());
+    ASSERT_TRUE(app.runner().isRunning() || app.runner().state() != StepRunner::State::Idle);
+    ASSERT_TRUE(ui.waitUntilFinished(app.runner()));
+    EXPECT_EQ(app.runner().state(), StepRunner::State::Succeeded) << app.runner().error();
+    EXPECT_EQ(app.runner().name(), "Download base.en");
+    EXPECT_DOUBLE_EQ(app.runner().progress(), 1.0);
+    const std::string expected = (whisper.models / "ggml-base.en.bin").string();
+    EXPECT_EQ(app.form().project().model.base, expected);
+    EXPECT_TRUE(app.whisperModels()[1].installed);
+    const auto& log = app.runner().log();
+    EXPECT_TRUE(std::any_of(log.begin(), log.end(), [](const std::string& l) { return contains(l, "Done!"); }));
+    // Progress lines update the gauge rather than filling the log
+    EXPECT_FALSE(std::any_of(log.begin(), log.end(), [](const std::string& l) { return contains(l, "71.0M"); }));
+}
+
+TEST(ModelPickerTest, FailedDownloadRemovesPartialFile) {
+    FakeWhisperCpp whisper;
+    whisper.setMode("fail");
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    app.whisperDir = whisper.root.string();
+    app.refreshWhisperModels();
+
+    ASSERT_TRUE(app.downloadModel("medium"));
+    ASSERT_TRUE(ui.waitUntilFinished(app.runner()));
+
+    EXPECT_EQ(app.runner().state(), StepRunner::State::Failed);
+    EXPECT_TRUE(contains(app.runner().error(), "exit code 1")) << app.runner().error();
+    EXPECT_FALSE(std::filesystem::exists(whisper.models / "ggml-medium.bin"));
+    EXPECT_EQ(app.form().project().model.base, "");
+}
+
+TEST(ModelPickerTest, CancelStopsDownloadAndRemovesPartialFile) {
+    FakeWhisperCpp whisper;
+    whisper.setMode("slow");
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    app.whisperDir = whisper.root.string();
+    app.refreshWhisperModels();
+    ASSERT_TRUE(app.downloadModel("medium"));
+
+    // When: cancelled once the partial file appears
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!std::filesystem::exists(whisper.models / "ggml-medium.bin") &&
+           std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    app.runner().cancel();
+
+    // Then: done well before the script's 30 s sleep
+    ASSERT_TRUE(ui.waitUntilFinished(app.runner()));
+    EXPECT_EQ(app.runner().state(), StepRunner::State::Cancelled);
+    EXPECT_FALSE(std::filesystem::exists(whisper.models / "ggml-medium.bin"));
+}
+
+TEST(ModelPickerTest, DownloadWaitsWhileAnotherStepRuns) {
+    FakeWhisperCpp whisper;
+    whisper.setMode("slow");
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    app.whisperDir = whisper.root.string();
+    app.refreshWhisperModels();
+
+    ASSERT_TRUE(app.downloadModel("medium"));
+    EXPECT_FALSE(app.downloadModel("base.en"));
+    EXPECT_FALSE(app.downloadModel("not-a-model"));
+    app.runner().cancel();
+    ASSERT_TRUE(ui.waitUntilFinished(app.runner()));
+}
+
+TEST(ModelPickerTest, PickerExplainsMissingCheckout) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    app.whisperDir = "/nonexistent/whisper.cpp";
+
+    app.openModelPicker();
+
+    EXPECT_TRUE(app.whisperModels().empty());
+    EXPECT_TRUE(contains(renderToString(app.component()), "No models found"));
+}

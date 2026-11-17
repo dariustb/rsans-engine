@@ -76,7 +76,7 @@ class LineSplitter {
 };
 
 // Starts the process with stdout and stderr both writing to outputFd
-pid_t spawnProcess(const std::vector<std::string>& args, int readFd, int outputFd) {
+pid_t spawnProcess(const std::vector<std::string>& args, int readFd, int outputFd, bool ownProcessGroup) {
     std::vector<char*> argv;
     argv.reserve(args.size() + 1);
     for (const std::string& arg : args) {
@@ -92,9 +92,17 @@ pid_t spawnProcess(const std::vector<std::string>& args, int readFd, int outputF
     posix_spawn_file_actions_addclose(&actions, readFd);
     posix_spawn_file_actions_addclose(&actions, outputFd);
 
+    posix_spawnattr_t attributes;
+    posix_spawnattr_init(&attributes);
+    if (ownProcessGroup) {
+        posix_spawnattr_setflags(&attributes, POSIX_SPAWN_SETPGROUP);
+        posix_spawnattr_setpgroup(&attributes, 0);  // A new group, led by the child
+    }
+
     pid_t pid = -1;
-    const int error = posix_spawnp(&pid, argv[0], &actions, nullptr, argv.data(), environ);
+    const int error = posix_spawnp(&pid, argv[0], &actions, &attributes, argv.data(), environ);
     posix_spawn_file_actions_destroy(&actions);
+    posix_spawnattr_destroy(&attributes);
 
     if (error != 0) {
         throw std::runtime_error("Failed to start " + args[0] + ": " + std::strerror(error));
@@ -117,7 +125,8 @@ int waitForExit(pid_t pid) {
 int runProcess(const std::vector<std::string>& args,
                const ProcessOutputHandler& onLine,
                const CancelFlag* cancel,
-               int killTimeoutMs) {
+               int killTimeoutMs,
+               bool ownProcessGroup) {
     if (args.empty()) {
         throw std::invalid_argument("runProcess: no program given");
     }
@@ -133,7 +142,9 @@ int runProcess(const std::vector<std::string>& args,
     fcntl(readEnd.get(), F_SETFD, FD_CLOEXEC);
     fcntl(writeEnd.get(), F_SETFD, FD_CLOEXEC);
 
-    const pid_t pid = spawnProcess(args, readEnd.get(), writeEnd.get());
+    const pid_t pid = spawnProcess(args, readEnd.get(), writeEnd.get(), ownProcessGroup);
+    // Who to signal: the process, or its whole group
+    const pid_t target = ownProcessGroup ? -pid : pid;
     // Only the child writes now; closing our copy lets read() see EOF when it exits
     writeEnd.close();
 
@@ -148,13 +159,13 @@ int runProcess(const std::vector<std::string>& args,
             if (!cancelling && cancel != nullptr && cancel->isRequested()) {
                 cancelling = true;
                 cancelledAt = std::chrono::steady_clock::now();
-                kill(pid, SIGTERM);
+                kill(target, SIGTERM);
             }
             if (cancelling && !killed &&
                 std::chrono::steady_clock::now() - cancelledAt >=
                     std::chrono::milliseconds(killTimeoutMs)) {
                 killed = true;
-                kill(pid, SIGKILL);
+                kill(target, SIGKILL);
             }
 
             pollfd pfd{readEnd.get(), POLLIN, 0};
@@ -179,7 +190,7 @@ int runProcess(const std::vector<std::string>& args,
         lines.flush();
     } catch (...) {
         // onLine threw: stop the process rather than leave it running
-        kill(pid, SIGKILL);
+        kill(target, SIGKILL);
         waitForExit(pid);
         throw;
     }
