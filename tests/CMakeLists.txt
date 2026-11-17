@@ -16,6 +16,7 @@ target_link_libraries(test_rsans
 		GTest::gtest_main
 		rsans_cli
 		rsans_core
+		rsans_tui
 )
 target_include_directories(test_rsans PUBLIC ./)
 
@@ -27,6 +28,7 @@ target_sources(test_rsans
 		rsans_export.t.cpp
 		rsans_process.t.cpp
 		rsans_rhyme.t.cpp
+		rsans_tui.t.cpp
 		rsans_whisper.t.cpp
 )
 

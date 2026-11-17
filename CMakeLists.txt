@@ -43,7 +43,7 @@ add_subdirectory(src)
 add_subdirectory(tests)
 
 # Run clang-tidy on project targets only (not on fetched dependencies)
-set_target_properties(rsans rsans_cli rsans_core rsans_io test_rsans
+set_target_properties(rsans rsans_cli rsans_core rsans_io rsans_tui test_rsans
     PROPERTIES CXX_CLANG_TIDY "clang-tidy"
 )
 

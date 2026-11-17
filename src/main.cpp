@@ -4,6 +4,7 @@
 #include <rsans_export.h>
 #include <rsans_io.h>
 #include <rsans_rhyme.h>
+#include <rsans_tui.h>
 #include <rsans_whisper.h>
 
 #include <iostream>
@@ -65,10 +66,7 @@ int main(int argc, char** argv) {
             return code;
         }
         case CommandType::Tui:
-            // TODO: launch the FTXUI interface once it exists
-            std::cerr << "The interactive interface is not built yet. "
-                         "Use a subcommand; see rsans --help." << std::endl;
-            return 1;
+            return runTui(args.ffmpegPath);
         case CommandType::Help:
             std::cout << args.helpText;
             return 1;
