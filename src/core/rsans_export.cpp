@@ -194,13 +194,22 @@ int executeFfmpegBuild(const ProjectData& data,
 
 }
 
+std::string subtitlePathFor(const std::string& outputVideoPath) {
+    std::filesystem::path assPath(outputVideoPath);
+    if (assPath.extension() == ".ass") {
+        throw std::invalid_argument(
+            "Output video path must not end in .ass: " + outputVideoPath);
+    }
+    return assPath.replace_extension(".ass").string();
+}
+
 int exportVideo(const ProjectData& data,
                 const std::string& outputVideoPath,
                 const std::string& ffmpegPath,
                 const FfmpegOutputHandler& onOutput) {
     const Ass assSubtitles(data);
-    const std::string assPath = "lyrics.ass";
-    
+    const std::string assPath = subtitlePathFor(outputVideoPath);
+
     writeFile(assPath, assSubtitles.text());
 
     return executeFfmpegBuild(data, outputVideoPath, ffmpegPath, assPath, onOutput);
