@@ -73,7 +73,7 @@ struct ProjectData {
     } layout;
 
     struct ModelPaths {
-        // TODO: Add tiny/small/med/lg/turbo model support
+        // Any Whisper model file (tiny to large); "base" is only the field's name
         std::string base;
     } model;
 

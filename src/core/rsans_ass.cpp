@@ -251,7 +251,7 @@ void Ass::buildHeaderLabel(std::ostringstream& ss) {
     const int artistHeight = renderAssHeight(StyleName::HeaderArtist);
     
     const int audioLengthMs = d_data.audio.length * 1000;
-    const int centerOfVideoX = d_data.video.width / 2;  // TODO: posX/posY should be doubles in Dialogue
+    const int centerOfVideoX = d_data.video.width / 2;
     const int bottomOfMediaY = static_cast<int>(mediaHeight * (static_cast<double>(d_data.video.width) / mediaWidth));
     const int padding = 200; // TODO: add padding to project.json instead
     const int headerTopY = bottomOfMediaY - titleHeight;

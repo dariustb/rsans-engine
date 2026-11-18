@@ -171,7 +171,7 @@ std::vector<float> loadAudioFile(const std::string& audioPath) {
                                  std::to_string(channels) + " (must be mono or stereo)");
     }
 
-    // TODO: sample rate caps @ 16kHz, will need to change logic to allow resampling 
+    // Other rates are converted to 16 kHz before this (see convertAudioForWhisper)
     if (wav.sampleRate != WHISPER_SAMPLE_RATE) {
         const unsigned int sampleRate = wav.sampleRate;
         drwav_uninit(&wav);

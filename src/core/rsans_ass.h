@@ -145,7 +145,7 @@ struct Ass::Style {
 struct Ass::Dialogue {
     // Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     int layer;
-    int64_t startTime;  // start time in milliseconds, TODO: can we do seconds instead?
+    int64_t startTime;  // start time in milliseconds
     int64_t endTime;    // end time in milliseconds
     std::string styleName;
     std::string text;   // raw ASS text
