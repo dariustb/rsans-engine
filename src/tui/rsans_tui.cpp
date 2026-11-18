@@ -1828,19 +1828,42 @@ void RsansApp::togglePlayback() {
         updatePlayback();
         return;
     }
-    const std::string& audio = d_form.project().audio.path;
-    if (d_player.state() == AudioPlayer::State::Closed) {
-        if (audio.empty()) {
-            d_playError = "Choose the audio file on the Project tab first";
-            return;
-        }
-        d_playError = d_player.open(audio);
-        if (!d_playError.empty()) {
-            return;
-        }
+    if (!openProjectAudio()) {
+        return;
     }
     d_playError = d_player.play();
     updatePlayback();
+}
+
+bool RsansApp::openProjectAudio() {
+    updatePlayback();  // Closes a file that's no longer the project's
+    if (d_player.state() != AudioPlayer::State::Closed) {
+        return true;
+    }
+    const std::string& audio = d_form.project().audio.path;
+    if (audio.empty()) {
+        d_playError = "Choose the audio file on the Project tab first";
+        return false;
+    }
+    d_playError = d_player.open(audio);
+    return d_playError.empty();
+}
+
+void RsansApp::playFrom(int ms) {
+    if (!openProjectAudio()) {
+        return;
+    }
+    d_playError = d_player.playFrom(ms);
+    updatePlayback();
+}
+
+void RsansApp::playFromWordOrStop() {
+    if (updatePlayback() == AudioPlayer::State::Playing) {
+        stopPlayback();
+        return;
+    }
+    const std::vector<Token>& tokens = d_form.project().tokens;
+    playFrom(d_wordSelected < tokens.size() ? tokens[d_wordSelected].startMs : 0);
 }
 
 void RsansApp::stopPlayback() {
@@ -1893,8 +1916,11 @@ Element RsansApp::playbackBar(const Component& playButton, const Component& stop
                        gauge(fraction) | flex});
     }
     Element buttons = hbox({playButton->Render(), text(" "), stopButton->Render()});
-    return hbox({hasAudio ? buttons : buttons | dim, text("  "), status | flex, text("  "),
-                 text("Space: play/pause") | dim});
+    // The keys, once there's something to play (a message takes their place)
+    Element keys = !hasAudio || !d_playError.empty()
+        ? text("")
+        : text("  Space: play from word/stop") | dim;
+    return hbox({hasAudio ? buttons : buttons | dim, text("  "), status | flex, keys});
 }
 
 Component RsansApp::makeLyricsTab() {
@@ -2000,7 +2026,7 @@ Component RsansApp::makeLyricsTab() {
     });
     return CatchEvent(rendered, [this](const Event& event) {
         if (event == Event::Character(" ")) {
-            togglePlayback();
+            playFromWordOrStop();
             return true;
         }
         return false;

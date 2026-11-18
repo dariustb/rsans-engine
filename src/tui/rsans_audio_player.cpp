@@ -3,6 +3,7 @@
 #include <miniaudio.h>
 #include <sndfile.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -94,6 +95,18 @@ struct AudioPlayer::Impl {
         finished = false;
     }
 
+    // Moves to a frame (stopped, so the device's thread isn't reading).
+    // False if the file can't seek there.
+    bool seek(std::uint64_t frame) {
+        const std::lock_guard<std::mutex> lock(fileMutex);
+        if (file == nullptr || sf_seek(file, static_cast<sf_count_t>(frame), SEEK_SET) < 0) {
+            return false;
+        }
+        cursor = frame;
+        finished = false;
+        return true;
+    }
+
     void close() {
         if (deviceReady) {
             ma_device_uninit(&device);  // Stops it first
@@ -164,6 +177,28 @@ std::string AudioPlayer::play() {
     }
     d_impl->state = State::Playing;
     return "";
+}
+
+std::string AudioPlayer::playFrom(int ms) {
+    if (state() == State::Closed) {
+        return "";
+    }
+    // The frame at ms, kept inside the file
+    const auto rate = static_cast<std::uint64_t>(d_impl->info.samplerate);
+    const auto frames = static_cast<std::uint64_t>(std::max<sf_count_t>(d_impl->info.frames, 0));
+    std::uint64_t frame = static_cast<std::uint64_t>(std::max(ms, 0)) * rate / 1000;
+    if (frames > 0) {
+        frame = std::min(frame, frames - 1);
+    }
+
+    d_impl->stopDevice();
+    if (!d_impl->seek(frame)) {
+        d_impl->rewind();
+        d_impl->state = State::Stopped;
+        return "Can't play from " + std::to_string(ms / 1000) + " s: the audio can't be searched";
+    }
+    d_impl->state = State::Paused;  // Positioned, not yet playing
+    return play();
 }
 
 void AudioPlayer::pause() {

@@ -36,6 +36,9 @@ class AudioPlayer {
     // Starts or resumes playing. Returns "" or why the sound device couldn't
     // be started. Does nothing if Closed or already playing.
     std::string play();
+    // Plays from a point in the file (clamped to it), whatever the state.
+    // Returns "" or why it couldn't. Does nothing if Closed.
+    std::string playFrom(int ms);
     void pause();  // Keeps the position
     void stop();   // Back to the start
 

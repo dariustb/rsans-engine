@@ -82,11 +82,14 @@ class RsansApp {
     // use (with its words), then "New group"
     const std::vector<std::string>& rhymeGroupLabels() const { return d_groupLabels; }
 
-    // Playing the project's audio on the Lyrics tab (Space, or the Play and
-    // Stop buttons). Play opens the project's audio file; changing the file,
-    // or leaving the project, stops it.
-    void togglePlayback();  // Play, or pause while playing
-    void stopPlayback();    // Back to the start
+    // Playing the project's audio on the Lyrics tab. Playing opens the
+    // project's audio file; changing the file, or leaving the project, stops it.
+    void togglePlayback();  // The Play/Pause button: play (from the start once stopped), or pause
+    void stopPlayback();    // The Stop button: back to the start
+    // Space: stops while playing; otherwise plays from the highlighted
+    // word's start (from the beginning if there are no words), so pressing
+    // it twice on a word replays that word's part of the song
+    void playFromWordOrStop();
     AudioPlayer::State playbackState() { return updatePlayback(); }
     int playbackPositionMs() const { return d_player.positionMs(); }
     // Why the audio couldn't be played, or ""
@@ -246,6 +249,8 @@ class RsansApp {
     // file changing) and starts or stops the ticker. Returns its state.
     AudioPlayer::State updatePlayback();
     void closeAudio();
+    bool openProjectAudio();     // Opens the project's audio if not open. False (with d_playError) if it can't.
+    void playFrom(int ms);
     ftxui::Element playbackBar(const ftxui::Component& playButton, const ftxui::Component& stopButton);
 
     // Saving

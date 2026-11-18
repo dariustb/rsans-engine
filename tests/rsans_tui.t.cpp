@@ -2503,8 +2503,8 @@ TEST(PlaybackTest, SpaceWithoutAudioFileSaysToChooseOne) {
     EXPECT_TRUE(contains(renderToString(app.component()), "Choose the audio file on the Project tab first"));
 }
 
-TEST(PlaybackTest, SpacePlaysAndPausesProjectAudio) {
-    // Given
+TEST(PlaybackTest, SpacePlaysFromHighlightedWordAndStops) {
+    // Given: "again" (sung at 1.0 s) highlighted
     const std::string wav = writeTestWav("rsans_tui_play.wav", 1, 16000, 3000);
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {}, AudioPlayer::Output::Silent);
@@ -2512,21 +2512,65 @@ TEST(PlaybackTest, SpacePlaysAndPausesProjectAudio) {
     ASSERT_TRUE(app.form().setFieldText("audio.path", wav));
     EXPECT_TRUE(contains(renderToString(app.component()), "0:00 / 0:03"));
     const std::string before = app.form().project().toJson();
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    ASSERT_EQ(app.selectedWord(), 2u);
 
     // When: Space
     app.component()->OnEvent(ftxui::Event::Character(" "));
 
-    // Then: playing, with the button offering Pause and the time moving
+    // Then: playing from the word's start, with the button offering Pause
     EXPECT_EQ(app.playbackState(), AudioPlayer::State::Playing);
     EXPECT_EQ(app.playbackError(), "");
+    EXPECT_GE(app.playbackPositionMs(), 1000);
     EXPECT_TRUE(contains(renderToString(app.component()), "Pause"));
-    EXPECT_TRUE(waitForPlayback(ui, [&] { return app.playbackPositionMs() > 0; }));
+    EXPECT_TRUE(waitForPlayback(ui, [&] { return app.playbackPositionMs() > 1000; }));
 
-    // Space again pauses
+    // Space again stops (back to the start), rather than pausing
     app.component()->OnEvent(ftxui::Event::Character(" "));
-    EXPECT_EQ(app.playbackState(), AudioPlayer::State::Paused);
-    EXPECT_GT(app.playbackPositionMs(), 0);
+    EXPECT_EQ(app.playbackState(), AudioPlayer::State::Stopped);
+    EXPECT_EQ(app.playbackPositionMs(), 0);
+
+    // ...and again replays from the word
+    app.component()->OnEvent(ftxui::Event::Character(" "));
+    EXPECT_EQ(app.playbackState(), AudioPlayer::State::Playing);
+    EXPECT_GE(app.playbackPositionMs(), 1000);
     EXPECT_EQ(app.form().project().toJson(), before);  // Playing doesn't change the project
+}
+
+TEST(PlaybackTest, SpaceAfterPauseButtonPlaysFromWordNotPausedPlace) {
+    const std::string wav = writeTestWav("rsans_tui_pausebutton.wav", 1, 16000, 3000);
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {}, AudioPlayer::Output::Silent);
+    openLyrics(app);
+    ASSERT_TRUE(app.form().setFieldText("audio.path", wav));
+    app.selectWord(1);  // "wrold", at 0.4 s
+
+    app.togglePlayback();  // Play button: from the start
+    app.togglePlayback();  // Pause
+    ASSERT_EQ(app.playbackState(), AudioPlayer::State::Paused);
+    ASSERT_LT(app.playbackPositionMs(), 400);
+
+    app.component()->OnEvent(ftxui::Event::Character(" "));
+    EXPECT_EQ(app.playbackState(), AudioPlayer::State::Playing);
+    EXPECT_GE(app.playbackPositionMs(), 400);
+}
+
+TEST(PlaybackTest, PlayButtonStartsFromBeginningAfterSpaceStops) {
+    const std::string wav = writeTestWav("rsans_tui_playbutton.wav", 1, 16000, 3000);
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {}, AudioPlayer::Output::Silent);
+    openLyrics(app);
+    ASSERT_TRUE(app.form().setFieldText("audio.path", wav));
+    app.selectWord(2);  // "again", at 1.0 s
+
+    app.component()->OnEvent(ftxui::Event::Character(" "));  // From "again"
+    ASSERT_GE(app.playbackPositionMs(), 1000);
+    app.component()->OnEvent(ftxui::Event::Character(" "));  // Stop
+
+    // Play: from the beginning, not the word
+    app.togglePlayback();
+    EXPECT_EQ(app.playbackState(), AudioPlayer::State::Playing);
+    EXPECT_LT(app.playbackPositionMs(), 1000);
 }
 
 TEST(PlaybackTest, ButtonsBelowWordsPlayAndStop) {
@@ -2563,8 +2607,9 @@ TEST(PlaybackTest, WorksBeforeAnyLyrics) {
 
     const std::string screen = renderToString(app.component());
     EXPECT_TRUE(contains(screen, "No lyrics yet")) << screen;
-    app.component()->OnEvent(ftxui::Event::Character(" "));
+    app.component()->OnEvent(ftxui::Event::Character(" "));  // No word: from the start
     EXPECT_EQ(app.playbackState(), AudioPlayer::State::Playing);
+    EXPECT_LT(app.playbackPositionMs(), 1000);
 }
 
 TEST(PlaybackTest, StopsWhenAudioFileChangesOrProjectChanges) {

@@ -113,3 +113,43 @@ TEST(TickerTest, PostsWhileRunningAndStopsPromptly) {
     ticker.start();  // Can start again
     EXPECT_TRUE(waitFor([&] { return posts > stopped; }));
 }
+
+TEST(AudioPlayerTest, PlayFromStartsAtThatPoint) {
+    const std::string wav = writeTestWav("rsans_player_from.wav", 2, 44100, 3000);
+    AudioPlayer player(AudioPlayer::Output::Silent);
+    EXPECT_EQ(player.playFrom(1000), "");  // Closed: does nothing
+    EXPECT_EQ(player.state(), AudioPlayer::State::Closed);
+    ASSERT_EQ(player.open(wav), "");
+
+    // From stopped
+    ASSERT_EQ(player.playFrom(2000), "");
+    EXPECT_EQ(player.state(), AudioPlayer::State::Playing);
+    EXPECT_GE(player.positionMs(), 2000);
+    ASSERT_TRUE(waitFor([&] { return player.positionMs() > 2000; }));
+
+    // While playing: jumps back
+    ASSERT_EQ(player.playFrom(500), "");
+    EXPECT_EQ(player.state(), AudioPlayer::State::Playing);
+    EXPECT_GE(player.positionMs(), 500);
+    EXPECT_LT(player.positionMs(), 2000);
+
+    // From paused
+    player.pause();
+    ASSERT_EQ(player.playFrom(0), "");
+    EXPECT_EQ(player.state(), AudioPlayer::State::Playing);
+    EXPECT_LT(player.positionMs(), 500);
+}
+
+TEST(AudioPlayerTest, PlayFromPastEndIsClampedAndEnds) {
+    const std::string wav = writeTestWav("rsans_player_past.wav", 1, 8000, 1000);
+    AudioPlayer player(AudioPlayer::Output::Silent);
+    ASSERT_EQ(player.open(wav), "");
+
+    ASSERT_EQ(player.playFrom(60000), "");
+    EXPECT_LE(player.positionMs(), 1000);
+    EXPECT_TRUE(waitFor([&] { return player.state() == AudioPlayer::State::Stopped; }));
+    EXPECT_EQ(player.positionMs(), 0);
+
+    ASSERT_EQ(player.playFrom(-5), "");  // Before the start: from the start
+    EXPECT_LT(player.positionMs(), 1000);
+}
