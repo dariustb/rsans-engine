@@ -7,6 +7,7 @@
 #include <deque>
 #include <functional>
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -74,6 +75,9 @@ class ProjectForm {
     // Corrects one transcribed word (spaces at either end are removed).
     // False if there's no such word or the text is empty.
     bool setTokenText(std::size_t index, const std::string& text);
+    // Puts one word in a rhyme group, or in none. False if there's no such
+    // word or the group is negative.
+    bool setTokenRhyme(std::size_t index, std::optional<int> rhymeIndex);
     // Removes one word, e.g. one that was never sung. False if there's no such word.
     bool removeToken(std::size_t index);
 

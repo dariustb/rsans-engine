@@ -68,6 +68,9 @@ class RsansApp {
     std::string wordEditText;  // The word editor's text
     // True once a word has been changed since rhymes were last detected
     bool rhymesOutOfDate() const { return d_rhymesOutOfDate; }
+    // The word editor's rhyme group choices, as shown: "None", each group in
+    // use (with its words), then "New group"
+    const std::vector<std::string>& rhymeGroupLabels() const { return d_groupLabels; }
 
     // Leaves the editor for the start screen, asking first if there are
     // unsaved changes. Returns false (and stays) while a step is running,
@@ -174,6 +177,13 @@ class RsansApp {
     bool d_wordEditorOpen = false;
     int d_wordCursor = 0;
     std::string d_wordError;
+    // Rhyme group choices: a group number, or noGroup / newGroup
+    static constexpr int noGroup = -1;
+    static constexpr int newGroup = -2;
+    std::vector<int> d_groupChoices;
+    std::vector<std::string> d_groupLabels;
+    int d_groupSelected = 0;
+    void refreshGroupChoices();
     bool d_rhymesOutOfDate = false;
     void applyWordEdit();
     void deleteSelectedWord();

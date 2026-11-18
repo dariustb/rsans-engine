@@ -233,6 +233,15 @@ bool ProjectForm::setTokenText(std::size_t index, const std::string& text) {
     return true;
 }
 
+bool ProjectForm::setTokenRhyme(std::size_t index, std::optional<int> rhymeIndex) {
+    if (index >= d_project.tokens.size() || (rhymeIndex && *rhymeIndex < 0)) {
+        return false;
+    }
+    d_project.tokens[index].rhymeIndex = rhymeIndex;
+    d_validation = d_project.validate();
+    return true;
+}
+
 bool ProjectForm::removeToken(std::size_t index) {
     if (index >= d_project.tokens.size()) {
         return false;

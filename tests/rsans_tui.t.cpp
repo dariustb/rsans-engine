@@ -1781,8 +1781,10 @@ TEST(WordEditorTest, DeleteWordRemovesIt) {
     app.component()->OnEvent(ftxui::Event::ArrowRight);
     app.component()->OnEvent(ftxui::Event::Return);
 
-    // When: down to the buttons, right to Delete word
-    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    // When: down past the rhyme groups (None, New group) to the buttons, right to Delete word
+    for (int i = 0; i < 3; ++i) {
+        app.component()->OnEvent(ftxui::Event::ArrowDown);
+    }
     app.component()->OnEvent(ftxui::Event::ArrowRight);
     app.component()->OnEvent(ftxui::Event::Return);
 
@@ -1834,4 +1836,141 @@ TEST(WordEditorTest, DetectingRhymesClearsOutOfDateNote) {
     EXPECT_FALSE(app.rhymesOutOfDate());
     EXPECT_EQ(app.form().project().tokens[1].text, "world");
     std::filesystem::remove(dict);
+}
+
+// Rhyme groups by hand
+
+TEST(ProjectFormTest, SetTokenRhymeSetsAndClearsGroup) {
+    ProjectForm form(defaultProject());
+    form.setTokens({Token(0, "night", 0, 400, 0, std::nullopt)});
+
+    EXPECT_TRUE(form.setTokenRhyme(0, 3));
+    EXPECT_EQ(form.project().tokens[0].rhymeIndex, 3);
+    EXPECT_TRUE(form.setTokenRhyme(0, std::nullopt));
+    EXPECT_FALSE(form.project().tokens[0].rhymeIndex.has_value());
+    EXPECT_FALSE(form.setTokenRhyme(0, -1));
+    EXPECT_FALSE(form.setTokenRhyme(1, 0));
+}
+
+namespace {
+
+// Lyrics with two rhyme groups: 0 = night/light, 1 = sign/line; "neon" has none
+void openRhymingLyrics(RsansApp& app) {
+    app.newProject();
+    app.form().setTokens({Token(0, "night", 0, 400, 0, 0),
+                          Token(1, "neon", 400, 800, 0, std::nullopt),
+                          Token(2, "light", 800, 1200, 0, 0),
+                          Token(3, "sign", 1400, 1800, 1, 1),
+                          Token(4, "line", 1800, 2200, 1, 1)});
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+}
+
+} // namespace
+
+TEST(RhymeGroupTest, EditorListsGroupsWithTheirWords) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    openRhymingLyrics(app);
+
+    // When: editing "night" (group 1)
+    ASSERT_TRUE(app.openWordEditor());
+
+    // Then: its own word isn't listed in its group
+    EXPECT_EQ(app.rhymeGroupLabels(),
+              (std::vector<std::string>{"None", "1  light", "2  sign, line", "New group"}));
+    const std::string screen = renderToString(app.component());
+    EXPECT_TRUE(contains(screen, "Rhyme group")) << screen;
+    EXPECT_TRUE(contains(screen, "> \u25a0 1  light")) << screen;  // Its group is the current one
+}
+
+TEST(RhymeGroupTest, ChoosingGroupMovesWordWithoutOutOfDateNote) {
+    // Given: "neon" has no group
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    openRhymingLyrics(app);
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    app.component()->OnEvent(ftxui::Event::Return);
+    ASSERT_TRUE(app.wordEditorOpen());
+
+    // When: down into the groups (None), down twice to "2  sign, line", Enter
+    for (int i = 0; i < 3; ++i) {
+        app.component()->OnEvent(ftxui::Event::ArrowDown);
+    }
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then
+    EXPECT_FALSE(app.wordEditorOpen());
+    EXPECT_EQ(app.form().project().tokens[1].rhymeIndex, 1);
+    EXPECT_FALSE(app.rhymesOutOfDate());
+    EXPECT_TRUE(app.hasUnsavedChanges());
+}
+
+TEST(RhymeGroupTest, NoneAndNewGroup) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    openRhymingLyrics(app);
+
+    // "night" to None: up from its group to None
+    ASSERT_TRUE(app.openWordEditor());
+    app.component()->OnEvent(ftxui::Event::ArrowDown);  // Into the groups, on its own (1)
+    app.component()->OnEvent(ftxui::Event::ArrowUp);    // None
+    app.component()->OnEvent(ftxui::Event::Return);
+    EXPECT_FALSE(app.form().project().tokens[0].rhymeIndex.has_value());
+
+    // "neon" to a new group: the lowest number not in use (groups 0 and 1 are)
+    app.selectWord(1);
+    ASSERT_TRUE(app.openWordEditor());
+    for (int i = 0; i < 4; ++i) {
+        app.component()->OnEvent(ftxui::Event::ArrowDown);  // None, 1, 2, New group
+    }
+    app.component()->OnEvent(ftxui::Event::Return);
+    EXPECT_EQ(app.form().project().tokens[1].rhymeIndex, 2);
+}
+
+TEST(RhymeGroupTest, NewGroupReusesFreedNumber) {
+    // Given: group 0 is emptied
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    openRhymingLyrics(app);
+    app.form().setTokenRhyme(0, std::nullopt);
+    app.form().setTokenRhyme(2, std::nullopt);
+
+    // When: "neon" goes in a new group
+    app.selectWord(1);
+    ASSERT_TRUE(app.openWordEditor());
+    EXPECT_EQ(app.rhymeGroupLabels().back(), "New group");
+    for (int i = 0; i < 3; ++i) {
+        app.component()->OnEvent(ftxui::Event::ArrowDown);  // None, 2, New group
+    }
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then: 0 is free again
+    EXPECT_EQ(app.form().project().tokens[1].rhymeIndex, 0);
+}
+
+TEST(RhymeGroupTest, TextAndGroupChangeTogetherAndCancelChangesNeither) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    openRhymingLyrics(app);
+
+    // Esc: nothing changes
+    ASSERT_TRUE(app.openWordEditor());
+    type(app, "s");
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::ArrowUp);
+    app.component()->OnEvent(ftxui::Event::ArrowUp);
+    app.component()->OnEvent(ftxui::Event::Escape);
+    EXPECT_EQ(app.form().project().tokens[0].text, "night");
+    EXPECT_EQ(app.form().project().tokens[0].rhymeIndex, 0);
+
+    // Save: both change
+    ASSERT_TRUE(app.openWordEditor());
+    type(app, "s");
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::ArrowDown);  // 2  sign, line
+    app.component()->OnEvent(ftxui::Event::Return);
+    EXPECT_EQ(app.form().project().tokens[0].text, "nights");
+    EXPECT_EQ(app.form().project().tokens[0].rhymeIndex, 1);
 }
