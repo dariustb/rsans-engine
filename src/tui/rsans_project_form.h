@@ -87,6 +87,9 @@ class ProjectForm {
     // Puts one word in a rhyme group, or in none. False if there's no such
     // word or the group is negative.
     bool setTokenRhyme(std::size_t index, std::optional<int> rhymeIndex);
+    // Sets when one word is sung. False if there's no such word, the start
+    // is negative or the end is before the start.
+    bool setTokenTiming(std::size_t index, int startMs, int endMs);
     // Removes one word, e.g. one that was never sung. False if there's no such word.
     bool removeToken(std::size_t index);
     // Adds a word the transcription missed at index (before the word there

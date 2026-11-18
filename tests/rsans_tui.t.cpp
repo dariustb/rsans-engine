@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
 #include <deque>
 #include <filesystem>
 #include <fstream>
@@ -1692,6 +1693,23 @@ void openLyrics(RsansApp& app) {
     app.component()->OnEvent(ftxui::Event::ArrowDown);
 }
 
+// In the word editor, from the word field: down to Change, open the list (on
+// the word's group), move `steps` (down if positive, up if negative), pick
+void chooseGroup(RsansApp& app, int steps) {
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::Return);
+    for (int i = 0; i < std::abs(steps); ++i) {
+        app.component()->OnEvent(steps > 0 ? ftxui::Event::ArrowDown : ftxui::Event::ArrowUp);
+    }
+    app.component()->OnEvent(ftxui::Event::Return);
+}
+
+// From Change (where picking a group leaves it): up to the word field, Enter
+void saveFromWordField(RsansApp& app) {
+    app.component()->OnEvent(ftxui::Event::ArrowUp);
+    app.component()->OnEvent(ftxui::Event::Return);
+}
+
 } // namespace
 
 TEST(WordEditorTest, EnterOnWordEditsItAndMarksRhymesOutOfDate) {
@@ -1772,8 +1790,9 @@ TEST(WordEditorTest, DeleteWordRemovesIt) {
     app.component()->OnEvent(ftxui::Event::ArrowRight);
     app.component()->OnEvent(ftxui::Event::Return);
 
-    // When: down past the rhyme groups (None, New group) to the buttons, right to Delete word
-    for (int i = 0; i < 3; ++i) {
+    // When: down past Change and the timing (Start, End, Move, Listen) to the
+    // buttons, right to Delete word
+    for (int i = 0; i < 6; ++i) {
         app.component()->OnEvent(ftxui::Event::ArrowDown);
     }
     app.component()->OnEvent(ftxui::Event::ArrowRight);
@@ -1924,13 +1943,137 @@ TEST(WordEditorTest, AddedWordCanJoinARhymeGroup) {
 
     ASSERT_TRUE(app.openWordAdder(false));  // Before "hello"
     type(app, "old");
-    // The groups list starts on None; down into it, then to group 1
-    app.component()->OnEvent(ftxui::Event::ArrowDown);
-    app.component()->OnEvent(ftxui::Event::ArrowDown);
-    app.component()->OnEvent(ftxui::Event::Return);
+    chooseGroup(app, 1);  // From None to "1  wrold"
+    saveFromWordField(app);
 
     EXPECT_EQ(app.form().project().tokens[0].text, "old");
     EXPECT_EQ(app.form().project().tokens[0].rhymeIndex, 0);
+}
+
+TEST(ProjectFormTest, SetTokenTimingSetsAndRejectsInvalid) {
+    ProjectForm form(defaultProject());
+    form.setTokens({Token(0, "hello", 0, 400, 0, std::nullopt)});
+
+    EXPECT_TRUE(form.setTokenTiming(0, 100, 650));
+    EXPECT_EQ(form.project().tokens[0].startMs, 100);
+    EXPECT_EQ(form.project().tokens[0].endMs, 650);
+    EXPECT_TRUE(form.setTokenTiming(0, 300, 300));  // No length is allowed
+
+    EXPECT_FALSE(form.setTokenTiming(0, -1, 300));
+    EXPECT_FALSE(form.setTokenTiming(0, 500, 400));
+    EXPECT_FALSE(form.setTokenTiming(1, 0, 100));
+    EXPECT_EQ(form.project().tokens[0].startMs, 300);
+}
+
+TEST(WordEditorTest, NudgeButtonsChangeTimingAndSaveSetsIt) {
+    // Given: "wrold" (0.4 to 0.8 s) open in the editor
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    openLyrics(app);
+    app.selectWord(1);
+    ASSERT_TRUE(app.openWordEditor());
+    std::string dialog = renderToString(app.component());
+    EXPECT_TRUE(contains(dialog, "Timing")) << dialog;
+    EXPECT_TRUE(contains(dialog, "0:00.400")) << dialog;
+    EXPECT_TRUE(contains(dialog, "0:00.800")) << dialog;
+
+    // When: down past Change to Start's -, pressed once; right to its +,
+    // pressed three times
+    for (int i = 0; i < 2; ++i) {
+        app.component()->OnEvent(ftxui::Event::ArrowDown);
+    }
+    app.component()->OnEvent(ftxui::Event::Return);
+    EXPECT_EQ(app.wordEditStartMs(), 350);
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    for (int i = 0; i < 3; ++i) {
+        app.component()->OnEvent(ftxui::Event::Return);
+    }
+    EXPECT_EQ(app.wordEditStartMs(), 500);
+    // Down to End (on its -), right to its +, pressed once
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    app.component()->OnEvent(ftxui::Event::Return);
+    EXPECT_EQ(app.wordEditEndMs(), 850);
+
+    // Then: shown as changed, but not set until saved
+    dialog = renderToString(app.component());
+    EXPECT_TRUE(contains(dialog, "350 ms long; was 0:00.400 to 0:00.800")) << dialog;
+    EXPECT_EQ(app.form().project().tokens[1].startMs, 400);
+
+    // Down past Move and Listen to Save
+    for (int i = 0; i < 3; ++i) {
+        app.component()->OnEvent(ftxui::Event::ArrowDown);
+    }
+    app.component()->OnEvent(ftxui::Event::Return);
+    EXPECT_FALSE(app.wordEditorOpen());
+    EXPECT_EQ(app.form().project().tokens[1].startMs, 500);
+    EXPECT_EQ(app.form().project().tokens[1].endMs, 850);
+    EXPECT_EQ(app.form().project().tokens[1].text, "wrold");
+    EXPECT_TRUE(app.hasUnsavedChanges());
+    EXPECT_FALSE(app.rhymesOutOfDate());  // Timing doesn't change rhymes
+}
+
+TEST(WordEditorTest, NudgesStayInsideTheWordAndSong) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    openLyrics(app);  // "hello" 0 to 0.4 s
+    ASSERT_TRUE(app.openWordEditor());
+    using Nudge = RsansApp::Nudge;
+
+    // Start: not before 0, not past the end
+    app.nudgeWordTiming(Nudge::Start, -50);
+    EXPECT_EQ(app.wordEditStartMs(), 0);
+    for (int i = 0; i < 10; ++i) {
+        app.nudgeWordTiming(Nudge::Start, 50);
+    }
+    EXPECT_EQ(app.wordEditStartMs(), 400);
+    // End: not before the start
+    app.nudgeWordTiming(Nudge::End, -50);
+    EXPECT_EQ(app.wordEditEndMs(), 400);
+
+    // Move: both edges, stopping at 0
+    app.nudgeWordTiming(Nudge::End, 100);  // 400 to 500
+    app.nudgeWordTiming(Nudge::Move, 50);
+    EXPECT_EQ(app.wordEditStartMs(), 450);
+    EXPECT_EQ(app.wordEditEndMs(), 550);
+    for (int i = 0; i < 20; ++i) {
+        app.nudgeWordTiming(Nudge::Move, -50);
+    }
+    EXPECT_EQ(app.wordEditStartMs(), 0);
+    EXPECT_EQ(app.wordEditEndMs(), 100);  // Length kept
+
+    // The song's end, once its length is known (here 0.2 s)
+    const std::string wav = writeTestWav("rsans_nudge_song.wav", 1, 16000, 200);
+    ASSERT_TRUE(app.form().setFieldText("audio.path", wav));
+    app.nudgeWordTiming(Nudge::Move, 50);
+    app.nudgeWordTiming(Nudge::Move, 50);
+    app.nudgeWordTiming(Nudge::Move, 50);
+    EXPECT_EQ(app.wordEditEndMs(), 200);
+    EXPECT_EQ(app.wordEditStartMs(), 100);
+    app.nudgeWordTiming(Nudge::End, 50);
+    EXPECT_EQ(app.wordEditEndMs(), 200);
+}
+
+TEST(WordEditorTest, CancelDiscardsNudgesAndAddingHasNoTiming) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    openLyrics(app);
+    ASSERT_TRUE(app.openWordEditor());
+    app.nudgeWordTiming(RsansApp::Nudge::Move, 50);
+    app.component()->OnEvent(ftxui::Event::Escape);
+    EXPECT_EQ(app.form().project().tokens[0].startMs, 0);
+    EXPECT_EQ(app.form().project().tokens[0].endMs, 400);
+
+    // Opening again starts from the word's own timing, with the word field focused
+    ASSERT_TRUE(app.openWordEditor());
+    EXPECT_EQ(app.wordEditStartMs(), 0);
+    type(app, "!");
+    EXPECT_EQ(app.wordEditText, "hello!");
+    app.component()->OnEvent(ftxui::Event::Escape);
+
+    // A new word's timing comes from its neighbours: no timing rows
+    ASSERT_TRUE(app.openWordAdder(true));
+    EXPECT_FALSE(contains(renderToString(app.component()), "Timing"));
 }
 
 TEST(WordEditorTest, EditingWaitsWhileStepRuns) {
@@ -2017,9 +2160,19 @@ TEST(RhymeGroupTest, EditorListsGroupsWithTheirWords) {
     // Then: its own word isn't listed in its group
     EXPECT_EQ(app.rhymeGroupLabels(),
               (std::vector<std::string>{"None", "1  light", "2  sign, line", "New group"}));
-    const std::string screen = renderToString(app.component());
-    EXPECT_TRUE(contains(screen, "Rhyme group")) << screen;
-    EXPECT_TRUE(contains(screen, "> \u25a0 1  light")) << screen;  // Its group is the current one
+    // Folded: just its group, with Change
+    std::string screen = renderToString(app.component());
+    EXPECT_TRUE(contains(screen, "Rhyme group  \u25a0 1  light")) << screen;
+    EXPECT_TRUE(contains(screen, "Change")) << screen;
+    EXPECT_FALSE(contains(screen, "2  sign, line")) << screen;
+
+    // Change opens the list, on its group
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::Return);
+    EXPECT_TRUE(app.rhymeGroupListOpen());
+    screen = renderToString(app.component());
+    EXPECT_TRUE(contains(screen, "> \u25a0 1  light")) << screen;
+    EXPECT_TRUE(contains(screen, "2  sign, line")) << screen;
 }
 
 TEST(RhymeGroupTest, ChoosingGroupMovesWordWithoutOutOfDateNote) {
@@ -2031,11 +2184,13 @@ TEST(RhymeGroupTest, ChoosingGroupMovesWordWithoutOutOfDateNote) {
     app.component()->OnEvent(ftxui::Event::Return);
     ASSERT_TRUE(app.wordEditorOpen());
 
-    // When: down into the groups (None), down twice to "2  sign, line", Enter
-    for (int i = 0; i < 3; ++i) {
-        app.component()->OnEvent(ftxui::Event::ArrowDown);
-    }
-    app.component()->OnEvent(ftxui::Event::Return);
+    // When: from None, down twice to "2  sign, line", picked; then saved
+    chooseGroup(app, 2);
+    EXPECT_TRUE(app.wordEditorOpen());  // Picking folds the list, not the editor
+    EXPECT_FALSE(app.rhymeGroupListOpen());
+    EXPECT_TRUE(contains(renderToString(app.component()), "Rhyme group  \u25a0 2  sign, line"));
+    EXPECT_FALSE(app.form().project().tokens[1].rhymeIndex.has_value());  // Not until saved
+    saveFromWordField(app);
 
     // Then
     EXPECT_FALSE(app.wordEditorOpen());
@@ -2051,18 +2206,15 @@ TEST(RhymeGroupTest, NoneAndNewGroup) {
 
     // "night" to None: up from its group to None
     ASSERT_TRUE(app.openWordEditor());
-    app.component()->OnEvent(ftxui::Event::ArrowDown);  // Into the groups, on its own (1)
-    app.component()->OnEvent(ftxui::Event::ArrowUp);    // None
-    app.component()->OnEvent(ftxui::Event::Return);
+    chooseGroup(app, -1);  // From its own (1) up to None
+    saveFromWordField(app);
     EXPECT_FALSE(app.form().project().tokens[0].rhymeIndex.has_value());
 
     // "neon" to a new group: the lowest number not in use (groups 0 and 1 are)
     app.selectWord(1);
     ASSERT_TRUE(app.openWordEditor());
-    for (int i = 0; i < 4; ++i) {
-        app.component()->OnEvent(ftxui::Event::ArrowDown);  // None, 1, 2, New group
-    }
-    app.component()->OnEvent(ftxui::Event::Return);
+    chooseGroup(app, 3);  // From None past 1, 2 to New group
+    saveFromWordField(app);
     EXPECT_EQ(app.form().project().tokens[1].rhymeIndex, 2);
 }
 
@@ -2078,10 +2230,8 @@ TEST(RhymeGroupTest, NewGroupReusesFreedNumber) {
     app.selectWord(1);
     ASSERT_TRUE(app.openWordEditor());
     EXPECT_EQ(app.rhymeGroupLabels().back(), "New group");
-    for (int i = 0; i < 3; ++i) {
-        app.component()->OnEvent(ftxui::Event::ArrowDown);  // None, 2, New group
-    }
-    app.component()->OnEvent(ftxui::Event::Return);
+    chooseGroup(app, 2);  // From None past 2 to New group
+    saveFromWordField(app);
 
     // Then: 0 is free again
     EXPECT_EQ(app.form().project().tokens[1].rhymeIndex, 0);
@@ -2092,24 +2242,70 @@ TEST(RhymeGroupTest, TextAndGroupChangeTogetherAndCancelChangesNeither) {
     RsansApp app("ffmpeg", ui.post(), [] {});
     openRhymingLyrics(app);
 
-    // Esc: nothing changes
+    // Esc in the open list folds it, keeping the group; Esc again cancels
     ASSERT_TRUE(app.openWordEditor());
     type(app, "s");
-    app.component()->OnEvent(ftxui::Event::ArrowDown);
-    app.component()->OnEvent(ftxui::Event::ArrowUp);
-    app.component()->OnEvent(ftxui::Event::ArrowUp);
+    app.component()->OnEvent(ftxui::Event::ArrowDown);  // Change
+    app.component()->OnEvent(ftxui::Event::Return);
+    app.component()->OnEvent(ftxui::Event::ArrowUp);    // None
     app.component()->OnEvent(ftxui::Event::Escape);
+    EXPECT_TRUE(app.wordEditorOpen());
+    EXPECT_FALSE(app.rhymeGroupListOpen());
+    EXPECT_TRUE(contains(renderToString(app.component()), "Rhyme group  \u25a0 1  light"));
+    app.component()->OnEvent(ftxui::Event::Escape);
+    EXPECT_FALSE(app.wordEditorOpen());
     EXPECT_EQ(app.form().project().tokens[0].text, "night");
     EXPECT_EQ(app.form().project().tokens[0].rhymeIndex, 0);
 
     // Save: both change
     ASSERT_TRUE(app.openWordEditor());
     type(app, "s");
-    app.component()->OnEvent(ftxui::Event::ArrowDown);
-    app.component()->OnEvent(ftxui::Event::ArrowDown);  // 2  sign, line
-    app.component()->OnEvent(ftxui::Event::Return);
+    chooseGroup(app, 1);  // From its own (1) to "2  sign, line"
+    saveFromWordField(app);
     EXPECT_EQ(app.form().project().tokens[0].text, "nights");
     EXPECT_EQ(app.form().project().tokens[0].rhymeIndex, 1);
+}
+
+TEST(RhymeGroupTest, MovingThroughEditorToTimingKeepsGroup) {
+    // Given: "night" (group 1) open in the editor
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    openRhymingLyrics(app);
+    ASSERT_TRUE(app.openWordEditor());
+
+    // When: down past Change to Start's -, nudged, then down to the buttons and back up
+    app.component()->OnEvent(ftxui::Event::ArrowDown);  // Change
+    app.component()->OnEvent(ftxui::Event::ArrowDown);  // Start
+    EXPECT_FALSE(app.rhymeGroupListOpen());
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    app.component()->OnEvent(ftxui::Event::Return);     // Start +
+    for (int i = 0; i < 4; ++i) {
+        app.component()->OnEvent(ftxui::Event::ArrowDown);  // End, Move, Listen, Save
+    }
+    for (int i = 0; i < 6; ++i) {
+        app.component()->OnEvent(ftxui::Event::ArrowUp);    // Back up to the word field
+    }
+    app.component()->OnEvent(ftxui::Event::Return);         // Save
+
+    // Then: the timing changed, the group didn't
+    EXPECT_FALSE(app.wordEditorOpen());
+    EXPECT_EQ(app.form().project().tokens[0].startMs, 50);
+    EXPECT_EQ(app.form().project().tokens[0].rhymeIndex, 0);
+}
+
+TEST(RhymeGroupTest, LeavingOpenListFoldsItKeepingWhatWasMovedTo) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    openRhymingLyrics(app);
+    ASSERT_TRUE(app.openWordEditor());
+    app.component()->OnEvent(ftxui::Event::ArrowDown);  // Change
+    app.component()->OnEvent(ftxui::Event::Return);     // Open, on 1
+    app.component()->OnEvent(ftxui::Event::ArrowDown);  // 2
+    app.component()->OnEvent(ftxui::Event::ArrowDown);  // New group
+    app.component()->OnEvent(ftxui::Event::ArrowDown);  // Out of the list: Start
+    renderToString(app.component());
+    EXPECT_FALSE(app.rhymeGroupListOpen());
+    EXPECT_TRUE(contains(renderToString(app.component()), "Rhyme group  + New group"));
 }
 
 // Saving the video
@@ -2771,4 +2967,89 @@ TEST(KaraokeTest, SungWordIsDarkOnItsColorAndOthersKeepTheirColor) {
     ASSERT_GE(sx, 0);
     EXPECT_NE(during.PixelAt(sx, sy).foreground_color, ftxui::Color(ftxui::Color::Default));
     EXPECT_EQ(during.PixelAt(sx, sy).background_color, ftxui::Color(ftxui::Color::Default));
+}
+
+TEST(KaraokeTest, ListenPlaysFromEditedStartAndHighlightsWithIt) {
+    // Given: "sign" (1.4 to 1.8 s) open in the editor, its start nudged to
+    // 1.25 s (in the gap after "light", which ends at 1.2 s)
+    const std::string wav = writeTestWav("rsans_listen.wav", 1, 16000, 3000);
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {}, AudioPlayer::Output::Silent);
+    openRhymingLyrics(app);
+    ASSERT_TRUE(app.form().setFieldText("audio.path", wav));
+    app.selectWord(3);
+    ASSERT_TRUE(app.openWordEditor());
+    EXPECT_TRUE(contains(renderToString(app.component()), "Listen"));
+    for (int i = 0; i < 3; ++i) {
+        app.nudgeWordTiming(RsansApp::Nudge::Start, -50);
+    }
+
+    // When: Listen
+    app.listenToWordEdit();
+
+    // Then: playing from the edited start, not the saved one, with the word
+    // highlighted by its edited timing and marked in the dialog
+    EXPECT_EQ(app.playbackState(), AudioPlayer::State::Playing);
+    EXPECT_TRUE(app.listening());
+    EXPECT_GE(app.playbackPositionMs(), 1250);
+    EXPECT_LT(app.playbackPositionMs(), 1400);
+    EXPECT_EQ(app.wordsBeingSung(), Sung({3}));
+    const std::string dialog = renderToString(app.component());
+    EXPECT_TRUE(contains(dialog, "Stop  ")) << dialog;
+    EXPECT_TRUE(contains(dialog, "sung now")) << dialog;
+    EXPECT_EQ(app.form().project().tokens[3].startMs, 1400);  // Not saved by listening
+
+    // Pressing it again stops
+    app.listenToWordEdit();
+    EXPECT_EQ(app.playbackState(), AudioPlayer::State::Stopped);
+    EXPECT_FALSE(app.listening());
+}
+
+TEST(KaraokeTest, ListenButtonIsBelowMoveAndClosingTheEditorStopsIt) {
+    const std::string wav = writeTestWav("rsans_listen_close.wav", 1, 16000, 3000);
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {}, AudioPlayer::Output::Silent);
+    openLyrics(app);
+    ASSERT_TRUE(app.form().setFieldText("audio.path", wav));
+    app.component()->OnEvent(ftxui::Event::Return);  // Edit "hello"
+    ASSERT_TRUE(app.wordEditorOpen());
+
+    // Down past Change and Start, End, Move to Listen
+    for (int i = 0; i < 5; ++i) {
+        app.component()->OnEvent(ftxui::Event::ArrowDown);
+    }
+    app.component()->OnEvent(ftxui::Event::Return);
+    ASSERT_TRUE(app.listening());
+
+    // Esc closes the editor and stops the song
+    app.component()->OnEvent(ftxui::Event::Escape);
+    EXPECT_FALSE(app.wordEditorOpen());
+    EXPECT_EQ(app.playbackState(), AudioPlayer::State::Stopped);
+}
+
+TEST(KaraokeTest, ClosingEditorKeepsPlayingWhatSpaceStarted) {
+    const std::string wav = writeTestWav("rsans_listen_space.wav", 1, 16000, 3000);
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {}, AudioPlayer::Output::Silent);
+    openLyrics(app);
+    ASSERT_TRUE(app.form().setFieldText("audio.path", wav));
+    app.component()->OnEvent(ftxui::Event::Character(" "));
+    app.component()->OnEvent(ftxui::Event::Return);
+    ASSERT_TRUE(app.wordEditorOpen());
+    EXPECT_FALSE(app.listening());
+
+    app.component()->OnEvent(ftxui::Event::Escape);
+    EXPECT_EQ(app.playbackState(), AudioPlayer::State::Playing);
+}
+
+TEST(KaraokeTest, ListenWithoutAudioSaysWhyInTheDialog) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {}, AudioPlayer::Output::Silent);
+    openLyrics(app);
+    ASSERT_TRUE(app.openWordEditor());
+
+    app.listenToWordEdit();
+
+    EXPECT_FALSE(app.listening());
+    EXPECT_TRUE(contains(renderToString(app.component()), "Choose the audio file on the Project tab first"));
 }

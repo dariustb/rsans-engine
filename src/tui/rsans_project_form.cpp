@@ -276,6 +276,16 @@ bool ProjectForm::setTokenRhyme(std::size_t index, std::optional<int> rhymeIndex
     return true;
 }
 
+bool ProjectForm::setTokenTiming(std::size_t index, int startMs, int endMs) {
+    if (index >= d_project.tokens.size() || startMs < 0 || endMs < startMs) {
+        return false;
+    }
+    d_project.tokens[index].startMs = startMs;
+    d_project.tokens[index].endMs = endMs;
+    d_validation = d_project.validate();
+    return true;
+}
+
 bool ProjectForm::removeToken(std::size_t index) {
     if (index >= d_project.tokens.size()) {
         return false;

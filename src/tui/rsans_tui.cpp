@@ -48,6 +48,14 @@ std::string percent(double fraction) {
     return std::to_string(static_cast<int>(fraction * 100.0 + 0.5)) + "%";
 }
 
+// "1:02.345": a time to the millisecond, for editing a word's timing
+std::string formatTimeMs(int ms) {
+    const int seconds = ms / 1000;
+    std::array<char, 24> buffer{};
+    std::snprintf(buffer.data(), buffer.size(), "%d:%02d.%03d", seconds / 60, seconds % 60, ms % 1000);
+    return buffer.data();
+}
+
 std::string formatTime(int ms) {
     const int seconds = ms / 1000;
     std::array<char, 16> buffer{};
@@ -1634,9 +1642,13 @@ bool RsansApp::openWordEditor() {
     }
     d_wordAdding = false;
     wordEditText = d_form.project().tokens[d_wordSelected].text;
+    d_editStartMs = d_form.project().tokens[d_wordSelected].startMs;
+    d_editEndMs = d_form.project().tokens[d_wordSelected].endMs;
     d_wordCursor = static_cast<int>(wordEditText.size());
     d_wordError.clear();
     refreshGroupChoices();
+    d_groupsOpen = false;
+    d_wordInput->TakeFocus();
     d_wordEditorOpen = true;
     return true;
 }
@@ -1651,6 +1663,8 @@ bool RsansApp::openWordAdder(bool after) {
     d_wordCursor = 0;
     d_wordError.clear();
     refreshGroupChoices();
+    d_groupsOpen = false;
+    d_wordInput->TakeFocus();
     d_wordEditorOpen = true;
     return true;
 }
@@ -1721,9 +1735,36 @@ void RsansApp::applyWordEdit() {
         d_rhymesOutOfDate = true;
     }
 
-    // The rhyme group chosen by hand
+    // The rhyme group chosen by hand, and the timing as nudged
     d_form.setTokenRhyme(d_wordSelected, chosenGroup());
+    d_form.setTokenTiming(d_wordSelected, d_editStartMs, d_editEndMs);
     d_wordEditorOpen = false;
+}
+
+void RsansApp::nudgeWordTiming(Nudge what, int deltaMs) {
+    // The song's end, when its length is known
+    const double lengthSeconds = d_form.project().audio.length;
+    const int songEndMs = lengthSeconds > 0 ? static_cast<int>(lengthSeconds * 1000) : -1;
+    const auto capAtSongEnd = [songEndMs](int ms) { return songEndMs >= 0 ? std::min(ms, songEndMs) : ms; };
+
+    switch (what) {
+    case Nudge::Start:
+        d_editStartMs = std::clamp(d_editStartMs + deltaMs, 0, d_editEndMs);
+        break;
+    case Nudge::End:
+        d_editEndMs = capAtSongEnd(std::max(d_editEndMs + deltaMs, d_editStartMs));
+        break;
+    case Nudge::Move: {
+        // Both edges by the same amount, as far as the start and the song's end allow
+        int shift = std::max(deltaMs, -d_editStartMs);
+        shift = capAtSongEnd(d_editEndMs + shift) - d_editEndMs;
+        if ((deltaMs > 0 && shift > 0) || (deltaMs < 0 && shift < 0)) {
+            d_editStartMs += shift;
+            d_editEndMs += shift;
+        }
+        break;
+    }
+    }
 }
 
 void RsansApp::addWord() {
@@ -1752,20 +1793,29 @@ Component RsansApp::makeWordEditor() {
     option.on_change = [this] { d_wordError.clear(); };
     option.on_enter = [this] { applyWordEdit(); };
     Component input = TextInput(&wordEditText, "the word", option);
+    d_wordInput = input;
 
     // Rhyme groups, each in its color
-    MenuOption groupOption = MenuOption::Vertical();
-    groupOption.on_enter = [this] { applyWordEdit(); };
-    groupOption.entries_option.transform = [this](const EntryState& state) {
-        Element mark = text("  ");
-        const auto index = static_cast<std::size_t>(state.index);
+    const auto groupMark = [this](std::size_t index) {
         const std::vector<::Color>& swatch = d_form.project().colorSwatch;
         if (index < d_groupChoices.size() && d_groupChoices[index] >= 0 && !swatch.empty()) {
             const std::size_t colorIndex = static_cast<std::size_t>(d_groupChoices[index]) % swatch.size();
-            mark = text("\u25a0 ") | color(toColor(swatch[colorIndex].hex()));
-        } else if (index < d_groupChoices.size() && d_groupChoices[index] == newGroup) {
-            mark = text("+ ");
+            return text("\u25a0 ") | color(toColor(swatch[colorIndex].hex()));
         }
+        if (index < d_groupChoices.size() && d_groupChoices[index] == newGroup) {
+            return text("+ ");
+        }
+        return text("  ");
+    };
+    // Folded away behind Change, so moving past it doesn't pick a group
+    auto changeButton = std::make_shared<Component>();
+    MenuOption groupOption = MenuOption::Vertical();
+    groupOption.on_enter = [this, changeButton] {
+        d_groupsOpen = false;  // Picked: fold the list, back on Change
+        (*changeButton)->TakeFocus();
+    };
+    groupOption.entries_option.transform = [groupMark](const EntryState& state) {
+        Element mark = groupMark(static_cast<std::size_t>(state.index));
         Element label = text(state.label);
         if (state.active) {
             label = label | bold;
@@ -1775,23 +1825,54 @@ Component RsansApp::makeWordEditor() {
         }
         return hbox({text(state.active ? "> " : "  "), mark, label});
     };
-    Component groups = Menu(&d_groupLabels, &d_groupSelected, groupOption);
+    Component groupMenu = Menu(&d_groupLabels, &d_groupSelected, groupOption);
+    Component groups = Maybe(groupMenu, &d_groupsOpen);
+    *changeButton = Button("Change", [this, groupMenu] {
+        d_groupSelectedBefore = d_groupSelected;
+        d_groupsOpen = true;
+        groupMenu->TakeFocus();
+    }, ButtonOption::Ascii());
 
     Component saveButton = Button("Save", [this] { applyWordEdit(); }, ButtonOption::Ascii());
     Component deleteButton = Maybe(Button("Delete word", [this] { deleteSelectedWord(); }, ButtonOption::Ascii()),
                                    [this] { return !d_wordAdding; });
     Component cancel = Button("Cancel", [this] { d_wordEditorOpen = false; }, ButtonOption::Ascii());
-    Component container =
-        Container::Vertical({input, groups, Container::Horizontal({saveButton, deleteButton, cancel})});
 
-    Component rendered = Renderer(container, [this, input, groups, saveButton, deleteButton, cancel] {
+    // Timing: a - and + per row, 50 ms a press (not when adding: a new word's
+    // timing comes from its neighbours)
+    struct NudgeRow {
+        Nudge what;
+        Component minus;
+        Component plus;
+    };
+    std::vector<NudgeRow> nudgeRows;
+    Components nudgeContainers;
+    for (const Nudge what : {Nudge::Start, Nudge::End, Nudge::Move}) {
+        Component minus = Button(" - ", [this, what] { nudgeWordTiming(what, -nudgeMs); }, ButtonOption::Ascii());
+        Component plus = Button(" + ", [this, what] { nudgeWordTiming(what, nudgeMs); }, ButtonOption::Ascii());
+        nudgeRows.push_back({what, minus, plus});
+        nudgeContainers.push_back(Container::Horizontal({minus, plus}));
+    }
+    // Listen: from the edited start, to check it by ear
+    Component listenButton = Button(&d_listenLabel, [this] { listenToWordEdit(); }, ButtonOption::Ascii());
+    nudgeContainers.push_back(listenButton);
+    Component timing = Maybe(Container::Vertical(nudgeContainers), [this] { return !d_wordAdding; });
+
+    Component container = Container::Vertical(
+        {input, *changeButton, groups, timing, Container::Horizontal({saveButton, deleteButton, cancel})});
+
+    Component rendered = Renderer(container, [this, input, groupMark, changeButton, groupMenu, groups, nudgeRows,
+                                              listenButton, saveButton, deleteButton, cancel] {
+        // Moving out of the open list (up to Change, down to Timing) folds it
+        if (d_groupsOpen && !groupMenu->Focused()) {
+            d_groupsOpen = false;
+        }
         const std::vector<Token>& tokens = d_form.project().tokens;
         if (d_wordSelected >= tokens.size()) {
             return text("");
         }
         const Token& token = tokens[d_wordSelected];
-        std::string where = "Sung at " + formatTime(token.startMs) + ", " +
-                            std::to_string(token.endMs - token.startMs) + " ms";
+        std::string where = "Sung at " + formatTimeMs(token.startMs) + " to " + formatTimeMs(token.endMs);
         if (d_wordAdding) {
             // Between its neighbours, whose timing it is fitted into
             const std::string before = d_addAt > 0 ? "\"" + tokens[d_addAt - 1].text + "\"" : "";
@@ -1800,20 +1881,68 @@ Component RsansApp::makeWordEditor() {
                   : !before.empty()                   ? "After " + before + ", the last word"
                                                       : "Before " + after + ", the first word";
         }
+
+        Elements timingRows;
+        if (!d_wordAdding) {
+            const bool changed = d_editStartMs != token.startMs || d_editEndMs != token.endMs;
+            timingRows.push_back(hbox({text("Timing") | bold, filler(),
+                                       text(std::to_string(nudgeMs) + " ms a press") | dim}));
+            for (const NudgeRow& row : nudgeRows) {
+                const char* label = row.what == Nudge::Start ? "Start " : row.what == Nudge::End ? "End   " : "Move  ";
+                Element value = row.what == Nudge::Start ? text(formatTimeMs(d_editStartMs))
+                              : row.what == Nudge::End   ? text(formatTimeMs(d_editEndMs))
+                                                         : text("earlier / later") | dim;
+                timingRows.push_back(hbox({text(label), row.minus->Render(), text(" "),
+                                           value | size(WIDTH, EQUAL, 15) | center, text(" "),
+                                           row.plus->Render()}));
+            }
+            // Listen, with where the song is and whether this word is sounding
+            Element listenStatus = text("plays from the start above") | dim;
+            if (!d_playError.empty()) {
+                listenStatus = text(d_playError) | color(ftxui::Color::Red);
+            } else if (d_player.state() == AudioPlayer::State::Playing) {
+                const int nowMs = d_player.positionMs();
+                const bool now = d_editStartMs <= nowMs && nowMs < d_editEndMs;
+                listenStatus = hbox({text(formatTimeMs(nowMs)),
+                                     now ? text("  sung now") | bold | color(ftxui::Color::Yellow) : text("")});
+            }
+            timingRows.push_back(hbox({listenButton->Render(), text("  "), listenStatus}));
+            timingRows.push_back(
+                text(std::to_string(d_editEndMs - d_editStartMs) + " ms long" +
+                     (changed ? "; was " + formatTimeMs(token.startMs) + " to " + formatTimeMs(token.endMs) : "")) |
+                (changed ? color(ftxui::Color::Yellow) : dim));
+        }
+
         return dialogWindow(d_wordAdding ? " Add word " : " Edit word ", vbox({
             hbox({text("Word ") | bold, input->Render() | flex}),
             text(where) | dim,
             d_wordError.empty() ? text("") : text(d_wordError) | color(ftxui::Color::Red),
-            text("Rhyme group") | bold,
-            groups->Render() | vscroll_indicator | frame | size(HEIGHT, LESS_THAN, 10),
+            hbox({text("Rhyme group  ") | bold,
+                  groupMark(static_cast<std::size_t>(std::max(d_groupSelected, 0))),
+                  text(d_groupSelected >= 0 && static_cast<std::size_t>(d_groupSelected) < d_groupLabels.size()
+                           ? d_groupLabels[static_cast<std::size_t>(d_groupSelected)]
+                           : ""),
+                  filler(), (*changeButton)->Render()}),
+            d_groupsOpen ? vbox({groups->Render() | vscroll_indicator | frame | size(HEIGHT, LESS_THAN, 10),
+                                 text("Enter: choose  Esc: keep as it was") | dim})
+                         : emptyElement(),
             text("Detect rhymes replaces groups set by hand") | dim,
+            d_wordAdding ? text("") : separator(),
+            vbox(std::move(timingRows)),
             separator(),
             hbox({saveButton->Render(), text(" "), deleteButton->Render(),
                   d_wordAdding ? text("") : text(" "), cancel->Render(), filler(),
                   text("Enter: save  Esc: cancel") | dim}),
         })) | size(WIDTH, EQUAL, 60);
     });
-    return CatchEvent(rendered, [this](const Event& event) {
+    return CatchEvent(rendered, [this, changeButton](const Event& event) {
+        if (event == Event::Escape && d_groupsOpen) {
+            // Folds the list, keeping the group it had
+            d_groupSelected = d_groupSelectedBefore;
+            d_groupsOpen = false;
+            (*changeButton)->TakeFocus();
+            return true;
+        }
         if (event == Event::Escape) {
             d_wordEditorOpen = false;
             return true;
@@ -1872,7 +2001,11 @@ std::vector<std::size_t> RsansApp::wordsBeingSung() {
     const std::vector<Token>& tokens = d_form.project().tokens;
     std::vector<std::size_t> sung;
     for (std::size_t i = 0; i < tokens.size(); ++i) {
-        if (tokens[i].startMs <= nowMs && nowMs < tokens[i].endMs) {
+        // The word open in the editor, with its timing as nudged so far
+        const bool editing = d_wordEditorOpen && !d_wordAdding && i == d_wordSelected;
+        const int startMs = editing ? d_editStartMs : tokens[i].startMs;
+        const int endMs = editing ? d_editEndMs : tokens[i].endMs;
+        if (startMs <= nowMs && nowMs < endMs) {
             sung.push_back(i);
         }
     }
@@ -1886,6 +2019,15 @@ void RsansApp::playFromWordOrStop() {
     }
     const std::vector<Token>& tokens = d_form.project().tokens;
     playFrom(d_wordSelected < tokens.size() ? tokens[d_wordSelected].startMs : 0);
+}
+
+void RsansApp::listenToWordEdit() {
+    if (updatePlayback() == AudioPlayer::State::Playing) {
+        stopPlayback();
+        return;
+    }
+    playFrom(d_editStartMs);
+    d_listening = d_player.state() == AudioPlayer::State::Playing;
 }
 
 void RsansApp::stopPlayback() {
@@ -1906,7 +2048,16 @@ AudioPlayer::State RsansApp::updatePlayback() {
         d_player.close();
         d_playError.clear();
     }
-    const AudioPlayer::State state = d_player.state();  // Also notices the end of the song
+    AudioPlayer::State state = d_player.state();  // Also notices the end of the song
+    // Listening belongs to the word editor: closing it stops the song
+    if (d_listening && !d_wordEditorOpen && state == AudioPlayer::State::Playing) {
+        d_player.stop();
+        state = d_player.state();
+    }
+    if (state != AudioPlayer::State::Playing) {
+        d_listening = false;
+    }
+    d_listenLabel = state == AudioPlayer::State::Playing ? "Stop" : "Listen";
     if (state == AudioPlayer::State::Playing) {
         d_ticker.start();
     } else {

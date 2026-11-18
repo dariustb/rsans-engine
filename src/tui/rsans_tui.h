@@ -75,12 +75,28 @@ class RsansApp {
     bool openWordAdder(bool after);
     bool addingWord() const { return d_wordAdding; }
     bool wordEditorOpen() const { return d_wordEditorOpen; }
+    // The editor's timing for the word, nudged with its - and + buttons and
+    // saved with the word: Start and End move one edge, Move shifts both.
+    // Start never passes End or 0; nothing passes the song's end, if known.
+    static constexpr int nudgeMs = 50;
+    enum class Nudge { Start, End, Move };
+    void nudgeWordTiming(Nudge what, int deltaMs);
+    int wordEditStartMs() const { return d_editStartMs; }
+    // The editor's Listen button: plays the song from the edited start (saved
+    // or not), or stops it while playing. Closing the editor stops it.
+    void listenToWordEdit();
+    bool listening() const { return d_listening; }
+    int wordEditEndMs() const { return d_editEndMs; }
     std::string wordEditText;  // The word editor's text
     // True once a word has been changed since rhymes were last detected
     bool rhymesOutOfDate() const { return d_rhymesOutOfDate; }
     // The word editor's rhyme group choices, as shown: "None", each group in
     // use (with its words), then "New group"
     const std::vector<std::string>& rhymeGroupLabels() const { return d_groupLabels; }
+    // The list is folded away behind a Change button, so moving through the
+    // editor doesn't change the group; Enter in the list picks one and folds
+    // it again, Esc folds it without changing the group.
+    bool rhymeGroupListOpen() const { return d_groupsOpen; }
 
     // Playing the project's audio on the Lyrics tab. Playing opens the
     // project's audio file; changing the file, or leaving the project, stops it.
@@ -229,6 +245,11 @@ class RsansApp {
     bool d_wordEditorOpen = false;
     bool d_wordAdding = false;     // The editor is adding a word, at d_addAt
     std::size_t d_addAt = 0;
+    ftxui::Component d_wordInput;  // Focused each time the editor opens
+    int d_editStartMs = 0;  // The timing being edited
+    int d_editEndMs = 0;
+    bool d_listening = false;            // Playing was started by Listen
+    std::string d_listenLabel = "Listen";  // "Stop" while playing
     int d_wordCursor = 0;
     std::string d_wordError;
     // Rhyme group choices: a group number, or noGroup / newGroup
@@ -237,6 +258,8 @@ class RsansApp {
     std::vector<int> d_groupChoices;
     std::vector<std::string> d_groupLabels;
     int d_groupSelected = 0;
+    bool d_groupsOpen = false;
+    int d_groupSelectedBefore = 0;  // To go back to if the list is closed with Esc
     void refreshGroupChoices();
     bool d_rhymesOutOfDate = false;
     std::optional<int> chosenGroup() const;  // The group chosen in the editor (nullopt: None)
