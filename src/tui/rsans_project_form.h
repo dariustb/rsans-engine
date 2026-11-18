@@ -89,6 +89,14 @@ class ProjectForm {
     bool setTokenRhyme(std::size_t index, std::optional<int> rhymeIndex);
     // Removes one word, e.g. one that was never sung. False if there's no such word.
     bool removeToken(std::size_t index);
+    // Adds a word the transcription missed at index (before the word there
+    // now, or at the end if index is the word count), on the given line, in
+    // the given rhyme group. Its timing comes from its neighbours: the gap
+    // between them (up to a second), next to the neighbour on its line; with
+    // no gap, it takes the second half of the word before it (or the first
+    // half of the word after it, when added at the start of a line). False
+    // if index is past the end, the text is empty or the group is negative.
+    bool insertToken(std::size_t index, const std::string& text, int lineIndex, std::optional<int> rhymeIndex);
 
     // Errors to show for one field: its parse error if the text couldn't be
     // read, otherwise any validation errors for it

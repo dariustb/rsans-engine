@@ -1787,6 +1787,152 @@ TEST(WordEditorTest, DeleteWordRemovesIt) {
     EXPECT_TRUE(app.rhymesOutOfDate());
 }
 
+TEST(ProjectFormTest, InsertTokenFitsTimingBetweenNeighbours) {
+    ProjectForm form(defaultProject());
+    form.setTokens({Token(0, "hello", 0, 400, 0, std::nullopt),
+                    Token(1, "world", 600, 800, 0, std::nullopt),
+                    Token(4, "again", 5000, 5400, 1, std::nullopt)});
+
+    // A gap between the two words: the new word fills it
+    EXPECT_TRUE(form.insertToken(1, " big ", 0, 3));
+    const Token& big = form.project().tokens[1];
+    EXPECT_EQ(big.text, "big");
+    EXPECT_EQ(big.startMs, 400);
+    EXPECT_EQ(big.endMs, 600);
+    EXPECT_EQ(big.lineIndex, 0);
+    EXPECT_EQ(big.rhymeIndex, 3);
+    EXPECT_EQ(big.id, 5);  // Unique: one past the highest id
+    EXPECT_EQ(form.project().tokens[2].text, "world");
+
+    // A long gap at the end of a line: up to a second, straight after the word before
+    EXPECT_TRUE(form.insertToken(3, "out", 0, std::nullopt));
+    EXPECT_EQ(form.project().tokens[3].startMs, 800);
+    EXPECT_EQ(form.project().tokens[3].endMs, 1800);
+
+    // ...and at the start of a line: just before the word after
+    EXPECT_TRUE(form.insertToken(4, "oh", 1, std::nullopt));
+    EXPECT_EQ(form.project().tokens[4].startMs, 4000);
+    EXPECT_EQ(form.project().tokens[4].endMs, 5000);
+    EXPECT_EQ(form.project().tokens[4].lineIndex, 1);
+}
+
+TEST(ProjectFormTest, InsertTokenWithoutGapSharesNeighboursTime) {
+    ProjectForm form(defaultProject());
+    form.setTokens({Token(0, "hello", 0, 400, 0, std::nullopt), Token(1, "world", 400, 800, 0, std::nullopt)});
+
+    // Between touching words: the second half of the word before
+    EXPECT_TRUE(form.insertToken(1, "big", 0, std::nullopt));
+    EXPECT_EQ(form.project().tokens[0].endMs, 200);
+    EXPECT_EQ(form.project().tokens[1].startMs, 200);
+    EXPECT_EQ(form.project().tokens[1].endMs, 400);
+
+    // After the last word: the same
+    EXPECT_TRUE(form.insertToken(3, "now", 0, std::nullopt));
+    EXPECT_EQ(form.project().tokens[2].endMs, 600);
+    EXPECT_EQ(form.project().tokens[3].startMs, 600);
+    EXPECT_EQ(form.project().tokens[3].endMs, 800);
+
+    // Before the first word: the first half of the word after
+    EXPECT_TRUE(form.insertToken(0, "oh", 0, std::nullopt));
+    EXPECT_EQ(form.project().tokens[0].startMs, 0);
+    EXPECT_EQ(form.project().tokens[0].endMs, 100);
+    EXPECT_EQ(form.project().tokens[1].startMs, 100);
+
+    // Refused: empty, past the end, negative group
+    EXPECT_FALSE(form.insertToken(1, "  ", 0, std::nullopt));
+    EXPECT_FALSE(form.insertToken(9, "x", 0, std::nullopt));
+    EXPECT_FALSE(form.insertToken(1, "x", 0, -1));
+    EXPECT_EQ(form.project().tokens.size(), 5u);
+}
+
+TEST(WordEditorTest, AKeyAddsWordAfterHighlightedOne) {
+    // Given: "hello" highlighted
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    openLyrics(app);
+
+    // When
+    app.component()->OnEvent(ftxui::Event::Character("a"));
+    ASSERT_TRUE(app.wordEditorOpen());
+    EXPECT_TRUE(app.addingWord());
+    EXPECT_EQ(app.wordEditText, "");
+    const std::string dialog = renderToString(app.component());
+    EXPECT_TRUE(contains(dialog, "Add word")) << dialog;
+    EXPECT_TRUE(contains(dialog, "Between \"hello\" and \"wrold\"")) << dialog;
+    EXPECT_FALSE(contains(dialog, "Delete word")) << dialog;
+    type(app, "big");
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then: added on hello's line, highlighted, and rhymes need detecting again
+    EXPECT_FALSE(app.wordEditorOpen());
+    ASSERT_EQ(app.form().project().tokens.size(), 4u);
+    EXPECT_EQ(app.form().project().tokens[1].text, "big");
+    EXPECT_EQ(app.form().project().tokens[1].lineIndex, 0);
+    EXPECT_FALSE(app.form().project().tokens[1].rhymeIndex.has_value());
+    EXPECT_EQ(app.selectedWord(), 1u);
+    EXPECT_TRUE(app.rhymesOutOfDate());
+    EXPECT_TRUE(app.hasUnsavedChanges());
+    EXPECT_TRUE(contains(renderToString(app.component()), "hello big wrold"));
+}
+
+TEST(WordEditorTest, BKeyAddsWordBeforeAndStartsALine) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    openLyrics(app);
+    app.selectWord(2);  // "again", alone on line 1
+
+    app.component()->OnEvent(ftxui::Event::Character("b"));
+    ASSERT_TRUE(app.addingWord());
+    type(app, "oh");
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    ASSERT_EQ(app.form().project().tokens.size(), 4u);
+    const Token& oh = app.form().project().tokens[2];
+    EXPECT_EQ(oh.text, "oh");
+    EXPECT_EQ(oh.lineIndex, 1);
+    EXPECT_EQ(oh.startMs, 800);  // The 200 ms gap between "wrold" and "again"
+    EXPECT_EQ(oh.endMs, 1000);
+    EXPECT_TRUE(contains(renderToString(app.component()), "oh again"));
+}
+
+TEST(WordEditorTest, AddingRefusesEmptyWordAndEscapeAddsNothing) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    openLyrics(app);
+    ASSERT_TRUE(app.openWordAdder(true));
+
+    app.component()->OnEvent(ftxui::Event::Return);
+    EXPECT_TRUE(app.wordEditorOpen());
+    EXPECT_TRUE(contains(renderToString(app.component()), "Type the word to add"));
+
+    app.component()->OnEvent(ftxui::Event::Escape);
+    EXPECT_FALSE(app.wordEditorOpen());
+    EXPECT_EQ(app.form().project().tokens.size(), 3u);
+    EXPECT_FALSE(app.rhymesOutOfDate());
+
+    // Editing afterwards is editing again, not adding
+    ASSERT_TRUE(app.openWordEditor());
+    EXPECT_FALSE(app.addingWord());
+    EXPECT_EQ(app.wordEditText, "hello");
+}
+
+TEST(WordEditorTest, AddedWordCanJoinARhymeGroup) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    openLyrics(app);
+    app.form().setTokenRhyme(1, 0);  // "wrold" in group 0
+
+    ASSERT_TRUE(app.openWordAdder(false));  // Before "hello"
+    type(app, "old");
+    // The groups list starts on None; down into it, then to group 1
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    EXPECT_EQ(app.form().project().tokens[0].text, "old");
+    EXPECT_EQ(app.form().project().tokens[0].rhymeIndex, 0);
+}
+
 TEST(WordEditorTest, EditingWaitsWhileStepRuns) {
     FakeWhisperCpp whisper;
     whisper.setMode("slow");

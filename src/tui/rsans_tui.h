@@ -65,6 +65,11 @@ class RsansApp {
     // Opens the word editor for the highlighted word. False while a step is
     // running (its results would replace the words) or if there are none.
     bool openWordEditor();
+    // Opens the same editor to add a word the transcription missed, after
+    // (or before) the highlighted word, on its line. False while a step is
+    // running or if there are no words. ("a" and "b" on the Lyrics tab.)
+    bool openWordAdder(bool after);
+    bool addingWord() const { return d_wordAdding; }
     bool wordEditorOpen() const { return d_wordEditorOpen; }
     std::string wordEditText;  // The word editor's text
     // True once a word has been changed since rhymes were last detected
@@ -200,6 +205,8 @@ class RsansApp {
     // The word editor
     std::size_t d_wordSelected = 0;
     bool d_wordEditorOpen = false;
+    bool d_wordAdding = false;     // The editor is adding a word, at d_addAt
+    std::size_t d_addAt = 0;
     int d_wordCursor = 0;
     std::string d_wordError;
     // Rhyme group choices: a group number, or noGroup / newGroup
@@ -210,7 +217,9 @@ class RsansApp {
     int d_groupSelected = 0;
     void refreshGroupChoices();
     bool d_rhymesOutOfDate = false;
+    std::optional<int> chosenGroup() const;  // The group chosen in the editor (nullopt: None)
     void applyWordEdit();
+    void addWord();
     void deleteSelectedWord();
     std::vector<std::vector<std::size_t>> lyricLines() const;  // Token indexes, by line
 

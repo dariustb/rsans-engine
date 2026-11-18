@@ -285,6 +285,55 @@ bool ProjectForm::removeToken(std::size_t index) {
     return true;
 }
 
+bool ProjectForm::insertToken(std::size_t index, const std::string& text, int lineIndex,
+                              std::optional<int> rhymeIndex) {
+    std::vector<Token>& tokens = d_project.tokens;
+    const std::size_t first = text.find_first_not_of(" \t");
+    if (index > tokens.size() || first == std::string::npos || (rhymeIndex && *rhymeIndex < 0)) {
+        return false;
+    }
+    const std::size_t last = text.find_last_not_of(" \t");
+
+    Token* before = index > 0 ? &tokens[index - 1] : nullptr;
+    Token* after = index < tokens.size() ? &tokens[index] : nullptr;
+    // Placed next to the word on its own line: the one before, unless the
+    // new word starts a line that the word after it is on
+    const bool besideBefore = before != nullptr &&
+        (before->lineIndex == lineIndex || after == nullptr || after->lineIndex != lineIndex);
+
+    constexpr int longestGapMs = 1000;
+    int startMs = 0;
+    int endMs = 0;
+    const int gapMs = before != nullptr && after != nullptr ? after->startMs - before->endMs : 0;
+    if (gapMs > 0) {
+        const int length = std::min(gapMs, longestGapMs);
+        startMs = besideBefore ? before->endMs : after->startMs - length;
+        endMs = startMs + length;
+    } else if (besideBefore) {
+        // Shares the word before: its second half
+        const int middle = before->startMs + (before->endMs - before->startMs) / 2;
+        startMs = middle;
+        endMs = before->endMs;
+        before->endMs = middle;
+    } else if (after != nullptr) {
+        // Shares the word after: its first half
+        const int middle = after->startMs + (after->endMs - after->startMs) / 2;
+        startMs = after->startMs;
+        endMs = middle;
+        after->startMs = middle;
+    }
+
+    // A fresh id, so ids stay unique
+    int id = 0;
+    for (const Token& token : tokens) {
+        id = std::max(id, token.id + 1);
+    }
+    tokens.insert(tokens.begin() + static_cast<std::ptrdiff_t>(index),
+                  Token(id, text.substr(first, last - first + 1), startMs, endMs, lineIndex, rhymeIndex));
+    d_validation = d_project.validate();
+    return true;
+}
+
 void ProjectForm::setTokens(std::vector<Token> tokens) {
     d_project.tokens = std::move(tokens);
     d_validation = d_project.validate();

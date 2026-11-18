@@ -1623,8 +1623,23 @@ bool RsansApp::openWordEditor() {
     if (d_runner.isRunning() || d_wordSelected >= d_form.project().tokens.size()) {
         return false;
     }
+    d_wordAdding = false;
     wordEditText = d_form.project().tokens[d_wordSelected].text;
     d_wordCursor = static_cast<int>(wordEditText.size());
+    d_wordError.clear();
+    refreshGroupChoices();
+    d_wordEditorOpen = true;
+    return true;
+}
+
+bool RsansApp::openWordAdder(bool after) {
+    if (d_runner.isRunning() || d_wordSelected >= d_form.project().tokens.size()) {
+        return false;
+    }
+    d_wordAdding = true;
+    d_addAt = after ? d_wordSelected + 1 : d_wordSelected;
+    wordEditText.clear();
+    d_wordCursor = 0;
     d_wordError.clear();
     refreshGroupChoices();
     d_wordEditorOpen = true;
@@ -1638,7 +1653,7 @@ void RsansApp::refreshGroupChoices() {
     for (std::size_t i = 0; i < tokens.size(); ++i) {
         if (tokens[i].rhymeIndex) {
             std::vector<std::string>& words = groups[*tokens[i].rhymeIndex];
-            if (i != d_wordSelected &&
+            if ((d_wordAdding || i != d_wordSelected) &&
                 std::find(words.begin(), words.end(), tokens[i].text) == words.end()) {
                 words.push_back(tokens[i].text);
             }
@@ -1663,13 +1678,31 @@ void RsansApp::refreshGroupChoices() {
     d_groupChoices.push_back(newGroup);
     d_groupLabels.emplace_back("New group");
 
-    // Start on the word's current group
-    const std::optional<int> current = tokens[d_wordSelected].rhymeIndex;
+    // Start on the word's current group (a new word starts in none)
+    const std::optional<int> current = d_wordAdding ? std::nullopt : tokens[d_wordSelected].rhymeIndex;
     const auto at = std::find(d_groupChoices.begin(), d_groupChoices.end(), current.value_or(noGroup));
     d_groupSelected = static_cast<int>(at - d_groupChoices.begin());
 }
 
+std::optional<int> RsansApp::chosenGroup() const {
+    const auto choice = static_cast<std::size_t>(std::max(d_groupSelected, 0));
+    const int group = choice < d_groupChoices.size() ? d_groupChoices[choice] : noGroup;
+    if (group == newGroup) {
+        // The lowest number not in use, so colors are reused as little as possible
+        int unused = 0;
+        while (std::find(d_groupChoices.begin(), d_groupChoices.end(), unused) != d_groupChoices.end()) {
+            ++unused;
+        }
+        return unused;
+    }
+    return group == noGroup ? std::nullopt : std::optional<int>(group);
+}
+
 void RsansApp::applyWordEdit() {
+    if (d_wordAdding) {
+        addWord();
+        return;
+    }
     const std::string before = d_form.project().tokens[d_wordSelected].text;
     if (!d_form.setTokenText(d_wordSelected, wordEditText)) {
         d_wordError = "Type the word, or use Delete word to remove it";
@@ -1680,22 +1713,19 @@ void RsansApp::applyWordEdit() {
     }
 
     // The rhyme group chosen by hand
-    const auto choice = static_cast<std::size_t>(std::max(d_groupSelected, 0));
-    if (choice < d_groupChoices.size()) {
-        const int group = d_groupChoices[choice];
-        if (group == noGroup) {
-            d_form.setTokenRhyme(d_wordSelected, std::nullopt);
-        } else if (group == newGroup) {
-            // The lowest number not in use, so colors are reused as little as possible
-            int unused = 0;
-            while (std::find(d_groupChoices.begin(), d_groupChoices.end(), unused) != d_groupChoices.end()) {
-                ++unused;
-            }
-            d_form.setTokenRhyme(d_wordSelected, unused);
-        } else {
-            d_form.setTokenRhyme(d_wordSelected, group);
-        }
+    d_form.setTokenRhyme(d_wordSelected, chosenGroup());
+    d_wordEditorOpen = false;
+}
+
+void RsansApp::addWord() {
+    // On the highlighted word's line, beside it
+    const int line = d_form.project().tokens[d_wordSelected].lineIndex;
+    if (!d_form.insertToken(d_addAt, wordEditText, line, chosenGroup())) {
+        d_wordError = "Type the word to add";
+        return;
     }
+    d_wordSelected = d_addAt;  // The new word
+    d_rhymesOutOfDate = true;  // Its rhymes haven't been detected
     d_wordEditorOpen = false;
 }
 
@@ -1739,7 +1769,8 @@ Component RsansApp::makeWordEditor() {
     Component groups = Menu(&d_groupLabels, &d_groupSelected, groupOption);
 
     Component saveButton = Button("Save", [this] { applyWordEdit(); }, ButtonOption::Ascii());
-    Component deleteButton = Button("Delete word", [this] { deleteSelectedWord(); }, ButtonOption::Ascii());
+    Component deleteButton = Maybe(Button("Delete word", [this] { deleteSelectedWord(); }, ButtonOption::Ascii()),
+                                   [this] { return !d_wordAdding; });
     Component cancel = Button("Cancel", [this] { d_wordEditorOpen = false; }, ButtonOption::Ascii());
     Component container =
         Container::Vertical({input, groups, Container::Horizontal({saveButton, deleteButton, cancel})});
@@ -1750,16 +1781,26 @@ Component RsansApp::makeWordEditor() {
             return text("");
         }
         const Token& token = tokens[d_wordSelected];
-        return dialogWindow(" Edit word ", vbox({
+        std::string where = "Sung at " + formatTime(token.startMs) + ", " +
+                            std::to_string(token.endMs - token.startMs) + " ms";
+        if (d_wordAdding) {
+            // Between its neighbours, whose timing it is fitted into
+            const std::string before = d_addAt > 0 ? "\"" + tokens[d_addAt - 1].text + "\"" : "";
+            const std::string after = d_addAt < tokens.size() ? "\"" + tokens[d_addAt].text + "\"" : "";
+            where = !before.empty() && !after.empty() ? "Between " + before + " and " + after
+                  : !before.empty()                   ? "After " + before + ", the last word"
+                                                      : "Before " + after + ", the first word";
+        }
+        return dialogWindow(d_wordAdding ? " Add word " : " Edit word ", vbox({
             hbox({text("Word ") | bold, input->Render() | flex}),
-            text("Sung at " + formatTime(token.startMs) + ", " +
-                 std::to_string(token.endMs - token.startMs) + " ms") | dim,
+            text(where) | dim,
             d_wordError.empty() ? text("") : text(d_wordError) | color(ftxui::Color::Red),
             text("Rhyme group") | bold,
             groups->Render() | vscroll_indicator | frame | size(HEIGHT, LESS_THAN, 10),
             text("Detect rhymes replaces groups set by hand") | dim,
             separator(),
-            hbox({saveButton->Render(), text(" "), deleteButton->Render(), text(" "), cancel->Render(), filler(),
+            hbox({saveButton->Render(), text(" "), deleteButton->Render(),
+                  d_wordAdding ? text("") : text(" "), cancel->Render(), filler(),
                   text("Enter: save  Esc: cancel") | dim}),
         })) | size(WIDTH, EQUAL, 60);
     });
@@ -1812,7 +1853,7 @@ Component RsansApp::makeLyricsTab() {
         const Token& selected = project.tokens[d_wordSelected];
         const std::string hint = d_runner.isRunning()
             ? "Editing waits until " + d_runner.name() + " finishes"
-            : "Arrows: choose a word   Enter: edit it or its rhyme group";
+            : "Arrows: choose a word   Enter: edit it   A/B: add a word after/before it";
         return vbox({
             note,
             text(""),
@@ -1830,6 +1871,11 @@ Component RsansApp::makeLyricsTab() {
         }
         if (event == Event::Return) {
             openWordEditor();
+            return true;
+        }
+        if (event == Event::Character("a") || event == Event::Character("A") ||
+            event == Event::Character("b") || event == Event::Character("B")) {
+            openWordAdder(event == Event::Character("a") || event == Event::Character("A"));
             return true;
         }
         if (event == Event::ArrowRight && d_wordSelected + 1 < tokens.size()) {
