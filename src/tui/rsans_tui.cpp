@@ -848,6 +848,8 @@ Component RsansApp::makeCredits() {
             text(""),
             vbox(std::move(rows)) | hcenter,
             text(""),
+            text("by Darius Brown ヽ(^o^)ノ") | hcenter,
+            text(""),
             back->Render() | hcenter,
             filler(),
             text("Enter or Esc: back   Ctrl+C: quit") | dim | hcenter,

@@ -822,6 +822,8 @@ TEST(StartScreenTest, CreditsListsLibrariesAndEscapeGoesBack) {
     for (const char* name : {"whisper.cpp", "CMU Pronouncing Dictionary", "FFmpeg", "FTXUI"}) {
         EXPECT_TRUE(contains(screen, name)) << name << "\n" << screen;
     }
+    // After the libraries
+    EXPECT_GT(screen.find("by Darius Brown ヽ(^o^)ノ"), screen.find("stb")) << screen;
 
     app.component()->OnEvent(ftxui::Event::Escape);
     EXPECT_EQ(app.screen(), RsansApp::Screen::Start);
