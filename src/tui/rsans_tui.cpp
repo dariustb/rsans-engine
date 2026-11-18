@@ -1268,8 +1268,8 @@ Component RsansApp::makeProjectTab() {
             }
             std::vector<std::string> errors = d_form.errorsFor(field->key);
 
-            // The model row: its name if it's one of whisper.cpp's, a running
-            // download, and the file
+            // The model row: its name if it's one of whisper.cpp's (else the
+            // file's name), and a running download
             if (field->key == "model.path") {
                 const std::string& path = d_form.project().model.base;
                 const auto known = std::find_if(d_models.begin(), d_models.end(),
@@ -1287,7 +1287,6 @@ Component RsansApp::makeProjectTab() {
                     text(errors.empty() ? "  " : "! ") | color(ftxui::Color::Red),
                     input->Render(),
                     status,
-                    text("  " + path) | dim,
                 }));
                 for (const std::string& error : errors) {
                     if (error != requiredMessage) {
@@ -1297,7 +1296,7 @@ Component RsansApp::makeProjectTab() {
                 continue;
             }
 
-            // Font rows: show the chosen family and file, and the file's errors too
+            // Font rows: show the chosen family (not its file), and the file's errors too
             const bool isHeaderFont = field->key == "header.fontName";
             if (isHeaderFont || field->key == "layout.fontName") {
                 const FontKeys keys = fontKeys(isHeaderFont ? FontTarget::Header : FontTarget::Layout);
@@ -1309,14 +1308,12 @@ Component RsansApp::makeProjectTab() {
                 }
                 const ProjectData& project = d_form.project();
                 const std::string& family = isHeaderFont ? project.header.fontName : project.layout.fontName;
-                const std::string& path = isHeaderFont ? project.header.fontPath : project.layout.fontPath;
                 std::string& label = isHeaderFont ? d_headerFontLabel : d_layoutFontLabel;
                 label = family.empty() ? "Choose a font..." : family;
                 Element fontRow = hbox({
                     text("  " + field->label) | size(WIDTH, EQUAL, labelWidth),
                     text(errors.empty() ? "  " : "! ") | color(ftxui::Color::Red),
                     input->Render(),
-                    text("  " + path) | dim,
                 });
                 lines.push_back(fontRow);
                 for (const std::string& error : errors) {

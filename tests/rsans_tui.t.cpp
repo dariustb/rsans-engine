@@ -533,7 +533,7 @@ TEST(FontPickerTest, PickerShowsMatchCountAndHighlightedFile) {
     EXPECT_TRUE(contains(screen, "/fonts/DejaVuSans.ttf")) << screen;
 }
 
-TEST(FontPickerTest, ProjectTabShowsChosenFontNameAndFile) {
+TEST(FontPickerTest, ProjectTabShowsChosenFontNameNotFile) {
     // Given
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
@@ -548,8 +548,12 @@ TEST(FontPickerTest, ProjectTabShowsChosenFontNameAndFile) {
     const std::string screen = renderToString(app.component());
 
     // Then
-    EXPECT_TRUE(contains(screen, "Noto Serif")) << screen;
-    EXPECT_TRUE(contains(screen, "/fonts/NotoSerif.ttf")) << screen;
+    // The row shows the name, not the file (an error about the file, like this
+    // test font being missing, still names it on its own line)
+    const std::size_t at = screen.find("Noto Serif");
+    ASSERT_NE(at, std::string::npos) << screen;
+    const std::string row = screen.substr(at, screen.find('\n', at) - at);
+    EXPECT_FALSE(contains(row, "NotoSerif.ttf")) << row;
 }
 
 TEST(FontPickerTest, TypedFontFileCanBeChosenDirectly) {
@@ -1054,6 +1058,27 @@ TEST(ModelPickerTest, ChoosingInstalledModelSetsPath) {
     EXPECT_TRUE(app.form().errorsFor("model.path").empty());
     const std::string screen = renderToString(app.component());
     EXPECT_TRUE(contains(screen, "[tiny]") || contains(screen, " tiny ")) << screen;
+    EXPECT_FALSE(contains(screen, "ggml-tiny.bin")) << screen;  // The name only, not the file
+}
+
+TEST(ModelPickerTest, ProjectTabShowsOtherModelByFileNameOnly) {
+    // Given: a model file outside the whisper.cpp checkout
+    FakeWhisperCpp whisper;
+    const std::filesystem::path other = whisper.root / "elsewhere" / "my-model.bin";
+    std::filesystem::create_directories(other.parent_path());
+    std::ofstream(other) << "model";
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    app.whisperDir = whisper.root.string();
+
+    // When
+    app.form().setFieldText("model.path", other.string());
+    const std::string screen = renderToString(app.component());
+
+    // Then
+    EXPECT_TRUE(contains(screen, "my-model.bin")) << screen;
+    EXPECT_FALSE(contains(screen, "elsewhere")) << screen;
 }
 
 TEST(ModelPickerTest, UninstalledModelAsksThenDownloadsWithProgress) {
