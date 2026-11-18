@@ -1807,12 +1807,13 @@ Component RsansApp::makeWordEditor() {
         }
         return text("  ");
     };
-    // Folded away behind Change, so moving past it doesn't pick a group
-    auto changeButton = std::make_shared<Component>();
+    // Folded away behind the current group (a button that opens the list),
+    // so moving past it doesn't pick a group
+    auto groupButton = std::make_shared<Component>();
     MenuOption groupOption = MenuOption::Vertical();
-    groupOption.on_enter = [this, changeButton] {
-        d_groupsOpen = false;  // Picked: fold the list, back on Change
-        (*changeButton)->TakeFocus();
+    groupOption.on_enter = [this, groupButton] {
+        d_groupsOpen = false;  // Picked: fold the list, back on the group
+        (*groupButton)->TakeFocus();
     };
     groupOption.entries_option.transform = [groupMark](const EntryState& state) {
         Element mark = groupMark(static_cast<std::size_t>(state.index));
@@ -1827,11 +1828,22 @@ Component RsansApp::makeWordEditor() {
     };
     Component groupMenu = Menu(&d_groupLabels, &d_groupSelected, groupOption);
     Component groups = Maybe(groupMenu, &d_groupsOpen);
-    *changeButton = Button("Change", [this, groupMenu] {
+    ButtonOption groupButtonOption;
+    groupButtonOption.transform = [this, groupMark](const EntryState& state) {
+        // The current group in its color, with a mark that it opens
+        const auto index = static_cast<std::size_t>(std::max(d_groupSelected, 0));
+        Element label = text((index < d_groupLabels.size() ? d_groupLabels[index] : "") +
+                             (d_groupsOpen ? " \u25b4" : " \u25be"));
+        if (state.focused) {
+            label = label | inverted;
+        }
+        return hbox({groupMark(index), label});
+    };
+    *groupButton = Button("", [this, groupMenu] {
         d_groupSelectedBefore = d_groupSelected;
         d_groupsOpen = true;
         groupMenu->TakeFocus();
-    }, ButtonOption::Ascii());
+    }, groupButtonOption);
 
     Component saveButton = Button("Save", [this] { applyWordEdit(); }, ButtonOption::Ascii());
     Component deleteButton = Maybe(Button("Delete word", [this] { deleteSelectedWord(); }, ButtonOption::Ascii()),
@@ -1859,11 +1871,11 @@ Component RsansApp::makeWordEditor() {
     Component timing = Maybe(Container::Vertical(nudgeContainers), [this] { return !d_wordAdding; });
 
     Component container = Container::Vertical(
-        {input, *changeButton, groups, timing, Container::Horizontal({saveButton, deleteButton, cancel})});
+        {input, *groupButton, groups, timing, Container::Horizontal({saveButton, deleteButton, cancel})});
 
-    Component rendered = Renderer(container, [this, input, groupMark, changeButton, groupMenu, groups, nudgeRows,
+    Component rendered = Renderer(container, [this, input, groupMark, groupButton, groupMenu, groups, nudgeRows,
                                               listenButton, saveButton, deleteButton, cancel] {
-        // Moving out of the open list (up to Change, down to Timing) folds it
+        // Moving out of the open list (up to the group, down to Timing) folds it
         if (d_groupsOpen && !groupMenu->Focused()) {
             d_groupsOpen = false;
         }
@@ -1917,16 +1929,10 @@ Component RsansApp::makeWordEditor() {
             hbox({text("Word ") | bold, input->Render() | flex}),
             text(where) | dim,
             d_wordError.empty() ? text("") : text(d_wordError) | color(ftxui::Color::Red),
-            hbox({text("Rhyme group  ") | bold,
-                  groupMark(static_cast<std::size_t>(std::max(d_groupSelected, 0))),
-                  text(d_groupSelected >= 0 && static_cast<std::size_t>(d_groupSelected) < d_groupLabels.size()
-                           ? d_groupLabels[static_cast<std::size_t>(d_groupSelected)]
-                           : ""),
-                  filler(), (*changeButton)->Render()}),
+            hbox({text("Rhyme group  ") | bold, (*groupButton)->Render(), filler()}),
             d_groupsOpen ? vbox({groups->Render() | vscroll_indicator | frame | size(HEIGHT, LESS_THAN, 10),
                                  text("Enter: choose  Esc: keep as it was") | dim})
                          : emptyElement(),
-            text("Detect rhymes replaces groups set by hand") | dim,
             d_wordAdding ? text("") : separator(),
             vbox(std::move(timingRows)),
             separator(),
@@ -1935,12 +1941,12 @@ Component RsansApp::makeWordEditor() {
                   text("Enter: save  Esc: cancel") | dim}),
         })) | size(WIDTH, EQUAL, 60);
     });
-    return CatchEvent(rendered, [this, changeButton](const Event& event) {
+    return CatchEvent(rendered, [this, groupButton](const Event& event) {
         if (event == Event::Escape && d_groupsOpen) {
             // Folds the list, keeping the group it had
             d_groupSelected = d_groupSelectedBefore;
             d_groupsOpen = false;
-            (*changeButton)->TakeFocus();
+            (*groupButton)->TakeFocus();
             return true;
         }
         if (event == Event::Escape) {

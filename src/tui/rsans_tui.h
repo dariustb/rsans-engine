@@ -93,7 +93,8 @@ class RsansApp {
     // The word editor's rhyme group choices, as shown: "None", each group in
     // use (with its words), then "New group"
     const std::vector<std::string>& rhymeGroupLabels() const { return d_groupLabels; }
-    // The list is folded away behind a Change button, so moving through the
+    // The list is folded away behind the current group, which is a button
+    // that opens it, so moving through the
     // editor doesn't change the group; Enter in the list picks one and folds
     // it again, Esc folds it without changing the group.
     bool rhymeGroupListOpen() const { return d_groupsOpen; }

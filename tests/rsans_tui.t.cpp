@@ -1693,8 +1693,8 @@ void openLyrics(RsansApp& app) {
     app.component()->OnEvent(ftxui::Event::ArrowDown);
 }
 
-// In the word editor, from the word field: down to Change, open the list (on
-// the word's group), move `steps` (down if positive, up if negative), pick
+// In the word editor, from the word field: down to the group, open the list
+// (on the word's group), move `steps` (down if positive, up if negative), pick
 void chooseGroup(RsansApp& app, int steps) {
     app.component()->OnEvent(ftxui::Event::ArrowDown);
     app.component()->OnEvent(ftxui::Event::Return);
@@ -1704,7 +1704,7 @@ void chooseGroup(RsansApp& app, int steps) {
     app.component()->OnEvent(ftxui::Event::Return);
 }
 
-// From Change (where picking a group leaves it): up to the word field, Enter
+// From the group (where picking one leaves it): up to the word field, Enter
 void saveFromWordField(RsansApp& app) {
     app.component()->OnEvent(ftxui::Event::ArrowUp);
     app.component()->OnEvent(ftxui::Event::Return);
@@ -1790,7 +1790,7 @@ TEST(WordEditorTest, DeleteWordRemovesIt) {
     app.component()->OnEvent(ftxui::Event::ArrowRight);
     app.component()->OnEvent(ftxui::Event::Return);
 
-    // When: down past Change and the timing (Start, End, Move, Listen) to the
+    // When: down past the group and the timing (Start, End, Move, Listen) to the
     // buttons, right to Delete word
     for (int i = 0; i < 6; ++i) {
         app.component()->OnEvent(ftxui::Event::ArrowDown);
@@ -1977,7 +1977,7 @@ TEST(WordEditorTest, NudgeButtonsChangeTimingAndSaveSetsIt) {
     EXPECT_TRUE(contains(dialog, "0:00.400")) << dialog;
     EXPECT_TRUE(contains(dialog, "0:00.800")) << dialog;
 
-    // When: down past Change to Start's -, pressed once; right to its +,
+    // When: down past the group to Start's -, pressed once; right to its +,
     // pressed three times
     for (int i = 0; i < 2; ++i) {
         app.component()->OnEvent(ftxui::Event::ArrowDown);
@@ -2160,13 +2160,13 @@ TEST(RhymeGroupTest, EditorListsGroupsWithTheirWords) {
     // Then: its own word isn't listed in its group
     EXPECT_EQ(app.rhymeGroupLabels(),
               (std::vector<std::string>{"None", "1  light", "2  sign, line", "New group"}));
-    // Folded: just its group, with Change
+    // Folded: just its group, as a button marked as opening
     std::string screen = renderToString(app.component());
-    EXPECT_TRUE(contains(screen, "Rhyme group  \u25a0 1  light")) << screen;
-    EXPECT_TRUE(contains(screen, "Change")) << screen;
+    EXPECT_TRUE(contains(screen, "Rhyme group  \u25a0 1  light \u25be")) << screen;
+    EXPECT_FALSE(contains(screen, "Change")) << screen;
     EXPECT_FALSE(contains(screen, "2  sign, line")) << screen;
 
-    // Change opens the list, on its group
+    // The group opens the list, on its group
     app.component()->OnEvent(ftxui::Event::ArrowDown);
     app.component()->OnEvent(ftxui::Event::Return);
     EXPECT_TRUE(app.rhymeGroupListOpen());
@@ -2245,7 +2245,7 @@ TEST(RhymeGroupTest, TextAndGroupChangeTogetherAndCancelChangesNeither) {
     // Esc in the open list folds it, keeping the group; Esc again cancels
     ASSERT_TRUE(app.openWordEditor());
     type(app, "s");
-    app.component()->OnEvent(ftxui::Event::ArrowDown);  // Change
+    app.component()->OnEvent(ftxui::Event::ArrowDown);  // The group
     app.component()->OnEvent(ftxui::Event::Return);
     app.component()->OnEvent(ftxui::Event::ArrowUp);    // None
     app.component()->OnEvent(ftxui::Event::Escape);
@@ -2273,8 +2273,8 @@ TEST(RhymeGroupTest, MovingThroughEditorToTimingKeepsGroup) {
     openRhymingLyrics(app);
     ASSERT_TRUE(app.openWordEditor());
 
-    // When: down past Change to Start's -, nudged, then down to the buttons and back up
-    app.component()->OnEvent(ftxui::Event::ArrowDown);  // Change
+    // When: down past the group to Start's -, nudged, then down to the buttons and back up
+    app.component()->OnEvent(ftxui::Event::ArrowDown);  // The group
     app.component()->OnEvent(ftxui::Event::ArrowDown);  // Start
     EXPECT_FALSE(app.rhymeGroupListOpen());
     app.component()->OnEvent(ftxui::Event::ArrowRight);
@@ -2298,7 +2298,7 @@ TEST(RhymeGroupTest, LeavingOpenListFoldsItKeepingWhatWasMovedTo) {
     RsansApp app("ffmpeg", ui.post(), [] {});
     openRhymingLyrics(app);
     ASSERT_TRUE(app.openWordEditor());
-    app.component()->OnEvent(ftxui::Event::ArrowDown);  // Change
+    app.component()->OnEvent(ftxui::Event::ArrowDown);  // The group
     app.component()->OnEvent(ftxui::Event::Return);     // Open, on 1
     app.component()->OnEvent(ftxui::Event::ArrowDown);  // 2
     app.component()->OnEvent(ftxui::Event::ArrowDown);  // New group
@@ -3014,7 +3014,7 @@ TEST(KaraokeTest, ListenButtonIsBelowMoveAndClosingTheEditorStopsIt) {
     app.component()->OnEvent(ftxui::Event::Return);  // Edit "hello"
     ASSERT_TRUE(app.wordEditorOpen());
 
-    // Down past Change and Start, End, Move to Listen
+    // Down past the group and Start, End, Move to Listen
     for (int i = 0; i < 5; ++i) {
         app.component()->OnEvent(ftxui::Event::ArrowDown);
     }
