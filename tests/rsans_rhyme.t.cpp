@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -14,7 +15,8 @@ namespace {
 // Helper to create a temporary dictionary file for testing
 class TempDictFile {
 public:
-    TempDictFile(const std::string& content) : path_("/tmp/test_cmudict_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + ".dict") {
+    TempDictFile(const std::string& content) : path_((std::filesystem::temp_directory_path() /
+                                                  ("test_cmudict_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + ".dict")).string()) {
         std::ofstream file(path_);
         file << content;
     }

@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -14,7 +15,7 @@ std::string getTestImagePath() {
     static std::string path;
     if (!path.empty()) return path;
 
-    path = "/tmp/test_rsans_1x1.bmp";
+    path = (std::filesystem::temp_directory_path() / "test_rsans_1x1.bmp").string();
     const unsigned char bmp[] = {
         0x42,0x4D,0x3A,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x36,0x00,0x00,0x00,
         0x28,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x00,
