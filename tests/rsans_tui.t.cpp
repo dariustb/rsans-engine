@@ -819,7 +819,12 @@ TEST(StartScreenTest, CreditsListsLibrariesAndEscapeGoesBack) {
 
     ASSERT_EQ(app.screen(), RsansApp::Screen::Credits);
     const std::string screen = renderToString(app.component());
-    for (const char* name : {"whisper.cpp", "CMU Pronouncing Dictionary", "FFmpeg", "FTXUI"}) {
+    const std::array<std::string, 12> names = {
+        "FFmpeg", "Whisper.cpp", "CMU Pronouncing Dictionary",
+        "FTXUI", "CLI11", "nlohmann/json", "libass",
+        "libsndfile", "dr_libs", "stb"
+    };
+    for (const std::string name : names) {
         EXPECT_TRUE(contains(screen, name)) << name << "\n" << screen;
     }
     // After the libraries

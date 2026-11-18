@@ -820,17 +820,17 @@ Component RsansApp::makeCredits() {
             const char* license;
         };
         static const std::array<Credit, 11> credits = {{
-            {"whisper.cpp", "Speech recognition and word timing", "MIT"},
-            {"CMU Pronouncing Dictionary", "Pronunciations for rhyme detection", "BSD-2-Clause"},
             {"FFmpeg", "Audio conversion and video rendering", "LGPL/GPL"},
-            {"libass", "Subtitle rendering", "ISC"},
-            {"libsndfile", "Reading audio files", "LGPL-2.1"},
-            {"fontconfig", "Finding installed fonts", "MIT-style"},
+            {"Whisper.cpp", "Speech recognition and word timing", "MIT"},
+            {"CMU Pronouncing Dictionary", "Pronunciations for rhyme detection", "FreeBSD"},
             {"FTXUI", "This terminal interface", "MIT"},
-            {"CLI11", "Command line parsing", "BSD-3-Clause"},
-            {"nlohmann/json", "Project files", "MIT"},
-            {"dr_libs", "Audio decoding", "Public domain / MIT-0"},
-            {"stb", "Image reading", "Public domain / MIT"},
+            {"CLI11", "Command line parsing", "New BSD"},
+            {"nlohmann/json", "JSON serializing", "MIT"},
+            {"fontconfig", "Finding installed fonts", "MIT"},
+            {"libsndfile", "Reading audio files", "LGPL-2.1"},
+            {"libass", "Subtitle rendering", "ISC"},
+            {"dr_libs", "Audio decoding", "MIT"},
+            {"stb", "Image reading", "MIT"},
         }};
         Elements rows;
         for (const Credit& credit : credits) {
