@@ -28,24 +28,24 @@ Args parseArgs(int argc, char** argv, bool interactiveTerminal) {
        ->capture_default_str();
 
     // analyze
-    CLI::App* analyze = app.add_subcommand("analyze", "Transcribe audio and populate tokens");
-    analyze->add_option("-i,--input", opts.analyze.input, "Input project JSON")->required();
-    analyze->add_option("-o,--out", opts.analyze.output, "Output project JSON")->required();
+    CLI::App* analyze = app.add_subcommand("analyze", "Transcribe the audio into timed words, saved in the project");
+    analyze->add_option("-i,--input", opts.analyze.input, "Project file to read (.rsans)")->required();
+    analyze->add_option("-o,--out", opts.analyze.output, "Project file to write (.rsans); can be the input file")->required();
 
     // rhyme
-    CLI::App* rhyme = app.add_subcommand("rhyme", "Detect rhymes and tag tokens");
-    rhyme->add_option("-i,--input", opts.rhyme.input, "Input project JSON")->required();
-    rhyme->add_option("-o,--out", opts.rhyme.output, "Output project JSON")->required();
+    CLI::App* rhyme = app.add_subcommand("rhyme", "Find the rhyming words and give each rhyme a color");
+    rhyme->add_option("-i,--input", opts.rhyme.input, "Project file to read (.rsans)")->required();
+    rhyme->add_option("-o,--out", opts.rhyme.output, "Project file to write (.rsans); can be the input file")->required();
 
     // export
-    CLI::App* exportCmd = app.add_subcommand("export", "Render final video");
-    exportCmd->add_option("-i,--input", opts.exportOpt.input, "Input project JSON")->required();
-    exportCmd->add_option("-o,--out", opts.exportOpt.output, "Output video file")->required();
+    CLI::App* exportCmd = app.add_subcommand("export", "Render the lyric video");
+    exportCmd->add_option("-i,--input", opts.exportOpt.input, "Project file to read (.rsans)")->required();
+    exportCmd->add_option("-o,--out", opts.exportOpt.output, "Video to write, e.g. song.mp4 (subtitles go beside it as .ass)")->required();
 
     // full
-    CLI::App* full = app.add_subcommand("full", "Analyze, detect rhymes, and export");
-    full->add_option("-i,--input", opts.full.input, "Input project JSON")->required();
-    full->add_option("-o,--out", opts.full.output, "Output video file")->required();
+    CLI::App* full = app.add_subcommand("full", "Analyze, rhyme and export in one go; the project isn't saved");
+    full->add_option("-i,--input", opts.full.input, "Project file to read (.rsans)")->required();
+    full->add_option("-o,--out", opts.full.output, "Video to write, e.g. song.mp4 (subtitles go beside it as .ass)")->required();
 
     try {
         app.parse(argc, argv);

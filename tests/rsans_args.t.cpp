@@ -71,27 +71,27 @@ TEST(ArgsTest, ParseArgsDefaultsFfmpegToPathLookupGivenNoFlag) {
 
 TEST(ArgsTest, ParseArgsRunsSubcommandGivenSubcommandInTerminal) {
     // Given: a subcommand always wins over opening the TUI
-    Argv args({"analyze", "-i", "in.json", "-o", "out.json"});
+    Argv args({"analyze", "-i", "in.rsans", "-o", "out.rsans"});
 
     // When
     const Args result = parseArgs(args.argc(), args.argv(), true);
 
     // Then
     EXPECT_EQ(result.command, CommandType::Analyze);
-    EXPECT_EQ(result.analyze.input, "in.json");
-    EXPECT_EQ(result.analyze.output, "out.json");
+    EXPECT_EQ(result.analyze.input, "in.rsans");
+    EXPECT_EQ(result.analyze.output, "out.rsans");
 }
 
 TEST(ArgsTest, ParseArgsRunsSubcommandGivenSubcommandOutsideTerminal) {
     // Given
-    Argv args({"full", "-i", "in.json", "-o", "out.mp4"});
+    Argv args({"full", "-i", "in.rsans", "-o", "out.mp4"});
 
     // When
     const Args result = parseArgs(args.argc(), args.argv(), false);
 
     // Then
     EXPECT_EQ(result.command, CommandType::Full);
-    EXPECT_EQ(result.full.input, "in.json");
+    EXPECT_EQ(result.full.input, "in.rsans");
     EXPECT_EQ(result.full.output, "out.mp4");
 }
 
@@ -101,4 +101,14 @@ TEST(ArgsTest, ParseArgsRecordsWhetherFfmpegWasGiven) {
 
     Argv none({});
     EXPECT_FALSE(parseArgs(none.argc(), none.argv(), true).ffmpegGiven);
+}
+
+TEST(ArgsTest, HelpTextDescribesStepsInPlainWords) {
+    Argv args({});
+
+    const std::string help = parseArgs(args.argc(), args.argv(), false).helpText;
+
+    EXPECT_NE(help.find("Transcribe the audio into timed words"), std::string::npos) << help;
+    EXPECT_EQ(help.find("JSON"), std::string::npos) << help;
+    EXPECT_EQ(help.find("tokens"), std::string::npos) << help;
 }
