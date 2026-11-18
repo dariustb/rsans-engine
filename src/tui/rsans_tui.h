@@ -57,6 +57,18 @@ class RsansApp {
     void saveAs();  // Asks where, with the file dialog
     bool quitPromptOpen() const { return d_quitPromptOpen; }
 
+    // Correcting the transcribed words on the Lyrics tab: one word is
+    // highlighted (arrow keys move it), and Enter opens an editor for it
+    std::size_t selectedWord() const { return d_wordSelected; }
+    void selectWord(std::size_t index);
+    // Opens the word editor for the highlighted word. False while a step is
+    // running (its results would replace the words) or if there are none.
+    bool openWordEditor();
+    bool wordEditorOpen() const { return d_wordEditorOpen; }
+    std::string wordEditText;  // The word editor's text
+    // True once a word has been changed since rhymes were last detected
+    bool rhymesOutOfDate() const { return d_rhymesOutOfDate; }
+
     // Leaves the editor for the start screen, asking first if there are
     // unsaved changes. Returns false (and stays) while a step is running,
     // since its results belong to this project.
@@ -157,6 +169,16 @@ class RsansApp {
     bool d_showAllFiles = false;
     std::string d_fileError;
 
+    // The word editor
+    std::size_t d_wordSelected = 0;
+    bool d_wordEditorOpen = false;
+    int d_wordCursor = 0;
+    std::string d_wordError;
+    bool d_rhymesOutOfDate = false;
+    void applyWordEdit();
+    void deleteSelectedWord();
+    std::vector<std::vector<std::size_t>> lyricLines() const;  // Token indexes, by line
+
     // Saving
     std::string d_projectPath;
     std::string d_savedJson;       // The project as last loaded or saved
@@ -194,7 +216,8 @@ class RsansApp {
 
     ftxui::Component makeProjectTab();
     ftxui::Component makeRunTab();
-    ftxui::Component makeLyricsTab() const;
+    ftxui::Component makeLyricsTab();
+    ftxui::Component makeWordEditor();
     ftxui::Component makeFontPicker();
     ftxui::Component makeFileDialog();
     ftxui::Component makeModelPicker();

@@ -222,6 +222,26 @@ bool ProjectForm::setFieldText(const std::string& key, const std::string& text) 
     return false;
 }
 
+bool ProjectForm::setTokenText(std::size_t index, const std::string& text) {
+    const std::size_t first = text.find_first_not_of(" \t");
+    if (index >= d_project.tokens.size() || first == std::string::npos) {
+        return false;
+    }
+    const std::size_t last = text.find_last_not_of(" \t");
+    d_project.tokens[index].text = text.substr(first, last - first + 1);
+    d_validation = d_project.validate();
+    return true;
+}
+
+bool ProjectForm::removeToken(std::size_t index) {
+    if (index >= d_project.tokens.size()) {
+        return false;
+    }
+    d_project.tokens.erase(d_project.tokens.begin() + static_cast<std::ptrdiff_t>(index));
+    d_validation = d_project.validate();
+    return true;
+}
+
 void ProjectForm::setTokens(std::vector<Token> tokens) {
     d_project.tokens = std::move(tokens);
     d_validation = d_project.validate();

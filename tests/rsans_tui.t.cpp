@@ -1665,3 +1665,173 @@ TEST(RsansAppTest, EditorContentIsPaddedFromBorder) {
     // Right: the button's own space and the scroll column, then the padding
     EXPECT_TRUE(contains(screen, "Browse    │")) << screen;
 }
+
+// Correcting words
+
+TEST(ProjectFormTest, SetTokenTextTrimsAndRejectsEmpty) {
+    ProjectForm form(defaultProject());
+    form.setTokens({Token(0, "wrold", 0, 400, 0, 2), Token(1, "again", 400, 800, 0, std::nullopt)});
+
+    EXPECT_TRUE(form.setTokenText(0, "  world "));
+    EXPECT_EQ(form.project().tokens[0].text, "world");
+    EXPECT_EQ(form.project().tokens[0].startMs, 0);       // Timing kept
+    EXPECT_EQ(form.project().tokens[0].rhymeIndex, 2);    // Until rhymes are detected again
+
+    EXPECT_FALSE(form.setTokenText(0, "   "));
+    EXPECT_FALSE(form.setTokenText(5, "x"));
+    EXPECT_EQ(form.project().tokens[0].text, "world");
+
+    EXPECT_TRUE(form.removeToken(0));
+    ASSERT_EQ(form.project().tokens.size(), 1u);
+    EXPECT_EQ(form.project().tokens[0].text, "again");
+    EXPECT_FALSE(form.removeToken(1));
+}
+
+namespace {
+
+// An app on the Lyrics tab with the word list focused, holding
+// line 0: "hello wrold", line 1: "again"
+void openLyrics(RsansApp& app) {
+    app.newProject();
+    app.form().setTokens({Token(0, "hello", 0, 400, 0, std::nullopt),
+                          Token(1, "wrold", 400, 800, 0, std::nullopt),
+                          Token(2, "again", 1000, 1400, 1, std::nullopt)});
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+}
+
+} // namespace
+
+TEST(WordEditorTest, EnterOnWordEditsItAndMarksRhymesOutOfDate) {
+    // Given
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    openLyrics(app);
+    EXPECT_EQ(app.selectedWord(), 0u);
+
+    // When: right to "wrold", Enter, retype it
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    EXPECT_EQ(app.selectedWord(), 1u);
+    app.component()->OnEvent(ftxui::Event::Return);
+    ASSERT_TRUE(app.wordEditorOpen());
+    EXPECT_EQ(app.wordEditText, "wrold");
+    EXPECT_TRUE(contains(renderToString(app.component()), "Edit word"));
+    for (int i = 0; i < 5; ++i) {
+        app.component()->OnEvent(ftxui::Event::Backspace);
+    }
+    type(app, "world");
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then
+    EXPECT_FALSE(app.wordEditorOpen());
+    EXPECT_EQ(app.form().project().tokens[1].text, "world");
+    EXPECT_TRUE(app.rhymesOutOfDate());
+    EXPECT_TRUE(app.hasUnsavedChanges());
+    const std::string screen = renderToString(app.component());
+    EXPECT_TRUE(contains(screen, "hello world")) << screen;
+    EXPECT_TRUE(contains(screen, "run Detect rhymes again")) << screen;
+}
+
+TEST(WordEditorTest, ArrowsMoveBetweenWordsAndLines) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    openLyrics(app);
+
+    app.component()->OnEvent(ftxui::Event::ArrowRight);  // wrold
+    app.component()->OnEvent(ftxui::Event::ArrowDown);   // again (the line below has one word)
+    EXPECT_EQ(app.selectedWord(), 2u);
+    app.component()->OnEvent(ftxui::Event::ArrowRight);  // Already the last word
+    EXPECT_EQ(app.selectedWord(), 2u);
+    app.component()->OnEvent(ftxui::Event::ArrowUp);     // hello (first place in the line above)
+    EXPECT_EQ(app.selectedWord(), 0u);
+    app.component()->OnEvent(ftxui::Event::ArrowLeft);   // Already the first word
+    EXPECT_EQ(app.selectedWord(), 0u);
+    EXPECT_TRUE(contains(renderToString(app.component()), "\"hello\" at 0:00"));
+}
+
+TEST(WordEditorTest, EmptyWordIsRefusedAndEscapeCancels) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    openLyrics(app);
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // When: cleared and saved
+    for (int i = 0; i < 5; ++i) {
+        app.component()->OnEvent(ftxui::Event::Backspace);
+    }
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then: refused, still open
+    EXPECT_TRUE(app.wordEditorOpen());
+    EXPECT_TRUE(contains(renderToString(app.component()), "Delete word to remove it"));
+
+    // Esc leaves it unchanged, and stays in the editor rather than going to the menu
+    app.component()->OnEvent(ftxui::Event::Escape);
+    EXPECT_FALSE(app.wordEditorOpen());
+    EXPECT_EQ(app.screen(), RsansApp::Screen::Editor);
+    EXPECT_EQ(app.form().project().tokens[0].text, "hello");
+    EXPECT_FALSE(app.rhymesOutOfDate());
+}
+
+TEST(WordEditorTest, DeleteWordRemovesIt) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    openLyrics(app);
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // When: down to the buttons, right to Delete word
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then
+    EXPECT_FALSE(app.wordEditorOpen());
+    ASSERT_EQ(app.form().project().tokens.size(), 2u);
+    EXPECT_EQ(app.form().project().tokens[1].text, "again");
+    EXPECT_EQ(app.selectedWord(), 1u);
+    EXPECT_TRUE(app.rhymesOutOfDate());
+}
+
+TEST(WordEditorTest, EditingWaitsWhileStepRuns) {
+    FakeWhisperCpp whisper;
+    whisper.setMode("slow");
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    openLyrics(app);
+    app.whisperDir = whisper.root.string();
+    app.refreshWhisperModels();
+    ASSERT_TRUE(app.downloadModel("medium"));
+
+    EXPECT_FALSE(app.openWordEditor());
+    EXPECT_TRUE(contains(renderToString(app.component()), "Editing waits until"));
+
+    app.runner().cancel();
+    ASSERT_TRUE(ui.waitUntilFinished(app.runner()));
+    EXPECT_TRUE(app.openWordEditor());
+}
+
+TEST(WordEditorTest, DetectingRhymesClearsOutOfDateNote) {
+    // Given: a corrected word
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    openLyrics(app);
+    const std::filesystem::path dict = std::filesystem::temp_directory_path() / "rsans_word_test.dict";
+    std::ofstream(dict) << "hello HH AH0 L OW1\nworld W ER1 L D\nagain AH0 G EH1 N\n";
+    app.form().setFieldText("cmudict", dict.string());
+    app.selectWord(1);
+    ASSERT_TRUE(app.openWordEditor());
+    app.wordEditText = "world";
+    app.component()->OnEvent(ftxui::Event::Return);
+    ASSERT_TRUE(app.rhymesOutOfDate());
+
+    // When
+    ASSERT_TRUE(app.runStep(RsansApp::Step::Rhyme));
+    ASSERT_TRUE(ui.waitUntilFinished(app.runner()));
+
+    // Then: the corrected word was used
+    EXPECT_FALSE(app.rhymesOutOfDate());
+    EXPECT_EQ(app.form().project().tokens[1].text, "world");
+    std::filesystem::remove(dict);
+}

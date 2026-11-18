@@ -294,7 +294,8 @@ RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void
     Component screens = Container::Tab({makeStartScreen(), makeCredits(), rendered}, &d_screen);
     Component withPicker = Modal(screens, makeFontPicker(), &d_pickerOpen);
     Component withModels = Modal(withPicker, makeModelPicker(), &d_modelPickerOpen);
-    Component withPrompt = Modal(withModels, makeQuitPrompt(), &d_quitPromptOpen);
+    Component withWords = Modal(withModels, makeWordEditor(), &d_wordEditorOpen);
+    Component withPrompt = Modal(withWords, makeQuitPrompt(), &d_quitPromptOpen);
     Component withDialogs = Modal(withPrompt, makeFileDialog(), &d_fileDialogOpen);
 
     d_root = CatchEvent(withDialogs, [this](const Event& event) {
@@ -307,7 +308,8 @@ RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void
             quitNow();
             return true;
         }
-        const bool dialogOpen = d_pickerOpen || d_modelPickerOpen || d_fileDialogOpen || d_quitPromptOpen;
+        const bool dialogOpen = d_pickerOpen || d_modelPickerOpen || d_fileDialogOpen || d_quitPromptOpen ||
+                                d_wordEditorOpen;
         const bool inEditor = d_screen == static_cast<int>(Screen::Editor);
         if (event == Event::CtrlS && inEditor && !dialogOpen) {
             save();
@@ -329,6 +331,7 @@ void RsansApp::quitNow() {
 }
 
 void RsansApp::showStartScreen() {
+    d_wordEditorOpen = false;
     d_pickerOpen = false;
     d_modelPickerOpen = false;
     d_fileDialogOpen = false;
@@ -346,6 +349,7 @@ void RsansApp::leave(Leave how) {
 }
 
 void RsansApp::askBeforeLeaving(Leave how) {
+    d_wordEditorOpen = false;
     d_pickerOpen = false;
     d_modelPickerOpen = false;
     d_fileDialogOpen = false;
@@ -704,6 +708,8 @@ void RsansApp::newProject() {
     outputPath.clear();
     d_projectPath.clear();
     d_saveMessage.clear();
+    d_wordSelected = 0;
+    d_rhymesOutOfDate = false;
     markSaved();
     d_tab = 0;
     d_screen = static_cast<int>(Screen::Editor);
@@ -718,6 +724,8 @@ std::string RsansApp::loadProject(const std::string& path) {
     }
     d_projectPath = path;
     d_saveMessage.clear();
+    d_wordSelected = 0;
+    d_rhymesOutOfDate = false;
     markSaved();
     d_tab = 0;
     d_screen = static_cast<int>(Screen::Editor);
@@ -1357,7 +1365,11 @@ bool RsansApp::runStep(Step step) {
     const ProjectData project = d_form.project();
     const std::string ffmpeg = ffmpegPath;
     const std::string output = outputPath;
-    const auto keepTokens = [this](ProjectData result) { d_form.setTokens(std::move(result.tokens)); };
+    const auto keepTokens = [this](ProjectData result) {
+        d_form.setTokens(std::move(result.tokens));
+        d_wordSelected = 0;
+        d_rhymesOutOfDate = false;  // New words, or freshly detected rhymes
+    };
 
     switch (step) {
     case Step::Analyze:
@@ -1491,43 +1503,178 @@ Component RsansApp::makeRunTab() {
     });
 }
 
-Component RsansApp::makeLyricsTab() const {
-    return Renderer([this] {
+std::vector<std::vector<std::size_t>> RsansApp::lyricLines() const {
+    // Words grouped by line, lines in order, words in their original order
+    std::map<int, std::vector<std::size_t>> byLine;
+    const std::vector<Token>& tokens = d_form.project().tokens;
+    for (std::size_t i = 0; i < tokens.size(); ++i) {
+        byLine[tokens[i].lineIndex].push_back(i);
+    }
+    std::vector<std::vector<std::size_t>> lines;
+    for (auto& [lineIndex, words] : byLine) {
+        lines.push_back(std::move(words));
+    }
+    return lines;
+}
+
+void RsansApp::selectWord(std::size_t index) {
+    const std::size_t count = d_form.project().tokens.size();
+    d_wordSelected = count == 0 ? 0 : std::min(index, count - 1);
+}
+
+bool RsansApp::openWordEditor() {
+    if (d_runner.isRunning() || d_wordSelected >= d_form.project().tokens.size()) {
+        return false;
+    }
+    wordEditText = d_form.project().tokens[d_wordSelected].text;
+    d_wordCursor = static_cast<int>(wordEditText.size());
+    d_wordError.clear();
+    d_wordEditorOpen = true;
+    return true;
+}
+
+void RsansApp::applyWordEdit() {
+    const std::string before = d_form.project().tokens[d_wordSelected].text;
+    if (!d_form.setTokenText(d_wordSelected, wordEditText)) {
+        d_wordError = "Type the word, or use Delete word to remove it";
+        return;
+    }
+    if (d_form.project().tokens[d_wordSelected].text != before) {
+        d_rhymesOutOfDate = true;
+    }
+    d_wordEditorOpen = false;
+}
+
+void RsansApp::deleteSelectedWord() {
+    if (d_form.removeToken(d_wordSelected)) {
+        d_rhymesOutOfDate = true;
+        selectWord(d_wordSelected);  // The next word, or the new last one
+    }
+    d_wordEditorOpen = false;
+}
+
+Component RsansApp::makeWordEditor() {
+    InputOption option = singleLineInput();
+    option.cursor_position = &d_wordCursor;
+    option.on_change = [this] { d_wordError.clear(); };
+    option.on_enter = [this] { applyWordEdit(); };
+    Component input = TextInput(&wordEditText, "the word", option);
+    Component saveButton = Button("Save", [this] { applyWordEdit(); }, ButtonOption::Ascii());
+    Component deleteButton = Button("Delete word", [this] { deleteSelectedWord(); }, ButtonOption::Ascii());
+    Component cancel = Button("Cancel", [this] { d_wordEditorOpen = false; }, ButtonOption::Ascii());
+    Component container = Container::Vertical({input, Container::Horizontal({saveButton, deleteButton, cancel})});
+
+    Component rendered = Renderer(container, [this, input, saveButton, deleteButton, cancel] {
+        const std::vector<Token>& tokens = d_form.project().tokens;
+        if (d_wordSelected >= tokens.size()) {
+            return text("");
+        }
+        const Token& token = tokens[d_wordSelected];
+        return dialogWindow(" Edit word ", vbox({
+            hbox({text("Word ") | bold, input->Render() | flex}),
+            text("Sung at " + formatTime(token.startMs) + ", " +
+                 std::to_string(token.endMs - token.startMs) + " ms") | dim,
+            d_wordError.empty() ? text("") : text(d_wordError) | color(ftxui::Color::Red),
+            hbox({saveButton->Render(), text(" "), deleteButton->Render(), text(" "), cancel->Render(), filler(),
+                  text("Enter: save  Esc: cancel") | dim}),
+        })) | size(WIDTH, EQUAL, 60);
+    });
+    return CatchEvent(rendered, [this](const Event& event) {
+        if (event == Event::Escape) {
+            d_wordEditorOpen = false;
+            return true;
+        }
+        return false;
+    });
+}
+
+Component RsansApp::makeLyricsTab() {
+    // Focusable, so the arrow keys can move the highlighted word
+    Component view = Renderer([this](bool focused) {
         const ProjectData& project = d_form.project();
         if (project.tokens.empty()) {
             return vbox({text("No lyrics yet. Run Analyze on the Run tab.") | dim});
         }
+        selectWord(d_wordSelected);
 
         // One row per lyric line, words colored by their rhyme group
-        std::map<int, Elements> lines;
-        std::map<int, int> lineStartMs;
-        for (const Token& token : project.tokens) {
-            Element word = text(token.text);
-            if (token.rhymeIndex.has_value() && !project.colorSwatch.empty()) {
-                const std::size_t colorIndex =
-                    static_cast<std::size_t>(token.rhymeIndex.value()) % project.colorSwatch.size();
-                word = word | color(toColor(project.colorSwatch[colorIndex].hex())) | bold;
-            }
-            Elements& line = lines[token.lineIndex];
-            if (!line.empty()) {
-                line.push_back(text(" "));
-            }
-            line.push_back(word);
-            if (lineStartMs.count(token.lineIndex) == 0) {
-                lineStartMs[token.lineIndex] = token.startMs;
-            }
-        }
-
         Elements rows;
-        for (auto& [lineIndex, words] : lines) {
-            rows.push_back(hbox({text(formatTime(lineStartMs[lineIndex]) + "  ") | dim,
+        for (const std::vector<std::size_t>& line : lyricLines()) {
+            Elements words;
+            for (const std::size_t index : line) {
+                const Token& token = project.tokens[index];
+                Element word = text(token.text);
+                if (token.rhymeIndex.has_value() && !project.colorSwatch.empty()) {
+                    const std::size_t colorIndex =
+                        static_cast<std::size_t>(token.rhymeIndex.value()) % project.colorSwatch.size();
+                    word = word | color(toColor(project.colorSwatch[colorIndex].hex())) | bold;
+                }
+                if (index == d_wordSelected) {
+                    // Scrolled into view; shown strongly only while the list has focus
+                    word = focused ? word | inverted | focus : word | underlined | focus;
+                }
+                if (!words.empty()) {
+                    words.push_back(text(" "));
+                }
+                words.push_back(word);
+            }
+            rows.push_back(hbox({text(formatTime(project.tokens[line.front()].startMs) + "  ") | dim,
                                  hbox(std::move(words))}));
         }
+
+        Element note = d_rhymesOutOfDate
+            ? text("Words changed: run Detect rhymes again to update the colors") | color(ftxui::Color::Yellow)
+            : text(std::to_string(project.tokens.size()) + " words. Colored words rhyme.") | dim;
+        const Token& selected = project.tokens[d_wordSelected];
+        const std::string hint = d_runner.isRunning()
+            ? "Editing waits until " + d_runner.name() + " finishes"
+            : "Arrows: choose a word   Enter: edit it";
         return vbox({
-            text(std::to_string(project.tokens.size()) + " words. Colored words rhyme.") | dim,
+            note,
             text(""),
             vbox(std::move(rows)) | yframe | vscroll_indicator | flex,
+            separator(),
+            hbox({text("\"" + selected.text + "\" at " + formatTime(selected.startMs)) | bold, filler(),
+                  text(hint) | dim}),
         });
+    });
+
+    return CatchEvent(view, [this](const Event& event) {
+        const std::vector<Token>& tokens = d_form.project().tokens;
+        if (tokens.empty()) {
+            return false;
+        }
+        if (event == Event::Return) {
+            openWordEditor();
+            return true;
+        }
+        if (event == Event::ArrowRight && d_wordSelected + 1 < tokens.size()) {
+            ++d_wordSelected;
+            return true;
+        }
+        if (event == Event::ArrowLeft && d_wordSelected > 0) {
+            --d_wordSelected;
+            return true;
+        }
+        if (event == Event::ArrowUp || event == Event::ArrowDown) {
+            // To the word in the line above or below at about the same place
+            const std::vector<std::vector<std::size_t>> lines = lyricLines();
+            for (std::size_t l = 0; l < lines.size(); ++l) {
+                const auto at = std::find(lines[l].begin(), lines[l].end(), d_wordSelected);
+                if (at == lines[l].end()) {
+                    continue;
+                }
+                const bool up = event == Event::ArrowUp;
+                if ((up && l == 0) || (!up && l + 1 == lines.size())) {
+                    return false;  // Off the top: back to the tab bar
+                }
+                const std::vector<std::size_t>& target = lines[up ? l - 1 : l + 1];
+                const auto position = static_cast<std::size_t>(at - lines[l].begin());
+                d_wordSelected = target[std::min(position, target.size() - 1)];
+                return true;
+            }
+        }
+        return false;
     });
 }
 

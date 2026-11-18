@@ -3,6 +3,7 @@
 
 #include <rsans_data.h>
 
+#include <cstddef>
 #include <deque>
 #include <functional>
 #include <map>
@@ -69,6 +70,12 @@ class ProjectForm {
 
     // Replaces the tokens, e.g. with the results of analyze or rhyme
     void setTokens(std::vector<Token> tokens);
+
+    // Corrects one transcribed word (spaces at either end are removed).
+    // False if there's no such word or the text is empty.
+    bool setTokenText(std::size_t index, const std::string& text);
+    // Removes one word, e.g. one that was never sung. False if there's no such word.
+    bool removeToken(std::size_t index);
 
     // Errors to show for one field: its parse error if the text couldn't be
     // read, otherwise any validation errors for it

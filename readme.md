@@ -21,7 +21,7 @@ It can be used two ways:
 - Karaoke-style word highlighting
 - Video export with burned-in visuals using FFmpeg
 - Project checks before each step, listing every missing or invalid setting at once
-- Interactive terminal UI: a start screen, live validation as you type, progress with cancelling and a log, and a lyrics preview
+- Interactive terminal UI: a start screen, live validation as you type, progress with cancelling and a log, and a lyrics view for correcting misheard words
 - Pickers for installed fonts and for Whisper models, with downloads of missing models; a file browser for every path
 - Projects saved and loaded as `.rsans` files, with unsaved-changes prompts
 - File-driven CLI workflow using the same project files, for scripting
@@ -82,7 +82,7 @@ It opens on a start screen with the RSANS title and four options:
 The editor has three tabs, with the project's file name and **Save**, **Save as** and **Menu** buttons at the top right:
 - **Project:** every setting, grouped into Song, Audio, Video, Lyrics, Analysis and Colors. Problems are checked as you type. A red `!` marks a field that needs attention: on its own it means the value is required, and any other problem (a missing file, a non-number) is written underneath. Choosing an audio file shows its length.
 - **Run:** the output video path and FFmpeg path, then buttons for **Analyze**, **Detect rhymes**, **Export** and **Full run**. A step's button is dimmed until its settings are complete, and the Checks list shows what each step is still missing. While a step runs you get a progress bar, the current stage and a live log, and **Cancel** stops it (a cancelled export deletes its partial video).
-- **Lyrics:** the transcribed words, one row per line with its start time, with rhyming words shown in their rhyme color.
+- **Lyrics:** the transcribed words, one row per line with its start time, with rhyming words shown in their rhyme color. Misheard words can be corrected here: move to a word with the arrow keys (the bar at the bottom shows it and when it's sung) and press Enter to edit it, or to **Delete word** for one that was never sung. Its timing is kept. Rhyme colors aren't updated by an edit, so the tab reminds you to run **Detect rhymes** again. Editing waits while a step is running, since the step replaces the words when it finishes.
 
 **Menu** (or Esc) goes back to the start screen. It waits while a step is running, since the step's results belong to the open project.
 
@@ -116,7 +116,7 @@ WHISPER_CPP_DIR=~/whisper.cpp rsans
 | Key | Action |
 |---|---|
 | Arrow keys / Tab | Move between tabs, fields and buttons |
-| Enter | Press a button, open a picker, or choose a font, model, file or folder |
+| Enter | Press a button, open a picker, choose a font, model, file or folder, or edit the highlighted word |
 | Backspace | In the file browser with nothing typed: go up a folder |
 | Esc | Close the open dialog; in the editor with none open, go back to the start screen |
 | Ctrl+S | Save the project |
@@ -223,7 +223,7 @@ Tests that run FFmpeg are skipped if `ffmpeg` is not on the `PATH`. The export t
 ## Limitations
 - English-only transcription
 - Requires reasonably clean, clearly spoken or sung audio
-- Lyrics come from the transcription, so misheard words have to be corrected in the project file (the UI can't edit them yet)
+- Lyrics come from the transcription. Misheard words can be corrected or removed on the Lyrics tab, but words can't be added, split, merged or retimed
 - Audio with no detectable words (e.g. instrumentals) is rejected
 - Word-level timing accuracy depends on the speech recognition model
 - Does not handle overlapping vocals or polyphonic speech
