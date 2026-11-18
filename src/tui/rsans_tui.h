@@ -91,6 +91,11 @@ class RsansApp {
     // it twice on a word replays that word's part of the song
     void playFromWordOrStop();
     AudioPlayer::State playbackState() { return updatePlayback(); }
+    // While the song plays (or is paused), each word is highlighted from its
+    // start until its end. Only once rhymes are grouped (detected, or set by
+    // hand, for at least one word); until then the song just plays.
+    bool highlightsWords() const;
+    std::vector<std::size_t> wordsBeingSung();  // Token indexes; none when not highlighting
     int playbackPositionMs() const { return d_player.positionMs(); }
     // Why the audio couldn't be played, or ""
     const std::string& playbackError() const { return d_playError; }

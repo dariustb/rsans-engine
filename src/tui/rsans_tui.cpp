@@ -273,7 +273,7 @@ RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void
 , d_startEntries({"New project", "Load project", "Credits", "Quit"})
 , d_tabNames({"Project", "Run", "Lyrics"})
 , d_player(audioOutput)
-, d_ticker(post, std::chrono::milliseconds(100))
+, d_ticker(post, std::chrono::milliseconds(40))  // Often enough to show short words
 , d_runner(std::move(post)) {
     refreshWhisperModels();
 
@@ -1857,6 +1857,28 @@ void RsansApp::playFrom(int ms) {
     updatePlayback();
 }
 
+bool RsansApp::highlightsWords() const {
+    const std::vector<Token>& tokens = d_form.project().tokens;
+    return std::any_of(tokens.begin(), tokens.end(), [](const Token& token) { return token.rhymeIndex.has_value(); });
+}
+
+std::vector<std::size_t> RsansApp::wordsBeingSung() {
+    const AudioPlayer::State state = updatePlayback();
+    if ((state != AudioPlayer::State::Playing && state != AudioPlayer::State::Paused) || !highlightsWords()) {
+        return {};
+    }
+    // Every word whose time contains the moment being heard (words can overlap)
+    const int nowMs = d_player.positionMs();
+    const std::vector<Token>& tokens = d_form.project().tokens;
+    std::vector<std::size_t> sung;
+    for (std::size_t i = 0; i < tokens.size(); ++i) {
+        if (tokens[i].startMs <= nowMs && nowMs < tokens[i].endMs) {
+            sung.push_back(i);
+        }
+    }
+    return sung;
+}
+
 void RsansApp::playFromWordOrStop() {
     if (updatePlayback() == AudioPlayer::State::Playing) {
         stopPlayback();
@@ -1932,21 +1954,33 @@ Component RsansApp::makeLyricsTab() {
         }
         selectWord(d_wordSelected);
 
-        // One row per lyric line, words colored by their rhyme group
+        // One row per lyric line, words colored by their rhyme group, and the
+        // words being sung highlighted in that color
+        const std::vector<std::size_t> sung = wordsBeingSung();
         Elements rows;
         for (const std::vector<std::size_t>& line : lyricLines()) {
             Elements words;
             for (const std::size_t index : line) {
                 const Token& token = project.tokens[index];
                 Element word = text(token.text);
+                std::optional<ftxui::Color> rhymeColor;
                 if (token.rhymeIndex.has_value() && !project.colorSwatch.empty()) {
                     const std::size_t colorIndex =
                         static_cast<std::size_t>(token.rhymeIndex.value()) % project.colorSwatch.size();
-                    word = word | color(toColor(project.colorSwatch[colorIndex].hex())) | bold;
+                    rhymeColor = toColor(project.colorSwatch[colorIndex].hex());
+                }
+                const bool beingSung = std::find(sung.begin(), sung.end(), index) != sung.end();
+                if (beingSung) {
+                    // Dark text on its rhyme color (light gray without a group)
+                    word = word | color(ftxui::Color::Black) |
+                           bgcolor(rhymeColor.value_or(ftxui::Color::GrayLight)) | bold;
+                } else if (rhymeColor) {
+                    word = word | color(*rhymeColor) | bold;
                 }
                 if (index == d_wordSelected) {
-                    // Scrolled into view; shown strongly only while the list has focus
-                    word = focused ? word | inverted | focus : word | underlined | focus;
+                    // Scrolled into view; shown strongly only while the list has focus.
+                    // Underlined while sung, as inverting would hide the highlight.
+                    word = focused && !beingSung ? word | inverted | focus : word | underlined | focus;
                 }
                 if (!words.empty()) {
                     words.push_back(text(" "));

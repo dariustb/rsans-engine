@@ -2648,3 +2648,127 @@ TEST(PlaybackTest, UnreadableAudioShowsWhy) {
     EXPECT_TRUE(contains(app.playbackError(), "Can't open the audio")) << app.playbackError();
     EXPECT_TRUE(contains(renderToString(app.component()), "Can't open the audio"));
 }
+
+// Highlighting the words as they're sung
+
+namespace {
+
+// The screen cell where `word` first appears, or (-1, -1)
+std::pair<int, int> findOnScreen(ftxui::Screen& screen, const std::string& word) {
+    for (int y = 0; y < screen.dimy(); ++y) {
+        for (int x = 0; x + static_cast<int>(word.size()) <= screen.dimx(); ++x) {
+            bool match = true;
+            for (std::size_t i = 0; i < word.size() && match; ++i) {
+                match = screen.PixelAt(x + static_cast<int>(i), y).character == std::string(1, word[i]);
+            }
+            if (match) {
+                return {x, y};
+            }
+        }
+    }
+    return {-1, -1};
+}
+
+using Sung = std::vector<std::size_t>;
+
+} // namespace
+
+TEST(KaraokeTest, HighlightsEachWordForItsDurationFromHighlightedWord) {
+    // Given: "light" (0.8 to 1.2 s), then a gap, then "sign" (from 1.4 s)
+    const std::string wav = writeTestWav("rsans_karaoke_word.wav", 1, 16000, 3000);
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {}, AudioPlayer::Output::Silent);
+    openRhymingLyrics(app);
+    ASSERT_TRUE(app.form().setFieldText("audio.path", wav));
+    ASSERT_TRUE(app.highlightsWords());
+    app.selectWord(2);
+
+    // When: Space on "light"
+    app.component()->OnEvent(ftxui::Event::Character(" "));
+
+    // Then: it's highlighted straight away, then nothing in the gap, then "sign"
+    EXPECT_EQ(app.wordsBeingSung(), Sung({2}));
+    EXPECT_TRUE(waitForPlayback(ui, [&] { return app.wordsBeingSung().empty(); }));
+    EXPECT_GE(app.playbackPositionMs(), 1200);
+    EXPECT_TRUE(waitForPlayback(ui, [&] { return app.wordsBeingSung() == Sung({3}); }));
+
+    // Stopping clears it
+    app.component()->OnEvent(ftxui::Event::Character(" "));
+    EXPECT_TRUE(app.wordsBeingSung().empty());
+}
+
+TEST(KaraokeTest, PlayFromStartHighlightsWordsInTurnAndPauseKeepsIt) {
+    const std::string wav = writeTestWav("rsans_karaoke_start.wav", 1, 16000, 3000);
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {}, AudioPlayer::Output::Silent);
+    openRhymingLyrics(app);
+    ASSERT_TRUE(app.form().setFieldText("audio.path", wav));
+
+    app.togglePlayback();  // Play: from the start
+    EXPECT_EQ(app.wordsBeingSung(), Sung({0}));
+    // "neon" has no group, but is highlighted too, since rhymes are grouped
+    ASSERT_TRUE(waitForPlayback(ui, [&] { return app.wordsBeingSung() == Sung({1}); }));
+
+    app.togglePlayback();  // Pause: still on "neon"
+    ASSERT_EQ(app.playbackState(), AudioPlayer::State::Paused);
+    EXPECT_EQ(app.wordsBeingSung(), Sung({1}));
+    app.stopPlayback();
+    EXPECT_TRUE(app.wordsBeingSung().empty());
+}
+
+TEST(KaraokeTest, NoHighlightUntilRhymesAreGrouped) {
+    // Given: words with no rhyme groups
+    const std::string wav = writeTestWav("rsans_karaoke_none.wav", 1, 16000, 3000);
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {}, AudioPlayer::Output::Silent);
+    openLyrics(app);
+    ASSERT_TRUE(app.form().setFieldText("audio.path", wav));
+    EXPECT_FALSE(app.highlightsWords());
+
+    // Space still plays from the word, without highlighting
+    app.selectWord(2);
+    app.component()->OnEvent(ftxui::Event::Character(" "));
+    EXPECT_EQ(app.playbackState(), AudioPlayer::State::Playing);
+    EXPECT_GE(app.playbackPositionMs(), 1000);
+    EXPECT_TRUE(app.wordsBeingSung().empty());
+
+    // One group set by hand turns it on
+    app.form().setTokenRhyme(0, 0);
+    EXPECT_TRUE(app.highlightsWords());
+    EXPECT_EQ(app.wordsBeingSung(), Sung({2}));
+}
+
+TEST(KaraokeTest, SungWordIsDarkOnItsColorAndOthersKeepTheirColor) {
+    const std::string wav = writeTestWav("rsans_karaoke_render.wav", 1, 16000, 3000);
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {}, AudioPlayer::Output::Silent);
+    openRhymingLyrics(app);
+    ASSERT_TRUE(app.form().setFieldText("audio.path", wav));
+    app.selectWord(0);  // Away from "light", so the selection doesn't change it
+
+    const auto render = [&] {
+        auto screen = ftxui::Screen::Create(ftxui::Dimension::Fixed(120), ftxui::Dimension::Fixed(40));
+        ftxui::Render(screen, app.component()->Render());
+        return screen;
+    };
+    // Before playing: "light" in its rhyme color, on the normal background
+    ftxui::Screen before = render();
+    const auto [lx, ly] = findOnScreen(before, "light");
+    ASSERT_GE(lx, 0);
+    const ftxui::Color rhymeColor = before.PixelAt(lx, ly).foreground_color;
+    EXPECT_NE(rhymeColor, ftxui::Color(ftxui::Color::Default));
+    EXPECT_EQ(before.PixelAt(lx, ly).background_color, ftxui::Color(ftxui::Color::Default));
+
+    // While sung: dark on that color
+    app.selectWord(2);
+    app.component()->OnEvent(ftxui::Event::Character(" "));
+    app.selectWord(0);
+    ftxui::Screen during = render();
+    EXPECT_EQ(during.PixelAt(lx, ly).foreground_color, ftxui::Color(ftxui::Color::Black));
+    EXPECT_EQ(during.PixelAt(lx, ly).background_color, rhymeColor);
+    // "sign" isn't being sung: still its own color, not highlighted
+    const auto [sx, sy] = findOnScreen(during, "sign");
+    ASSERT_GE(sx, 0);
+    EXPECT_NE(during.PixelAt(sx, sy).foreground_color, ftxui::Color(ftxui::Color::Default));
+    EXPECT_EQ(during.PixelAt(sx, sy).background_color, ftxui::Color(ftxui::Color::Default));
+}

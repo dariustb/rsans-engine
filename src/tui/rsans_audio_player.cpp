@@ -21,6 +21,10 @@ struct AudioPlayer::Impl {
     std::mutex fileMutex;
     std::atomic<std::uint64_t> cursor{0};  // Frames handed to the device
     std::atomic<bool> finished{false};     // The device has read to the end
+    // Where playing last started, and how far the device's buffer runs ahead
+    // of what's heard (in the file's frames)
+    std::uint64_t startFrame = 0;
+    std::uint64_t latencyFrames = 0;
 
     ma_context context{};
     bool contextReady = false;
@@ -72,6 +76,11 @@ struct AudioPlayer::Impl {
                 return std::string("Can't open the sound device: ") + ma_result_description(result);
             }
             deviceReady = true;
+            // The device's buffer, in the file's frames
+            const ma_uint32 deviceRate = device.playback.internalSampleRate;
+            latencyFrames = deviceRate == 0 ? 0
+                : static_cast<std::uint64_t>(device.playback.internalPeriodSizeInFrames) *
+                  device.playback.internalPeriods * static_cast<std::uint64_t>(info.samplerate) / deviceRate;
         }
         const ma_result result = ma_device_start(&device);
         if (result != MA_SUCCESS) {
@@ -92,6 +101,7 @@ struct AudioPlayer::Impl {
             sf_seek(file, 0, SEEK_SET);
         }
         cursor = 0;
+        startFrame = 0;
         finished = false;
     }
 
@@ -103,8 +113,19 @@ struct AudioPlayer::Impl {
             return false;
         }
         cursor = frame;
+        startFrame = frame;
         finished = false;
         return true;
+    }
+
+    // The frame being heard: while playing, the device's buffer is ahead of
+    // it, but never before where playing started
+    std::uint64_t heardFrame() const {
+        const std::uint64_t handed = cursor;
+        if (state != State::Playing) {
+            return handed;
+        }
+        return handed > startFrame + latencyFrames ? handed - latencyFrames : startFrame;
     }
 
     void close() {
@@ -119,6 +140,8 @@ struct AudioPlayer::Impl {
         }
         info = SF_INFO{};
         cursor = 0;
+        startFrame = 0;
+        latencyFrames = 0;
         finished = false;
         path.clear();
         state = State::Closed;
@@ -203,7 +226,10 @@ std::string AudioPlayer::playFrom(int ms) {
 
 void AudioPlayer::pause() {
     if (state() == State::Playing) {
+        // Back to what was heard: the device's buffer is dropped, not played
+        const std::uint64_t heard = d_impl->heardFrame();
         d_impl->stopDevice();
+        d_impl->seek(heard);
         d_impl->state = State::Paused;
     }
 }
@@ -230,7 +256,7 @@ int AudioPlayer::positionMs() const {
     if (d_impl->info.samplerate <= 0) {
         return 0;
     }
-    return static_cast<int>(d_impl->cursor.load() * 1000 / static_cast<std::uint64_t>(d_impl->info.samplerate));
+    return static_cast<int>(d_impl->heardFrame() * 1000 / static_cast<std::uint64_t>(d_impl->info.samplerate));
 }
 
 int AudioPlayer::lengthMs() const {

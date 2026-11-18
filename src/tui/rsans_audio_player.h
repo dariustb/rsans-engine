@@ -46,7 +46,9 @@ class AudioPlayer {
     // at the start (noticed here, so it's up to date when asked)
     State state();
 
-    // Where playing is, and the file's length, in milliseconds
+    // Where playing is (what's being heard, so behind what the sound
+    // device has been given by its buffer), and the file's length, in
+    // milliseconds
     int positionMs() const;
     int lengthMs() const;
 
