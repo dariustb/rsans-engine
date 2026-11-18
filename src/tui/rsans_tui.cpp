@@ -1322,6 +1322,11 @@ Component RsansApp::makeProjectTab() {
                         lines.push_back(text(std::string(labelWidth + 2, ' ') + error) | color(ftxui::Color::Red));
                     }
                 }
+                const std::string warning = d_form.warningFor(field->key);
+                if (!warning.empty()) {
+                    lines.push_back(hbox({text(std::string(labelWidth + 2, ' ')),
+                                          paragraph(warning) | color(ftxui::Color::Yellow)}));
+                }
                 continue;
             }
             Element row = hbox({
@@ -1537,7 +1542,12 @@ Component RsansApp::makeRunTab() {
             const bool canRun = problems.empty() && !d_runner.isRunning();
             buttonRow.push_back(canRun ? entry.button->Render() : entry.button->Render() | dim);
 
-            Element status = problems.empty()
+            // Fonts matter only to steps that render the video
+            const bool renders = entry.step == Step::Export || entry.step == Step::Full;
+            const std::vector<std::string> warnings = renders ? d_form.warnings() : std::vector<std::string>{};
+            Element status = problems.empty() && !warnings.empty()
+                ? text("ready, but " + warnings.front() + " (see Project)") | color(ftxui::Color::Yellow)
+                : problems.empty()
                 ? text("ready") | color(ftxui::Color::Green)
                 : text(problems.front() + (problems.size() > 1
                            ? "  (+" + std::to_string(problems.size() - 1) + " more)"

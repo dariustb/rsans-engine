@@ -2231,3 +2231,65 @@ TEST(AppSettingsTest, ChecksDontShowButtonEllipsis) {
     EXPECT_TRUE(contains(screen, "Export...")) << screen;          // The button
     EXPECT_TRUE(contains(screen, "    Export      ")) << screen;   // The check
 }
+
+// Font names that don't find their font file
+
+namespace {
+const char* const dejaVuSansFile = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
+}
+
+TEST(ProjectFormTest, WarnsWhenFontNameDoesntMatchFile) {
+    if (!std::filesystem::exists(dejaVuSansFile)) {
+        GTEST_SKIP() << "DejaVu Sans not installed";
+    }
+    ProjectForm form(defaultProject());
+    form.setFieldText("layout.fontPath", dejaVuSansFile);
+
+    // A typed name that isn't the file's font
+    form.setFieldText("layout.fontName", "Arial");
+    EXPECT_NE(form.warningFor("layout.fontName").find("\"DejaVu Sans\""), std::string::npos);
+    EXPECT_EQ(form.warnings(), (std::vector<std::string>{"the lyrics font's name doesn't match its file"}));
+    EXPECT_EQ(form.warningFor("header.fontName"), "");
+
+    // Fixed
+    form.setFieldText("layout.fontName", "dejavu sans");
+    EXPECT_EQ(form.warningFor("layout.fontName"), "");
+    EXPECT_TRUE(form.warnings().empty());
+}
+
+TEST(FontNameWarningTest, ShownOnProjectTabAndInExportCheck) {
+    if (!std::filesystem::exists(dejaVuSansFile)) {
+        GTEST_SKIP() << "DejaVu Sans not installed";
+    }
+    // Given: a project loaded with a header font name that isn't its file's
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    app.form().setFieldText("header.fontPath", dejaVuSansFile);
+    app.form().setFieldText("header.fontName", "Helvetica");
+
+    // Then: under the font, on the Project tab
+    const std::string project = renderToString(app.component(), 120, 70);
+    EXPECT_TRUE(contains(project, "The file's font is \"DejaVu Sans\", not \"Helvetica\"")) << project;
+
+    // And in the Run tab's checks once Export is otherwise ready (here: not yet)
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    const std::string run = renderToString(app.component(), 120, 50);
+    EXPECT_FALSE(contains(run, "ready, but")) << run;
+}
+
+TEST(FontNameWarningTest, ReadyExportCheckMentionsMismatchedFont) {
+    DialogFolder folder;
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    if (!makeExportReady(app, folder.root, "Song")) {
+        GTEST_SKIP() << "DejaVu Sans not installed";
+    }
+    app.form().setFieldText("layout.fontName", "Helvetica");
+    ASSERT_TRUE(app.problemsFor(RsansApp::Step::Export).empty());  // A warning, not a blocker
+
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    const std::string run = renderToString(app.component(), 140, 50);
+
+    EXPECT_TRUE(contains(run, "ready, but the lyrics font's name doesn't match its file (see Project)")) << run;
+}

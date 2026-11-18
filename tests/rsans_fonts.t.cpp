@@ -121,3 +121,53 @@ TEST(FontFromFileTest, FontFromFileReturnsNothingGivenNonFontFile) {
     EXPECT_FALSE(fontFromFile("/nonexistent/font.ttf").has_value());
     std::filesystem::remove(path);
 }
+
+// Font names that will find the file
+
+namespace {
+const char* const dejaVuCondensed = "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed.ttf";
+}
+
+TEST(FontNameTest, FontNamesInFileListsFamiliesFullAndPostScriptNames) {
+    if (!std::filesystem::exists(dejaVuCondensed)) {
+        GTEST_SKIP() << "DejaVu Sans Condensed not installed";
+    }
+
+    const std::vector<std::string> names = fontNamesInFile(dejaVuCondensed);
+
+    for (const char* name : {"DejaVu Sans", "DejaVu Sans Condensed", "DejaVuSansCondensed"}) {
+        EXPECT_NE(std::find(names.begin(), names.end(), name), names.end()) << name;
+    }
+    EXPECT_TRUE(fontNamesInFile("/nonexistent/font.ttf").empty());
+}
+
+TEST(FontNameTest, FontNameMismatchAcceptsAnyNameIgnoringCase) {
+    if (!std::filesystem::exists(dejaVuCondensed)) {
+        GTEST_SKIP() << "DejaVu Sans Condensed not installed";
+    }
+    for (const char* name : {"DejaVu Sans", "DejaVu Sans Condensed", "DejaVuSansCondensed", "dejavu sans"}) {
+        EXPECT_EQ(fontNameMismatch(name, dejaVuCondensed), "") << name;
+    }
+}
+
+TEST(FontNameTest, FontNameMismatchNamesTheFilesFont) {
+    if (!std::filesystem::exists(dejaVuSans)) {
+        GTEST_SKIP() << "DejaVu Sans not installed";
+    }
+
+    const std::string message = fontNameMismatch("Arial", dejaVuSans);
+
+    EXPECT_NE(message.find("\"DejaVu Sans\""), std::string::npos) << message;
+    EXPECT_NE(message.find("\"Arial\""), std::string::npos) << message;
+}
+
+TEST(FontNameTest, FontNameMismatchLeavesOtherProblemsToOtherChecks) {
+    const std::filesystem::path path = std::filesystem::temp_directory_path() / "rsans_not_a_font2.ttf";
+    std::ofstream(path) << "not a font";
+
+    EXPECT_EQ(fontNameMismatch("", dejaVuSans), "");
+    EXPECT_EQ(fontNameMismatch("Arial", ""), "");
+    EXPECT_EQ(fontNameMismatch("Arial", "/nonexistent/font.ttf"), "");
+    EXPECT_EQ(fontNameMismatch("Arial", path.string()), "");
+    std::filesystem::remove(path);
+}

@@ -110,6 +110,44 @@ std::optional<FontInfo> fontFromFile(const std::string& path) {
     return info;
 }
 
+std::vector<std::string> fontNamesInFile(const std::string& path) {
+    int faceCount = 0;
+    const std::unique_ptr<FcPattern, PatternDeleter> font(FcFreeTypeQuery(
+        reinterpret_cast<const FcChar8*>(path.c_str()), 0, nullptr, &faceCount));
+    std::vector<std::string> names;
+    if (!font || !isUsableFormat(getString(font.get(), FC_FONTFORMAT))) {
+        return names;
+    }
+    for (const char* property : {FC_FAMILY, FC_FULLNAME, FC_POSTSCRIPT_NAME}) {
+        FcChar8* value = nullptr;
+        for (int i = 0; FcPatternGetString(font.get(), property, i, &value) == FcResultMatch; ++i) {
+            const std::string name = reinterpret_cast<const char*>(value);
+            if (!name.empty() && std::find(names.begin(), names.end(), name) == names.end()) {
+                names.push_back(name);
+            }
+        }
+    }
+    return names;
+}
+
+std::string fontNameMismatch(const std::string& name, const std::string& path) {
+    if (name.empty() || path.empty()) {
+        return "";
+    }
+    const std::vector<std::string> names = fontNamesInFile(path);
+    if (names.empty()) {
+        return "";  // Not a font: the file's own check says so
+    }
+    const std::string wanted = toLower(name);
+    for (const std::string& candidate : names) {
+        if (toLower(candidate) == wanted) {
+            return "";
+        }
+    }
+    return "The file's font is \"" + names.front() + "\", not \"" + name +
+           "\", so the video would use another font. Choose the font again to fix it.";
+}
+
 std::vector<std::size_t> filterFonts(const std::vector<FontInfo>& fonts, const std::string& query) {
     std::vector<std::string> words;
     std::istringstream stream(toLower(query));

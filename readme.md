@@ -101,6 +101,8 @@ Every file path can be typed, or picked with its **Browse** button (move right f
 #### Fonts
 Fonts are chosen from the fonts installed on your system. Press Enter on **Header font** or **Lyrics font** to open the picker, type part of a name to filter the list, and press Enter to choose. Typing a path to a font file, or using **Browse files**, uses that file even if it isn't installed. Fonts are scanned in the background at startup, and the picker has a **Rescan fonts** button for fonts installed while it is running.
 
+Font files can be anywhere, installed or not. When a video is exported, the two font files are copied into a temporary folder for that render and deleted when it ends, so nothing is copied until you export. The subtitles find a font by the name inside it, so if a font's name doesn't match its file (for example a name edited in the project file), the font row shows what the file's font is actually called, and the Run tab marks Export as "ready, but..." until you choose the font again.
+
 #### Whisper models
 Press Enter on **Whisper model** to choose from the models whisper.cpp offers. The list shows one model per size: tiny.en, base.en, small.en, medium.en, large-v3 and large-v3-turbo (RSANS transcribes English, so the English-only versions are offered), plus any you've already installed. Tick **Show all** for every variant, including the multilingual and quantized ones. **Other file...** picks any `.bin` model instead.
 
@@ -181,7 +183,7 @@ A project is a `.rsans` file containing JSON. The interactive UI saves projects 
 | `header.title`, `header.artist` | Required, shown above the lyrics |
 | `header.media` | Required cover image: PNG, JPEG, BMP, GIF or TGA (not video) |
 | `header.fontName`, `layout.fontName` | Required font family names, as the font itself names them (e.g. `DejaVu Sans`) |
-| `header.fontPath`, `layout.fontPath` | Required font files. Fonts installed on the system are found by family name; a font that isn't installed must be in the same folder as the other font |
+| `header.fontPath`, `layout.fontPath` | Required font files, installed or not, in any folder |
 | `audio.path` | Required. WAV, FLAC, OGG, Opus, MP3 or AIFF (the formats libsndfile reads). AAC/M4A is not supported; convert it first, e.g. `ffmpeg -i song.m4a song.flac` |
 | `audio.length` | Seconds. Leave `null` to have it measured from the audio |
 | `video.width`, `video.height` | Required, positive, and even (required by the H.264 encoder) |
@@ -233,7 +235,6 @@ Tests that run FFmpeg are skipped if `ffmpeg` is not on the `PATH`. The export t
 - Does not handle overlapping vocals or polyphonic speech
 - No real-time playback or editing (offline rendering only)
 - Fonts render in their regular style only (no bold or italic)
-- A font that isn't installed on the system must be in the same folder as the other font
 - Only one transcription can run at a time per process
 - Downloading models from the UI needs internet access, `sh`, and curl or wget; everything else runs offline
 

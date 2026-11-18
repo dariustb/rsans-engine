@@ -17,6 +17,10 @@
 #include <system_error>
 #include <vector>
 
+#include <cerrno>
+#include <cstring>
+#include <stdlib.h>  // mkdtemp
+
 namespace  {
 
 // Escapes a value placed inside an ffmpeg filtergraph (e.g. movie=<path>).
@@ -94,17 +98,10 @@ int executeFfmpegBuild(const ProjectData& data,
                        const std::string& outputVideoPath,
                        const std::string& ffmpegPath,
                        const std::string& assPath,
+                       const std::string& fontsDir,
                        const FfmpegOutputHandler& onOutput,
                        const ProgressHandler& onProgress,
                        const CancelFlag* cancel) {
-    const std::filesystem::path layoutFontDir = std::filesystem::path(data.layout.fontPath).parent_path();
-    const std::filesystem::path headerFontDir = std::filesystem::path(data.header.fontPath).parent_path();
-    // Use the common ancestor so fontconfig (used by ffmpeg's libass) can discover all fonts
-    // TODO: this only works when the fonts share the same immediate parent folder
-    const std::filesystem::path fontsDir = (layoutFontDir == headerFontDir)
-        ? layoutFontDir
-        : layoutFontDir.parent_path();
-
     std::ostringstream colorSource;
     colorSource << "color=c=" << escapeFilterValue(data.video.background)
                 << ":s=" << data.video.width << "x" << data.video.height
@@ -116,7 +113,7 @@ int executeFfmpegBuild(const ProjectData& data,
                 << "[cover];[0:v][cover]"
                 << "overlay=0:0,"
                 << "subtitles=" << escapeFilterValue(assPath)
-                << ":fontsdir=" << escapeFilterValue(fontsDir.string());
+                << ":fontsdir=" << escapeFilterValue(fontsDir);
 
     // Arguments go straight to ffmpeg without a shell, so they need no quoting.
     // -nostdin: don't read keypresses meant for the caller (e.g. a TUI)
@@ -166,6 +163,45 @@ int executeFfmpegBuild(const ProjectData& data,
 
 }
 
+StagedFonts::StagedFonts(const std::vector<std::string>& fontPaths) {
+    std::string pattern = (std::filesystem::temp_directory_path() / "rsans-fonts-XXXXXX").string();
+    if (::mkdtemp(pattern.data()) == nullptr) {
+        throw std::runtime_error("Can't make a temporary folder for the fonts: " +
+                                 std::string(std::strerror(errno)));
+    }
+    d_dir = pattern;
+
+    std::vector<std::filesystem::path> copied;  // Originals, to copy each once
+    try {
+        for (const std::string& path : fontPaths) {
+            std::error_code ec;
+            const std::filesystem::path original = std::filesystem::weakly_canonical(path, ec);
+            const auto seen = std::find(copied.begin(), copied.end(), original);
+            if (seen != copied.end()) {
+                d_files.push_back(d_files[static_cast<std::size_t>(seen - copied.begin())]);
+                continue;
+            }
+            const std::filesystem::path copy = std::filesystem::path(d_dir) /
+                (std::to_string(copied.size()) + "-" + original.filename().string());
+            std::filesystem::copy_file(path, copy, ec);
+            if (ec) {
+                throw std::runtime_error("Can't copy the font " + path + " for the export: " + ec.message());
+            }
+            copied.push_back(original);
+            d_files.push_back(copy.string());
+        }
+    } catch (...) {
+        std::error_code ec;
+        std::filesystem::remove_all(d_dir, ec);
+        throw;
+    }
+}
+
+StagedFonts::~StagedFonts() {
+    std::error_code ec;
+    std::filesystem::remove_all(d_dir, ec);
+}
+
 std::string subtitlePathFor(const std::string& outputVideoPath) {
     std::filesystem::path assPath(outputVideoPath);
     if (assPath.extension() == ".ass") {
@@ -189,7 +225,9 @@ int exportVideo(const ProjectData& data,
     writeFile(assPath, assSubtitles.text());
 
     try {
-        return executeFfmpegBuild(data, outputVideoPath, ffmpegPath, assPath,
+        // Copied now, for this render only, and deleted when it ends
+        const StagedFonts fonts({data.header.fontPath, data.layout.fontPath});
+        return executeFfmpegBuild(data, outputVideoPath, ffmpegPath, assPath, fonts.dir(),
                                   onOutput, onProgress, cancel);
     } catch (const CancelledError&) {
         // A cancelled export leaves no half-written video or its subtitles behind

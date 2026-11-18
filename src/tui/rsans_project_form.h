@@ -43,8 +43,17 @@ class ProjectForm {
     std::map<std::string, std::string> d_parseErrors;
     std::vector<ValidationError> d_validation;
     std::string d_measuredAudioPath;
+    // Font name checks, by name key, with the (name, path) each was made for,
+    // so a font file is only read again when one of them changes
+    struct FontCheck {
+        std::string name;
+        std::string path;
+        std::string warning;
+    };
+    std::map<std::string, FontCheck> d_fontChecks;
 
     void measureAudioIfChanged();
+    void checkFontNames();
 
   public:
     explicit ProjectForm(ProjectData initial);
@@ -84,6 +93,13 @@ class ProjectForm {
     // Errors to show for one field: its parse error if the text couldn't be
     // read, otherwise any validation errors for it
     std::vector<std::string> errorsFor(const std::string& key) const;
+
+    // A problem that doesn't stop a step but would spoil the video, or "".
+    // Currently: a font name that doesn't find its font file (for
+    // "header.fontName" and "layout.fontName").
+    std::string warningFor(const std::string& key) const;
+    // Every warning, short, e.g. "the lyrics font's name doesn't match its file"
+    std::vector<std::string> warnings() const;
 
     // Every validation error from the last apply()
     const std::vector<ValidationError>& validation() const { return d_validation; }

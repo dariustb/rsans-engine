@@ -1,5 +1,7 @@
 #include <rsans_project_form.h>
 
+#include <rsans_fonts.h>
+
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
@@ -199,6 +201,38 @@ void ProjectForm::apply() {
     }
     measureAudioIfChanged();
     d_validation = d_project.validate();
+    checkFontNames();
+}
+
+void ProjectForm::checkFontNames() {
+    const std::pair<const char*, std::pair<const std::string*, const std::string*>> fonts[] = {
+        {"header.fontName", {&d_project.header.fontName, &d_project.header.fontPath}},
+        {"layout.fontName", {&d_project.layout.fontName, &d_project.layout.fontPath}},
+    };
+    for (const auto& [key, font] : fonts) {
+        FontCheck& check = d_fontChecks[key];
+        const bool known = !check.name.empty() || !check.path.empty();
+        if (known && check.name == *font.first && check.path == *font.second) {
+            continue;
+        }
+        check = {*font.first, *font.second, fontNameMismatch(*font.first, *font.second)};
+    }
+}
+
+std::string ProjectForm::warningFor(const std::string& key) const {
+    const auto check = d_fontChecks.find(key);
+    return check == d_fontChecks.end() ? "" : check->second.warning;
+}
+
+std::vector<std::string> ProjectForm::warnings() const {
+    std::vector<std::string> result;
+    for (const auto& [key, check] : d_fontChecks) {
+        if (!check.warning.empty()) {
+            result.push_back(std::string(key == "header.fontName" ? "the header" : "the lyrics") +
+                             " font's name doesn't match its file");
+        }
+    }
+    return result;
 }
 
 void ProjectForm::reset(ProjectData project) {
