@@ -23,6 +23,7 @@ target_include_directories(test_rsans PUBLIC ./)
 target_sources(test_rsans
 	PRIVATE
 		rsans_args.t.cpp
+		rsans_audio_player.t.cpp
 		rsans_ass.t.cpp
 		rsans_data.t.cpp
 		rsans_export.t.cpp

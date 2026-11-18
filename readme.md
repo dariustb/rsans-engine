@@ -19,6 +19,7 @@ It can be used two ways:
 - Word-level timing via offline speech recognition
 - Automatic rhyme detection, with rhyming words color-grouped
 - Karaoke-style word highlighting
+- Song playback in the lyrics view (play, pause, stop)
 - Video export with burned-in visuals using FFmpeg
 - Project checks before each step, listing every missing or invalid setting at once
 - Interactive terminal UI: a start screen, live validation as you type, progress with cancelling and a log, and a lyrics view for correcting misheard words and rhyme groups
@@ -33,7 +34,7 @@ It can be used two ways:
 - A C++17 compiler (GCC or Clang) and a C compiler
 - pkg-config, git, and clang-tidy (run on the project's own code during the build)
 - libass, libsndfile and fontconfig development packages
-- Internet access when configuring: whisper.cpp, CLI11, nlohmann/json, dr_libs, stb, CMUdict, FTXUI, and GoogleTest are downloaded by CMake
+- Internet access when configuring: whisper.cpp, CLI11, nlohmann/json, dr_libs, stb, CMUdict, FTXUI, miniaudio, and GoogleTest are downloaded by CMake
 
 On Ubuntu/Debian:
 ```sh
@@ -83,6 +84,7 @@ The editor has three tabs, with the project's file name and **Save**, **Save as*
 - **Project:** every setting, grouped into Song, Audio, Video, Lyrics, Analysis and Colors. Problems are checked as you type. A red `!` marks a field that needs attention: on its own it means the value is required, and any other problem (a missing file, a non-number) is written underneath. Choosing an audio file shows its length.
 - **Run:** the app settings (FFmpeg and the whisper.cpp folder, see [Settings](#settings)), then buttons for **Analyze**, **Detect rhymes**, **Export...** and **Full run...**. Export and Full run first ask where to save the video, every time: the save dialog suggests the project's name with `.mp4` (e.g. `night-drive.mp4` for `night-drive.rsans`, or the song title before the project is saved), in the project's folder, or the folder you last saved this project's video to. `.mp4` is added if you leave out the extension, and replacing an existing video needs a second Enter. The subtitles are saved beside it as `.ass`. A step's button is dimmed until its settings are complete, and the Checks list shows what each step is still missing. While a step runs you get a progress bar, the current stage and a live log, and **Cancel** stops it (a cancelled export deletes its partial video).
 - **Lyrics:** the transcribed words, one row per line with its start time, with rhyming words shown in their rhyme color. Misheard words can be corrected here: move to a word with the arrow keys (the bar at the bottom shows it and when it's sung) and press Enter to edit it, or to **Delete word** for one that was never sung. Its timing is kept. To add a word that was missed, press **A** to add it after the highlighted word or **B** to add it before, on the same line. Its timing is fitted in from its neighbours: it fills the gap between them (up to a second, next to the word on its own line), or, with no gap, takes the second half of the word before it (the first half of the word after it, at the start of a line). Rhyme colors aren't updated by changing or adding a word, so the tab reminds you to run **Detect rhymes** again. The same dialog sets the word's **Rhyme group** by hand: **None**, any group in use (shown in its color, with the words already in it), or **New group**. Running Detect rhymes again replaces groups set by hand. Editing waits while a step is running, since the step replaces the words when it finishes.
+  Below the words, **Play**/**Pause** and **Stop** play the project's audio file through your sound device, showing the time and a progress bar; **Space** plays and pauses from anywhere on the tab, and Down from the last line of words reaches the buttons. Stop, or the end of the song, goes back to the start. Choosing a different audio file, or leaving the project, stops it.
 
 **Menu** (or Esc) goes back to the start screen. It waits while a step is running, since the step's results belong to the open project.
 

@@ -2471,3 +2471,135 @@ TEST(FontNameWarningTest, ReadyExportCheckMentionsMismatchedFont) {
 
     EXPECT_TRUE(contains(run, "ready, but the lyrics font's name doesn't match its file (see Project)")) << run;
 }
+
+// Playing the song on the Lyrics tab
+
+namespace {
+
+// Waits up to two seconds for `done`, running posted tasks meanwhile
+bool waitForPlayback(ManualPost& ui, const std::function<bool()>& done) {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (std::chrono::steady_clock::now() < deadline) {
+        ui.runPending();
+        if (done()) {
+            return true;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    return done();
+}
+
+} // namespace
+
+TEST(PlaybackTest, SpaceWithoutAudioFileSaysToChooseOne) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {}, AudioPlayer::Output::Silent);
+    openLyrics(app);
+    EXPECT_TRUE(contains(renderToString(app.component()), "No audio file: choose one on the Project tab"));
+
+    app.component()->OnEvent(ftxui::Event::Character(" "));
+
+    EXPECT_EQ(app.playbackState(), AudioPlayer::State::Closed);
+    EXPECT_TRUE(contains(renderToString(app.component()), "Choose the audio file on the Project tab first"));
+}
+
+TEST(PlaybackTest, SpacePlaysAndPausesProjectAudio) {
+    // Given
+    const std::string wav = writeTestWav("rsans_tui_play.wav", 1, 16000, 3000);
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {}, AudioPlayer::Output::Silent);
+    openLyrics(app);
+    ASSERT_TRUE(app.form().setFieldText("audio.path", wav));
+    EXPECT_TRUE(contains(renderToString(app.component()), "0:00 / 0:03"));
+    const std::string before = app.form().project().toJson();
+
+    // When: Space
+    app.component()->OnEvent(ftxui::Event::Character(" "));
+
+    // Then: playing, with the button offering Pause and the time moving
+    EXPECT_EQ(app.playbackState(), AudioPlayer::State::Playing);
+    EXPECT_EQ(app.playbackError(), "");
+    EXPECT_TRUE(contains(renderToString(app.component()), "Pause"));
+    EXPECT_TRUE(waitForPlayback(ui, [&] { return app.playbackPositionMs() > 0; }));
+
+    // Space again pauses
+    app.component()->OnEvent(ftxui::Event::Character(" "));
+    EXPECT_EQ(app.playbackState(), AudioPlayer::State::Paused);
+    EXPECT_GT(app.playbackPositionMs(), 0);
+    EXPECT_EQ(app.form().project().toJson(), before);  // Playing doesn't change the project
+}
+
+TEST(PlaybackTest, ButtonsBelowWordsPlayAndStop) {
+    const std::string wav = writeTestWav("rsans_tui_buttons.wav", 1, 16000, 3000);
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {}, AudioPlayer::Output::Silent);
+    openLyrics(app);
+    ASSERT_TRUE(app.form().setFieldText("audio.path", wav));
+
+    // Down from the last line of words to Play
+    app.component()->OnEvent(ftxui::Event::ArrowDown);  // "again"
+    app.component()->OnEvent(ftxui::Event::ArrowDown);  // Play
+    app.component()->OnEvent(ftxui::Event::Return);
+    EXPECT_EQ(app.playbackState(), AudioPlayer::State::Playing);
+    EXPECT_TRUE(waitForPlayback(ui, [&] { return app.playbackPositionMs() > 0; }));
+
+    // Right to Stop: back to the start
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    app.component()->OnEvent(ftxui::Event::Return);
+    EXPECT_EQ(app.playbackState(), AudioPlayer::State::Stopped);
+    EXPECT_EQ(app.playbackPositionMs(), 0);
+    EXPECT_TRUE(contains(renderToString(app.component()), "Play"));
+}
+
+TEST(PlaybackTest, WorksBeforeAnyLyrics) {
+    const std::string wav = writeTestWav("rsans_tui_nolyrics.wav", 1, 16000, 3000);
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {}, AudioPlayer::Output::Silent);
+    app.newProject();
+    ASSERT_TRUE(app.form().setFieldText("audio.path", wav));
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+
+    const std::string screen = renderToString(app.component());
+    EXPECT_TRUE(contains(screen, "No lyrics yet")) << screen;
+    app.component()->OnEvent(ftxui::Event::Character(" "));
+    EXPECT_EQ(app.playbackState(), AudioPlayer::State::Playing);
+}
+
+TEST(PlaybackTest, StopsWhenAudioFileChangesOrProjectChanges) {
+    const std::string wav = writeTestWav("rsans_tui_change.wav", 1, 16000, 3000);
+    const std::string other = writeTestWav("rsans_tui_change2.wav", 1, 16000, 3000);
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {}, AudioPlayer::Output::Silent);
+    openLyrics(app);
+    ASSERT_TRUE(app.form().setFieldText("audio.path", wav));
+
+    // A different audio file: the old song stops; Play plays the new one
+    app.togglePlayback();
+    ASSERT_EQ(app.playbackState(), AudioPlayer::State::Playing);
+    ASSERT_TRUE(app.form().setFieldText("audio.path", other));
+    EXPECT_EQ(app.playbackState(), AudioPlayer::State::Closed);
+    app.togglePlayback();
+    EXPECT_EQ(app.playbackState(), AudioPlayer::State::Playing);
+
+    // Leaving the project stops it too, even for one with the same song
+    app.newProject();
+    ASSERT_TRUE(app.form().setFieldText("audio.path", other));
+    EXPECT_EQ(app.playbackState(), AudioPlayer::State::Closed);
+}
+
+TEST(PlaybackTest, UnreadableAudioShowsWhy) {
+    const std::filesystem::path bad = std::filesystem::temp_directory_path() / "rsans_tui_bad.wav";
+    std::ofstream(bad) << "not audio";
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {}, AudioPlayer::Output::Silent);
+    openLyrics(app);
+    ASSERT_TRUE(app.form().setFieldText("audio.path", bad.string()));
+
+    app.togglePlayback();
+
+    EXPECT_EQ(app.playbackState(), AudioPlayer::State::Closed);
+    EXPECT_TRUE(contains(app.playbackError(), "Can't open the audio")) << app.playbackError();
+    EXPECT_TRUE(contains(renderToString(app.component()), "Can't open the audio"));
+}

@@ -1,11 +1,13 @@
 #ifndef INCLUDED_RSANS_TUI
 #define INCLUDED_RSANS_TUI
 
+#include <rsans_audio_player.h>
 #include <rsans_file_browser.h>
 #include <rsans_fonts.h>
 #include <rsans_project_form.h>
 #include <rsans_settings.h>
 #include <rsans_step_runner.h>
+#include <rsans_ticker.h>
 #include <rsans_whisper_models.h>
 
 #include <ftxui/component/component_base.hpp>
@@ -27,7 +29,9 @@ class RsansApp {
   public:
     // post: runs a task on the UI thread and redraws (see StepRunner).
     // quit: ends the UI loop.
-    RsansApp(std::string ffmpegPath, StepRunner::Post post, std::function<void()> quit);
+    // audioOutput: where the Lyrics tab's player plays the song (tests use Silent).
+    RsansApp(std::string ffmpegPath, StepRunner::Post post, std::function<void()> quit,
+             AudioPlayer::Output audioOutput = AudioPlayer::Output::Device);
 
     RsansApp(const RsansApp&) = delete;
     RsansApp& operator=(const RsansApp&) = delete;
@@ -77,6 +81,16 @@ class RsansApp {
     // The word editor's rhyme group choices, as shown: "None", each group in
     // use (with its words), then "New group"
     const std::vector<std::string>& rhymeGroupLabels() const { return d_groupLabels; }
+
+    // Playing the project's audio on the Lyrics tab (Space, or the Play and
+    // Stop buttons). Play opens the project's audio file; changing the file,
+    // or leaving the project, stops it.
+    void togglePlayback();  // Play, or pause while playing
+    void stopPlayback();    // Back to the start
+    AudioPlayer::State playbackState() { return updatePlayback(); }
+    int playbackPositionMs() const { return d_player.positionMs(); }
+    // Why the audio couldn't be played, or ""
+    const std::string& playbackError() const { return d_playError; }
 
     // Leaves the editor for the start screen, asking first if there are
     // unsaved changes. Returns false (and stays) while a step is running,
@@ -222,6 +236,17 @@ class RsansApp {
     void addWord();
     void deleteSelectedWord();
     std::vector<std::vector<std::size_t>> lyricLines() const;  // Token indexes, by line
+
+    // The audio player, and a ticker redrawing its position while it plays
+    AudioPlayer d_player;
+    Ticker d_ticker;
+    std::string d_playError;
+    std::string d_playLabel = "Play";  // "Pause" while playing
+    // Notices the player's changes (reaching the end, the project's audio
+    // file changing) and starts or stops the ticker. Returns its state.
+    AudioPlayer::State updatePlayback();
+    void closeAudio();
+    ftxui::Element playbackBar(const ftxui::Component& playButton, const ftxui::Component& stopButton);
 
     // Saving
     std::string d_projectPath;

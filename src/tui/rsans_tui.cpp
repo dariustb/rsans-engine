@@ -20,6 +20,7 @@
 #include <ftxui/screen/terminal.hpp>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <system_error>
 #include <fstream>
@@ -262,7 +263,8 @@ Component TextInput(StringRef content, StringRef placeholder, InputOption option
 
 } // namespace
 
-RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void()> quit)
+RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void()> quit,
+                   AudioPlayer::Output audioOutput)
 : whisperDir(defaultWhisperDir())
 , ffmpegPath(std::move(ffmpeg))
 , d_form(defaultProject())
@@ -270,6 +272,8 @@ RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void
 , d_post(post)
 , d_startEntries({"New project", "Load project", "Credits", "Quit"})
 , d_tabNames({"Project", "Run", "Lyrics"})
+, d_player(audioOutput)
+, d_ticker(post, std::chrono::milliseconds(100))
 , d_runner(std::move(post)) {
     refreshWhisperModels();
 
@@ -282,6 +286,7 @@ RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void
     Component layout = Container::Vertical({header, tabs});
 
     Component rendered = Renderer(layout, [this, tabBar, saveButton, saveAsButton, menuButton, tabs] {
+        updatePlayback();
         // The project file's name, "*" while there are unsaved changes
         const bool unsaved = hasUnsavedChanges();
         if (unsaved) {
@@ -348,6 +353,7 @@ void RsansApp::quitNow() {
 }
 
 void RsansApp::showStartScreen() {
+    closeAudio();  // The song belongs to the project being left
     d_wordEditorOpen = false;
     d_pickerOpen = false;
     d_modelPickerOpen = false;
@@ -739,6 +745,7 @@ void RsansApp::settingsChanged(Setting edited) {
 }
 
 void RsansApp::newProject() {
+    closeAudio();
     d_form.reset(defaultProject());
     d_lastVideoFolder.clear();
     d_projectPath.clear();
@@ -757,6 +764,7 @@ std::string RsansApp::loadProject(const std::string& path) {
     } catch (const std::exception& e) {
         return std::string("Can't load project: ") + e.what();
     }
+    closeAudio();
     d_projectPath = path;
     d_lastVideoFolder.clear();
     d_saveMessage.clear();
@@ -819,7 +827,7 @@ Component RsansApp::makeCredits() {
             const char* use;
             const char* license;
         };
-        static const std::array<Credit, 11> credits = {{
+        static const std::array<Credit, 12> credits = {{
             {"FFmpeg", "Audio conversion and video rendering", "LGPL/GPL"},
             {"Whisper.cpp", "Speech recognition and word timing", "MIT"},
             {"CMU Pronouncing Dictionary", "Pronunciations for rhyme detection", "FreeBSD"},
@@ -828,6 +836,7 @@ Component RsansApp::makeCredits() {
             {"nlohmann/json", "JSON serializing", "MIT"},
             {"fontconfig", "Finding installed fonts", "MIT"},
             {"libsndfile", "Reading audio files", "LGPL-2.1"},
+            {"miniaudio", "Playing the song", "Public domain/MIT-0"},
             {"libass", "Subtitle rendering", "ISC"},
             {"dr_libs", "Audio decoding", "MIT"},
             {"stb", "Image reading", "MIT"},
@@ -1813,6 +1822,81 @@ Component RsansApp::makeWordEditor() {
     });
 }
 
+void RsansApp::togglePlayback() {
+    if (updatePlayback() == AudioPlayer::State::Playing) {
+        d_player.pause();
+        updatePlayback();
+        return;
+    }
+    const std::string& audio = d_form.project().audio.path;
+    if (d_player.state() == AudioPlayer::State::Closed) {
+        if (audio.empty()) {
+            d_playError = "Choose the audio file on the Project tab first";
+            return;
+        }
+        d_playError = d_player.open(audio);
+        if (!d_playError.empty()) {
+            return;
+        }
+    }
+    d_playError = d_player.play();
+    updatePlayback();
+}
+
+void RsansApp::stopPlayback() {
+    d_player.stop();
+    d_playError.clear();
+    updatePlayback();
+}
+
+void RsansApp::closeAudio() {
+    d_player.close();
+    d_playError.clear();
+    updatePlayback();
+}
+
+AudioPlayer::State RsansApp::updatePlayback() {
+    // The project's audio file was changed: the open one isn't its song any more
+    if (d_player.state() != AudioPlayer::State::Closed && d_player.path() != d_form.project().audio.path) {
+        d_player.close();
+        d_playError.clear();
+    }
+    const AudioPlayer::State state = d_player.state();  // Also notices the end of the song
+    if (state == AudioPlayer::State::Playing) {
+        d_ticker.start();
+    } else {
+        d_ticker.stop();
+    }
+    d_playLabel = state == AudioPlayer::State::Playing ? "Pause" : "Play";
+    return state;
+}
+
+Element RsansApp::playbackBar(const Component& playButton, const Component& stopButton) {
+    const AudioPlayer::State state = d_player.state();
+    const bool hasAudio = !d_form.project().audio.path.empty();
+    // Before it's opened, the length measured when the file was chosen
+    const int lengthMs = state == AudioPlayer::State::Closed
+        ? static_cast<int>(std::max(d_form.project().audio.length, 0.0) * 1000)
+        : d_player.lengthMs();
+    const int positionMs = state == AudioPlayer::State::Closed ? 0 : d_player.positionMs();
+    const float fraction = lengthMs > 0 ? std::min(1.0F, static_cast<float>(positionMs) / static_cast<float>(lengthMs))
+                                        : 0.0F;
+
+    Element status;
+    if (!d_playError.empty()) {
+        status = text(d_playError) | color(ftxui::Color::Red) | flex;
+    } else if (!hasAudio) {
+        status = text("No audio file: choose one on the Project tab") | dim | flex;
+    } else {
+        Element time = text(formatTime(positionMs) + " / " + formatTime(lengthMs));
+        status = hbox({state == AudioPlayer::State::Playing ? time | bold : time | dim, text("  "),
+                       gauge(fraction) | flex});
+    }
+    Element buttons = hbox({playButton->Render(), text(" "), stopButton->Render()});
+    return hbox({hasAudio ? buttons : buttons | dim, text("  "), status | flex, text("  "),
+                 text("Space: play/pause") | dim});
+}
+
 Component RsansApp::makeLyricsTab() {
     // Focusable, so the arrow keys can move the highlighted word
     Component view = Renderer([this](bool focused) {
@@ -1864,7 +1948,7 @@ Component RsansApp::makeLyricsTab() {
         });
     });
 
-    return CatchEvent(view, [this](const Event& event) {
+    Component words = CatchEvent(view, [this](const Event& event) {
         const std::vector<Token>& tokens = d_form.project().tokens;
         if (tokens.empty()) {
             return false;
@@ -1903,6 +1987,21 @@ Component RsansApp::makeLyricsTab() {
                 d_wordSelected = target[std::min(position, target.size() - 1)];
                 return true;
             }
+        }
+        return false;
+    });
+
+    // Playing the song, below the words (down from the last line)
+    Component playButton = Button(&d_playLabel, [this] { togglePlayback(); }, ButtonOption::Ascii());
+    Component stopButton = Button("Stop", [this] { stopPlayback(); }, ButtonOption::Ascii());
+    Component layout = Container::Vertical({words, Container::Horizontal({playButton, stopButton})});
+    Component rendered = Renderer(layout, [this, words, playButton, stopButton] {
+        return vbox({words->Render() | flex, separator(), playbackBar(playButton, stopButton)});
+    });
+    return CatchEvent(rendered, [this](const Event& event) {
+        if (event == Event::Character(" ")) {
+            togglePlayback();
+            return true;
         }
         return false;
     });

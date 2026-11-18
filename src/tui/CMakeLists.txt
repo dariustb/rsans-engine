@@ -1,9 +1,11 @@
 add_library(rsans_tui
+    rsans_audio_player.cpp
     rsans_file_browser.cpp
     rsans_fonts.cpp
     rsans_project_form.cpp
     rsans_settings.cpp
     rsans_step_runner.cpp
+    rsans_ticker.cpp
     rsans_title.cpp
     rsans_tui.cpp
     rsans_whisper_models.cpp
@@ -48,3 +50,6 @@ target_link_libraries(rsans_tui PUBLIC
     Threads::Threads
     PkgConfig::FONTCONFIG
 )
+
+# Audio output, used only inside rsans_audio_player.cpp
+target_link_libraries(rsans_tui PRIVATE miniaudio)
