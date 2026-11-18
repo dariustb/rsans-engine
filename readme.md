@@ -21,8 +21,10 @@ It can be used two ways:
 - Karaoke-style word highlighting
 - Video export with burned-in visuals using FFmpeg
 - Project checks before each step, listing every missing or invalid setting at once
-- Interactive terminal UI with live validation, progress, cancelling, a log, a file browser for every path, and a font picker for installed fonts
-- File-driven CLI workflow with JSON project state for scripting
+- Interactive terminal UI: a start screen, live validation as you type, progress with cancelling and a log, and a lyrics preview
+- Pickers for installed fonts and for Whisper models, with downloads of missing models; a file browser for every path
+- Projects saved and loaded as `.rsans` files, with unsaved-changes prompts
+- File-driven CLI workflow using the same project files, for scripting
 
 ## Requirements
 
@@ -69,41 +71,56 @@ rsans
 rsans --ffmpeg /opt/ffmpeg/bin/ffmpeg   # with a specific ffmpeg binary
 ```
 
+#### Start screen
 It opens on a start screen with the RSANS title and four options:
-- **New project:** a blank project with default settings.
+- **New project:** a blank project with default settings: 1920x1080 video on black, standard text sizes and six rhyme colors. When `rsans` is started from the repository folder, the bundled `data/cmudict.dict` is filled in too.
 - **Load project:** choose a project file (`.rsans`, or an older `.json` one) with the file browser. Its settings and any transcribed words are loaded; relative paths in it are read from the folder `rsans` was started in, as on the command line.
 - **Credits:** the libraries RSANS is built on.
 - **Quit**
 
-The project editor has three tabs, with **Save**, **Save as** and **Menu** (back to the start screen; Esc does the same) at the top right. Menu waits while a step is running, since its results belong to the open project. The tabs:
+#### Editor
+The editor has three tabs, with the project's file name and **Save**, **Save as** and **Menu** buttons at the top right:
 - **Project:** every setting, grouped into Song, Audio, Video, Lyrics, Analysis and Colors. Problems are checked as you type. A red `!` marks a field that needs attention: on its own it means the value is required, and any other problem (a missing file, a non-number) is written underneath. Choosing an audio file shows its length.
 - **Run:** the output video path and FFmpeg path, then buttons for **Analyze**, **Detect rhymes**, **Export** and **Full run**. A step's button is dimmed until its settings are complete, and the Checks list shows what each step is still missing. While a step runs you get a progress bar, the current stage and a live log, and **Cancel** stops it (a cancelled export deletes its partial video).
 - **Lyrics:** the transcribed words, one row per line with its start time, with rhyming words shown in their rhyme color.
 
-Every file path can be typed, or picked with its **Browse** button (move right from the path, or Tab to it). The file browser starts in the folder of the current path and lists folders plus the file types that setting accepts (images for the cover, audio files, `.bin` models, and so on); tick **Show all files** to see everything. Type to filter the list, or type a path (`~` works) and press Enter to go straight to it. Enter opens a folder or chooses a file, Backspace with nothing typed goes up a folder, and Esc closes it. For the output video the typed text is the file name to save as, and `.mp4` is added if there's no extension.
+**Menu** (or Esc) goes back to the start screen. It waits while a step is running, since the step's results belong to the open project.
 
-The Whisper model is chosen from the models whisper.cpp offers. Press Enter on **Whisper model** to see one model per size: tiny.en, base.en, small.en, medium.en, large-v3 and large-v3-turbo (RSANS transcribes English, so the English-only versions are offered), plus any you've already installed. Tick **Show all** for every variant, including the multilingual and quantized ones. Installed models are marked ✓ and the rest show their download size, e.g. `medium.en (1.5 GiB)`; a `~` means the size is estimated. Choosing an installed model uses it. Choosing one that isn't installed asks first, then downloads it with whisper.cpp's own `download-ggml-model.sh` (using curl or wget). The download runs on the Run tab with progress, and can be cancelled; a failed or cancelled download leaves no partial file. **Other file...** picks any `.bin` model instead.
+Pickers and the file browser open on top of the editor, with a yellow frame.
 
-The list of models and their sizes are read from a whisper.cpp checkout (its `models/download-ggml-model.sh` and `models/README.md`), and models are stored in its `models/` folder, where that script puts them. By default that's the copy CMake downloads to build RSANS (`build/_deps/whisper-src`). To use your own checkout, set it when configuring, or per run with an environment variable:
+#### Saving
+Press **Ctrl+S**, or **Save**, to save the project, including the transcribed words, as a `.rsans` file (JSON inside, the same format the command line uses). Projects can be saved at any point, even with settings still missing.
+- A new project asks where to save it first, suggesting a name from the song title. After that, Ctrl+S saves straight to the same file.
+- **Save as** saves a copy somewhere else. The name always gets the `.rsans` extension (`song.json` becomes `song.rsans`), and it asks before replacing a different file.
+- A project loaded from an older `.json` file saves back to that file; use **Save as** to switch it to `.rsans`.
+- The file name at the top shows `*` while there are unsaved changes. Quitting or going back to the start screen with unsaved changes asks whether to save first.
+
+#### Choosing files
+Every file path can be typed, or picked with its **Browse** button (move right from the path, or Tab to it). The file browser starts in the folder of the current path and lists folders plus the file types that setting accepts (images for the cover, audio files, and so on); tick **Show all files** to see everything. Type to filter the list, or type a path (`~` works) and press Enter to go straight to it. Enter opens a folder or chooses a file, Backspace with nothing typed goes up a folder, and Esc closes it. For the output video the typed text is the file name to save as, and `.mp4` is added if there's no extension.
+
+#### Fonts
+Fonts are chosen from the fonts installed on your system. Press Enter on **Header font** or **Lyrics font** to open the picker, type part of a name to filter the list, and press Enter to choose. Typing a path to a font file, or using **Browse files**, uses that file even if it isn't installed. Fonts are scanned in the background at startup, and the picker has a **Rescan fonts** button for fonts installed while it is running.
+
+#### Whisper models
+Press Enter on **Whisper model** to choose from the models whisper.cpp offers. The list shows one model per size: tiny.en, base.en, small.en, medium.en, large-v3 and large-v3-turbo (RSANS transcribes English, so the English-only versions are offered), plus any you've already installed. Tick **Show all** for every variant, including the multilingual and quantized ones. **Other file...** picks any `.bin` model instead.
+
+Installed models are marked ✓ and the rest show their download size, e.g. `medium.en (1.5 GiB)`; a `~` means the size is estimated. Choosing a model that isn't installed asks first, then downloads it with whisper.cpp's own `download-ggml-model.sh` (using curl or wget). The download runs on the Run tab with progress and can be cancelled; a failed or cancelled download leaves no partial file.
+
+The models and their sizes are read from a whisper.cpp checkout (its `models/download-ggml-model.sh` and `models/README.md`), and models are stored in its `models/` folder, where that script puts them. By default that's the copy CMake downloads to build RSANS (`build/_deps/whisper-src`). To use your own checkout, set it when configuring, or per run with an environment variable:
 ```sh
 cmake -S . -B build -DRSANS_WHISPER_CPP_DIR=~/whisper.cpp
 WHISPER_CPP_DIR=~/whisper.cpp rsans
 ```
 
-Fonts are chosen from the fonts installed on your system. Press Enter on **Header font** or **Lyrics font** to open the picker, type part of a name to filter the list, and press Enter to choose; Esc closes it. Typing a path to a font file, or using **Browse files**, uses that file even if it isn't installed. Fonts are scanned in the background at startup, and the picker has a **Rescan fonts** button for fonts installed while it is running.
-
-New projects start with 1920x1080 video on black, standard text sizes and six rhyme colors. When `rsans` is started from the repository folder, the bundled `data/cmudict.dict` is filled in too.
-
+#### Keys
 | Key | Action |
 |---|---|
 | Arrow keys / Tab | Move between tabs, fields and buttons |
-| Enter | Press a button, open the font or model picker, or choose a font, model, file or folder |
+| Enter | Press a button, open a picker, or choose a font, model, file or folder |
 | Backspace | In the file browser with nothing typed: go up a folder |
-| Esc | Close the open dialog; in the editor with none open, back to the start menu |
+| Esc | Close the open dialog; in the editor with none open, go back to the start screen |
 | Ctrl+S | Save the project |
 | Ctrl+C | Quit (cancels a running step first; asks to save unsaved changes) |
-
-Press **Ctrl+S**, or **Save** at the top right, to save the project, including the transcribed words, as a `.rsans` file (JSON inside, the same format the command line uses). A new project asks where to save it first, suggesting a name from the song title; after that Ctrl+S saves straight to the same file. **Save as** saves a copy somewhere else, and asks before replacing a different file. The file name is shown at the top, with `*` while there are unsaved changes, and quitting or going back to the start menu with unsaved changes asks whether to save first. Projects can be saved at any point, even with settings still missing.
 
 ### Command line
 ```sh
