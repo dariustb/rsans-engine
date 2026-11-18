@@ -171,6 +171,16 @@ class FrameColor : public Node {
     }
 };
 
+// Space between the editor's border and its contents, on the left and right
+constexpr int editorPadding = 2;
+Element paddedX(Element content) {
+    return hbox({
+        text(std::string(editorPadding, ' ')),
+        std::move(content) | flex,
+        text(std::string(editorPadding, ' ')),
+    });
+}
+
 // A pop-up dialog: a titled window with a yellow frame
 Element dialogWindow(const std::string& title, Element content) {
     return std::make_shared<FrameColor>(window(text(title), std::move(content)), ftxui::Color::YellowLight);
@@ -273,9 +283,9 @@ RsansApp::RsansApp(std::string ffmpeg, StepRunner::Post post, std::function<void
                   d_runner.isRunning() ? menuButton->Render() | dim : menuButton->Render(), text("  "),
                   text(stateText(d_runner) + " ") | dim}),
             separator(),
-            tabs->Render() | flex,
+            paddedX(tabs->Render()) | flex,
             separator(),
-            text(" Arrows/Tab: move   Enter: press   Ctrl+S: save   Esc: menu   Ctrl+C: quit") | dim,
+            paddedX(text("Arrows/Tab: move   Enter: press   Ctrl+S: save   Esc: menu   Ctrl+C: quit") | dim),
         }) | border;
     });
 

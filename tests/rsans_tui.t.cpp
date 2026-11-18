@@ -1650,3 +1650,18 @@ TEST(DialogFrameTest, DialogFramesAreYellowButTitlesAndAppFrameAreNot) {
     app.goToMenu();
     check("unsaved changes");
 }
+
+TEST(RsansAppTest, EditorContentIsPaddedFromBorder) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+
+    const std::string screen = renderToString(app.component());
+
+    // Two spaces between the border and the text, on the left and the right
+    EXPECT_TRUE(contains(screen, "│  Song")) << screen;
+    EXPECT_TRUE(contains(screen, "│    Title")) << screen;
+    EXPECT_TRUE(contains(screen, "│  Arrows/Tab: move")) << screen;
+    // Right: the button's own space and the scroll column, then the padding
+    EXPECT_TRUE(contains(screen, "Browse    │")) << screen;
+}
