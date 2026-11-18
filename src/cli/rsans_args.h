@@ -16,6 +16,7 @@ enum class CommandType {
 struct Args {
     CommandType command = CommandType::None;
     std::string ffmpegPath = "ffmpeg";
+    bool ffmpegGiven = false;  // --ffmpeg was passed (rather than the default)
 
     struct AnalyzeOpts { std::string input; std::string output; } analyze;
     struct RhymeOpts   { std::string input; std::string output; } rhyme;

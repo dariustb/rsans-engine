@@ -337,18 +337,15 @@ TEST(RsansAppTest, RunTabShowsStepsAndWhyTheyCantRun) {
     EXPECT_TRUE(contains(screen, "audio.path: is required"));
 }
 
-TEST(RsansAppTest, ProblemsForExportIncludeOutputPath) {
+TEST(RsansAppTest, ProblemsForExportDontIncludeOutputPath) {
+    // Where to save the video is asked when the step starts
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
     app.newProject();
 
-    const std::vector<std::string> problems = app.problemsFor(RsansApp::Step::Export);
-    EXPECT_NE(std::find(problems.begin(), problems.end(), "output video: is required"), problems.end());
-
-    app.outputPath = "out.ass";
-    const std::vector<std::string> assProblems = app.problemsFor(RsansApp::Step::Export);
-    EXPECT_NE(std::find(assProblems.begin(), assProblems.end(), "output video: must not end in .ass"),
-              assProblems.end());
+    for (const std::string& problem : app.problemsFor(RsansApp::Step::Export)) {
+        EXPECT_EQ(problem.find("output"), std::string::npos) << problem;
+    }
 }
 
 TEST(RsansAppTest, RunStepDoesNothingGivenStepNotReady) {
@@ -717,42 +714,6 @@ TEST(FileDialogTest, BackspaceInEmptySearchGoesUpAndEscapeCloses) {
     EXPECT_EQ(app.form().project().audio.path, (folder.root / "sub").string());
 }
 
-TEST(FileDialogTest, SavingOutputAddsMp4ToTypedName) {
-    DialogFolder folder;
-    ManualPost ui;
-    RsansApp app("ffmpeg", ui.post(), [] {});
-    app.newProject();
-    app.outputPath = (folder.root / "old.mp4").string();
-    app.browseFor("output");
-    EXPECT_EQ(app.fileQuery, "old.mp4");
-
-    // When: replace the name and press Enter
-    for (int i = 0; i < 7; ++i) {
-        app.component()->OnEvent(ftxui::Event::Backspace);
-    }
-    type(app, "clip");
-    app.component()->OnEvent(ftxui::Event::Return);
-
-    // Then
-    EXPECT_FALSE(app.fileDialogOpen());
-    EXPECT_EQ(app.outputPath, (folder.root / "clip.mp4").string());
-}
-
-TEST(FileDialogTest, SavingOutputRejectsAssName) {
-    DialogFolder folder;
-    ManualPost ui;
-    RsansApp app("ffmpeg", ui.post(), [] {});
-    app.newProject();
-    app.outputPath = (folder.root / "lyrics.ass").string();
-    app.browseFor("output");
-
-    app.component()->OnEvent(ftxui::Event::Return);
-
-    EXPECT_TRUE(app.fileDialogOpen());
-    EXPECT_EQ(app.outputPath, (folder.root / "lyrics.ass").string());
-    EXPECT_TRUE(contains(renderToString(app.component()), "can't be an .ass file"));
-}
-
 TEST(FileDialogTest, FontPickerBrowseRejectsNonFontAndAcceptsFont) {
     DialogFolder folder;
     std::ofstream(folder.root / "fake.ttf") << "not a font";
@@ -834,7 +795,6 @@ TEST(StartScreenTest, NewProjectOpensEditorWithDefaults) {
     RsansApp app("ffmpeg", ui.post(), [] {});
     app.newProject();
     app.form().setFieldText("header.title", "Old Song");
-    app.outputPath = "old.mp4";
 
     // When: New project, from the start screen
     RsansApp fresh("ffmpeg", ui.post(), [] {});
@@ -847,7 +807,6 @@ TEST(StartScreenTest, NewProjectOpensEditorWithDefaults) {
     EXPECT_EQ(app.form().project().header.title, "");
     EXPECT_EQ(fieldFor(app.form(), "header.title").text, "");
     EXPECT_EQ(app.form().project().video.width, 1920);
-    EXPECT_EQ(app.outputPath, "");
 }
 
 TEST(StartScreenTest, CreditsListsLibrariesAndEscapeGoesBack) {
@@ -1973,4 +1932,302 @@ TEST(RhymeGroupTest, TextAndGroupChangeTogetherAndCancelChangesNeither) {
     app.component()->OnEvent(ftxui::Event::Return);
     EXPECT_EQ(app.form().project().tokens[0].text, "nights");
     EXPECT_EQ(app.form().project().tokens[0].rhymeIndex, 1);
+}
+
+// Saving the video
+
+namespace {
+
+const char* const dejaVuFont = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
+
+// Fills in everything Export needs, with files in folder. False if the font
+// isn't installed.
+bool makeExportReady(RsansApp& app, const std::filesystem::path& folder, const std::string& title) {
+    if (!std::filesystem::exists(dejaVuFont)) {
+        return false;
+    }
+    app.newProject();
+    writeTestBmp((folder / "cover.bmp").string());
+    const std::string audio = writeTestWav("rsans_video_test.wav", 1, 16000, 500);
+    app.form().setFieldText("header.title", title);
+    app.form().setFieldText("header.artist", "Artist");
+    app.form().setFieldText("header.media", (folder / "cover.bmp").string());
+    app.form().setFieldText("audio.path", audio);
+    for (const char* key : {"header.fontName", "layout.fontName"}) {
+        app.form().setFieldText(key, "DejaVu Sans");
+    }
+    for (const char* key : {"header.fontPath", "layout.fontPath"}) {
+        app.form().setFieldText(key, dejaVuFont);
+    }
+    app.form().setFieldText("video.width", "320");
+    app.form().setFieldText("video.height", "240");
+    app.form().setTokens({Token(0, "hello", 0, 400, 0, std::nullopt)});
+    return app.problemsFor(RsansApp::Step::Export).empty();
+}
+
+} // namespace
+
+TEST(VideoSaveTest, ExportAsksWhereToSaveNamedAfterProject) {
+    DialogFolder folder;
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    if (!makeExportReady(app, folder.root, "My Song!")) {
+        GTEST_SKIP() << "DejaVu Sans not installed";
+    }
+
+    // Unsaved: named after the title, in the working folder
+    ASSERT_TRUE(app.runStep(RsansApp::Step::Export));
+    ASSERT_TRUE(app.fileDialogOpen());
+    EXPECT_TRUE(app.fileBrowser()->saveMode());
+    EXPECT_EQ(app.fileQuery, "my-song.mp4");
+    EXPECT_EQ(app.fileBrowser()->directory(), std::filesystem::current_path());
+    EXPECT_FALSE(app.runner().isRunning());
+    EXPECT_TRUE(contains(renderToString(app.component()), "Save video as"));
+    app.component()->OnEvent(ftxui::Event::Escape);
+
+    // Saved: named after the project file, in its folder
+    ASSERT_EQ(app.saveProject((folder.root / "night-drive.rsans").string()), "");
+    ASSERT_TRUE(app.runStep(RsansApp::Step::Export));
+    EXPECT_EQ(app.fileQuery, "night-drive.mp4");
+    EXPECT_EQ(app.fileBrowser()->directory(), folder.root);
+    app.component()->OnEvent(ftxui::Event::Escape);
+
+    // No title or file: "video.mp4"
+    app.newProject();
+    EXPECT_EQ(std::filesystem::path(app.videoPathSuggestion()).filename(), "video.mp4");
+}
+
+TEST(VideoSaveTest, CancellingTheDialogRunsNothing) {
+    DialogFolder folder;
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    if (!makeExportReady(app, folder.root, "Song")) {
+        GTEST_SKIP() << "DejaVu Sans not installed";
+    }
+
+    ASSERT_TRUE(app.runStep(RsansApp::Step::Export));
+    app.component()->OnEvent(ftxui::Event::Escape);
+
+    EXPECT_FALSE(app.fileDialogOpen());
+    EXPECT_EQ(app.runner().state(), StepRunner::State::Idle);
+}
+
+TEST(VideoSaveTest, NotReadyMeansNoDialog) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+
+    EXPECT_FALSE(app.runStep(RsansApp::Step::Export));
+    EXPECT_FALSE(app.fileDialogOpen());
+    EXPECT_FALSE(app.startVideoStep(RsansApp::Step::Export, "out.mp4"));
+}
+
+TEST(VideoSaveTest, DialogRefusesSubtitleAndProjectNamesAndAsksBeforeReplacing) {
+    // Given: old.mp4 exists
+    DialogFolder folder;
+    std::ofstream(folder.root / "old.mp4") << "x";
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    if (!makeExportReady(app, folder.root, "Song")) {
+        GTEST_SKIP() << "DejaVu Sans not installed";
+    }
+    const auto submit = [&](const std::string& name) {
+        app.fileQuery.clear();
+        type(app, (folder.root / name).string());
+        app.component()->OnEvent(ftxui::Event::Return);
+    };
+    ASSERT_TRUE(app.runStep(RsansApp::Step::Export));
+
+    submit("lyrics.ass");
+    EXPECT_TRUE(app.fileDialogOpen());
+    EXPECT_TRUE(contains(renderToString(app.component()), "can't be a .ass file"));
+    submit("song.rsans");
+    EXPECT_TRUE(app.fileDialogOpen());
+
+    // Replacing needs a second Enter
+    submit("old.mp4");
+    EXPECT_TRUE(app.fileDialogOpen());
+    EXPECT_TRUE(contains(renderToString(app.component()), "already exists"));
+    EXPECT_FALSE(app.runner().isRunning());
+    app.component()->OnEvent(ftxui::Event::Return);
+    EXPECT_FALSE(app.fileDialogOpen());
+    EXPECT_TRUE(app.runner().isRunning() || app.runner().state() != StepRunner::State::Idle);
+    app.runner().cancel();
+    ASSERT_TRUE(ui.waitUntilFinished(app.runner()));
+
+    // startVideoStep refuses them too
+    EXPECT_FALSE(app.startVideoStep(RsansApp::Step::Export, (folder.root / "x.ass").string()));
+    EXPECT_FALSE(app.startVideoStep(RsansApp::Step::Export, ""));
+}
+
+TEST(VideoSaveTest, ExportRendersToChosenFileAndRemembersFolder) {
+    if (!ffmpegAvailable()) {
+        GTEST_SKIP() << "ffmpeg not on PATH";
+    }
+    // Given: a saved project, and a separate folder for videos
+    DialogFolder folder;
+    const std::filesystem::path videos = folder.root / "videos";
+    std::filesystem::create_directories(videos);
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    if (!makeExportReady(app, folder.root, "Song")) {
+        GTEST_SKIP() << "DejaVu Sans not installed";
+    }
+    ASSERT_EQ(app.saveProject((folder.root / "song.rsans").string()), "");
+
+    // When: Export, saved as videos/clip (no extension)
+    ASSERT_TRUE(app.runStep(RsansApp::Step::Export));
+    app.fileQuery.clear();
+    type(app, (videos / "clip").string());
+    app.component()->OnEvent(ftxui::Event::Return);
+    ASSERT_FALSE(app.fileDialogOpen());
+    ASSERT_TRUE(ui.waitUntilFinished(app.runner()));
+
+    // Then
+    EXPECT_EQ(app.runner().state(), StepRunner::State::Succeeded) << app.runner().error();
+    EXPECT_TRUE(std::filesystem::exists(videos / "clip.mp4"));
+    EXPECT_TRUE(std::filesystem::exists(videos / "clip.ass"));
+
+    // And the next export starts in that folder, named after the project
+    EXPECT_EQ(app.videoPathSuggestion(), (videos / "song.mp4").string());
+}
+
+// Settings kept between runs
+
+namespace {
+
+struct SettingsFolder {
+    std::filesystem::path root =
+        std::filesystem::temp_directory_path() / ("rsans_settings_" + std::to_string(::getpid()));
+    std::filesystem::path file = root / "rsans" / "settings.json";
+    SettingsFolder() { std::filesystem::remove_all(root); }
+    ~SettingsFolder() { std::filesystem::remove_all(root); }
+    SettingsFolder(const SettingsFolder&) = delete;
+    SettingsFolder& operator=(const SettingsFolder&) = delete;
+    SettingsFolder(SettingsFolder&&) = delete;
+    SettingsFolder& operator=(SettingsFolder&&) = delete;
+};
+
+// Sets an environment variable for one test, putting it back afterwards
+class ScopedEnv {
+  public:
+    ScopedEnv(const char* name, const char* value) : d_name(name) {
+        const char* old = std::getenv(name);
+        if (old != nullptr) {
+            d_old = old;
+        }
+        if (value != nullptr) {
+            ::setenv(name, value, 1);
+        } else {
+            ::unsetenv(name);
+        }
+    }
+    ~ScopedEnv() {
+        if (d_old) {
+            ::setenv(d_name, d_old->c_str(), 1);
+        } else {
+            ::unsetenv(d_name);
+        }
+    }
+    ScopedEnv(const ScopedEnv&) = delete;
+    ScopedEnv& operator=(const ScopedEnv&) = delete;
+    ScopedEnv(ScopedEnv&&) = delete;
+    ScopedEnv& operator=(ScopedEnv&&) = delete;
+
+  private:
+    const char* d_name;
+    std::optional<std::string> d_old;
+};
+
+} // namespace
+
+TEST(AppSettingsTest, SavedSettingsAreUsedUnlessGivenForThisRun) {
+    SettingsFolder settings;
+    ASSERT_EQ(saveSettings(settings.file.string(), {"/opt/ffmpeg", "/opt/whisper.cpp"}), "");
+    ScopedEnv noWhisper("WHISPER_CPP_DIR", nullptr);
+    ManualPost ui;
+
+    // Nothing given: the saved values
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.useSettingsFile(settings.file.string(), false);
+    EXPECT_EQ(app.ffmpegPath, "/opt/ffmpeg");
+    EXPECT_EQ(app.whisperDir, "/opt/whisper.cpp");
+
+    // --ffmpeg and $WHISPER_CPP_DIR win
+    ScopedEnv whisper("WHISPER_CPP_DIR", "/env/whisper.cpp");
+    RsansApp given("/given/ffmpeg", ui.post(), [] {});
+    given.whisperDir = "/env/whisper.cpp";  // As defaultWhisperDir() would give
+    given.useSettingsFile(settings.file.string(), true);
+    EXPECT_EQ(given.ffmpegPath, "/given/ffmpeg");
+    EXPECT_EQ(given.whisperDir, "/env/whisper.cpp");
+}
+
+TEST(AppSettingsTest, EditingOnRunTabSavesForNextTime) {
+    // Given: no settings yet
+    SettingsFolder settings;
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.useSettingsFile(settings.file.string(), false);
+    app.newProject();
+    EXPECT_TRUE(contains(renderToString(app.component()), "") );
+
+    // When: the Run tab's FFmpeg box is edited
+    app.component()->OnEvent(ftxui::Event::ArrowRight);  // Run tab
+    app.component()->OnEvent(ftxui::Event::ArrowDown);   // FFmpeg
+    EXPECT_TRUE(contains(renderToString(app.component()), "saved for next time"));
+    type(app, "7");
+
+    // Then: written, and read back by the next run
+    EXPECT_TRUE(app.settingsError().empty()) << app.settingsError();
+    ASSERT_TRUE(std::filesystem::exists(settings.file));
+    EXPECT_EQ(loadSettings(settings.file.string()).ffmpegPath, app.ffmpegPath);
+    EXPECT_NE(app.ffmpegPath, "ffmpeg");
+    RsansApp next("ffmpeg", ui.post(), [] {});
+    next.useSettingsFile(settings.file.string(), false);
+    EXPECT_EQ(next.ffmpegPath, app.ffmpegPath);
+}
+
+TEST(AppSettingsTest, WithoutSettingsFileNothingIsSaved) {
+    // Tests (and other embedders) don't touch the real settings file
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    type(app, "7");
+
+    EXPECT_TRUE(app.settingsError().empty());
+    EXPECT_FALSE(contains(renderToString(app.component()), "saved for next time"));
+}
+
+TEST(AppSettingsTest, OnlyTheEditedSettingIsSaved) {
+    // Given: --ffmpeg for this run, and a default whisper.cpp folder
+    SettingsFolder settings;
+    ScopedEnv noWhisper("WHISPER_CPP_DIR", nullptr);
+    ManualPost ui;
+    RsansApp app("/given/ffmpeg", ui.post(), [] {});
+    app.useSettingsFile(settings.file.string(), true);
+    app.newProject();
+
+    // When: only whisper.cpp is edited (Run tab, down past FFmpeg)
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    type(app, "x");
+
+    // Then: the folder is saved, the one-off --ffmpeg isn't
+    const AppSettings saved = loadSettings(settings.file.string());
+    EXPECT_EQ(saved.whisperDir, app.whisperDir);
+    EXPECT_EQ(saved.ffmpegPath, "");
+}
+
+TEST(AppSettingsTest, ChecksDontShowButtonEllipsis) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+
+    const std::string screen = renderToString(app.component());
+    EXPECT_TRUE(contains(screen, "Export...")) << screen;          // The button
+    EXPECT_TRUE(contains(screen, "    Export      ")) << screen;   // The check
 }

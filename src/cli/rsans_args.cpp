@@ -24,7 +24,7 @@ Args parseArgs(int argc, char** argv, bool interactiveTerminal) {
 
     CLI::App app{APP_DESCRIPTION};
 
-    app.add_option("--ffmpeg", opts.ffmpegPath, "Path to ffmpeg binary")
+    CLI::Option* ffmpegOption = app.add_option("--ffmpeg", opts.ffmpegPath, "Path to ffmpeg binary")
        ->capture_default_str();
 
     // analyze
@@ -52,6 +52,7 @@ Args parseArgs(int argc, char** argv, bool interactiveTerminal) {
     } catch (const CLI::ParseError& e){
         std::exit(app.exit(e));
     }
+    opts.ffmpegGiven = ffmpegOption->count() > 0;
 
     if (analyze->parsed()) {
         opts.command = CommandType::Analyze;

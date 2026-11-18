@@ -20,6 +20,7 @@
 #include <ftxui/screen/terminal.hpp>
 
 #include <algorithm>
+#include <cstdlib>
 #include <system_error>
 #include <fstream>
 #include <cctype>
@@ -202,6 +203,22 @@ std::string withProjectExtension(const std::string& path) {
         return result.string();
     }
     return result.string() + projectExtension;
+}
+
+// A file name from free text: "My Song!" -> "my-song" ("" if nothing's left)
+std::string fileNameFrom(const std::string& text) {
+    std::string name;
+    for (const char c : text) {
+        if (std::isalnum(static_cast<unsigned char>(c)) != 0) {
+            name += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        } else if (!name.empty() && name.back() != '-') {
+            name += '-';
+        }
+    }
+    while (!name.empty() && name.back() == '-') {
+        name.pop_back();
+    }
+    return name;
 }
 
 // Shortens a path to at most `width` characters by cutting from the left, so
@@ -437,17 +454,7 @@ void RsansApp::askWhereToSave() {
     // Suggest a name from the song title
     std::string current = d_projectPath;
     if (current.empty()) {
-        std::string name;
-        for (const char c : d_form.project().header.title) {
-            if (std::isalnum(static_cast<unsigned char>(c)) != 0) {
-                name += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-            } else if (!name.empty() && name.back() != '-') {
-                name += '-';
-            }
-        }
-        while (!name.empty() && name.back() == '-') {
-            name.pop_back();
-        }
+        const std::string name = fileNameFrom(d_form.project().header.title);
         current = (std::filesystem::current_path() / ((name.empty() ? "project" : name) + projectExtension)).string();
     }
     d_overwriteCandidate.clear();
@@ -703,9 +710,37 @@ Component RsansApp::makeModelPicker() {
     });
 }
 
+void RsansApp::useSettingsFile(const std::string& path, bool ffmpegGiven) {
+    d_settingsPath = path;
+    d_settings = loadSettings(path);
+    if (!ffmpegGiven && !d_settings.ffmpegPath.empty()) {
+        ffmpegPath = d_settings.ffmpegPath;
+    }
+    const char* whisperOverride = std::getenv("WHISPER_CPP_DIR");
+    const bool whisperGiven = whisperOverride != nullptr && *whisperOverride != '\0';
+    if (!whisperGiven && !d_settings.whisperDir.empty()) {
+        whisperDir = d_settings.whisperDir;
+    }
+    refreshWhisperModels();
+}
+
+void RsansApp::settingsChanged(Setting edited) {
+    if (d_settingsPath.empty()) {
+        return;
+    }
+    // Only the edited value is saved: a --ffmpeg or $WHISPER_CPP_DIR given for
+    // one run, or a default, isn't written unless changed here
+    if (edited == Setting::Ffmpeg) {
+        d_settings.ffmpegPath = ffmpegPath;
+    } else {
+        d_settings.whisperDir = whisperDir;
+    }
+    d_settingsError = saveSettings(d_settingsPath, d_settings);
+}
+
 void RsansApp::newProject() {
     d_form.reset(defaultProject());
-    outputPath.clear();
+    d_lastVideoFolder.clear();
     d_projectPath.clear();
     d_saveMessage.clear();
     d_wordSelected = 0;
@@ -723,6 +758,7 @@ std::string RsansApp::loadProject(const std::string& path) {
         return std::string("Can't load project: ") + e.what();
     }
     d_projectPath = path;
+    d_lastVideoFolder.clear();
     d_saveMessage.clear();
     d_wordSelected = 0;
     d_rhymesOutOfDate = false;
@@ -998,23 +1034,10 @@ void RsansApp::openFileDialog(std::string title, std::vector<std::string> extens
 }
 
 void RsansApp::browseFor(const std::string& key) {
-    if (key == "output") {
-        openFileDialog("Save video as", videoTypes, true, outputPath, [this](const std::string& path) {
-            std::filesystem::path chosen(path);
-            if (!chosen.has_extension()) {
-                chosen += ".mp4";
-            }
-            if (chosen.extension() == ".ass") {
-                return std::string("The video can't be an .ass file (that name is used for the subtitles)");
-            }
-            outputPath = chosen.string();
-            return std::string();
-        });
-        return;
-    }
     if (key == "ffmpeg") {
         openFileDialog("FFmpeg program", {}, false, ffmpegPath, [this](const std::string& path) {
             ffmpegPath = path;
+            settingsChanged(Setting::Ffmpeg);
             return std::string();
         });
         return;
@@ -1342,24 +1365,76 @@ std::vector<std::string> RsansApp::problemsFor(Step step) const {
     if (needsFfmpeg && ffmpegPath.empty()) {
         problems.emplace_back("ffmpeg: is required");
     }
-    const bool writesVideo = step == Step::Export || step == Step::Full;
-    if (writesVideo) {
-        if (outputPath.empty()) {
-            problems.emplace_back("output video: is required");
-        } else {
-            try {
-                subtitlePathFor(outputPath);
-            } catch (const std::invalid_argument&) {
-                problems.emplace_back("output video: must not end in .ass");
-            }
-        }
-    }
+    // (Where to save the video is asked when Export or Full run starts)
     return problems;
 }
 
+std::string RsansApp::videoPathSuggestion() const {
+    std::filesystem::path folder;
+    if (!d_lastVideoFolder.empty()) {
+        folder = d_lastVideoFolder;
+    } else if (!d_projectPath.empty()) {
+        folder = std::filesystem::absolute(d_projectPath).parent_path();
+    } else {
+        folder = std::filesystem::current_path();
+    }
+    std::string name = d_projectPath.empty() ? fileNameFrom(d_form.project().header.title)
+                                             : std::filesystem::path(d_projectPath).stem().string();
+    if (name.empty()) {
+        name = "video";
+    }
+    return (folder / (name + ".mp4")).string();
+}
+
+void RsansApp::askWhereToSaveVideo(Step step) {
+    d_overwriteCandidate.clear();
+    openFileDialog("Save video as", videoTypes, true, videoPathSuggestion(), [this, step](const std::string& chosen) {
+        std::filesystem::path path(chosen);
+        if (!path.has_extension()) {
+            path += ".mp4";
+        }
+        if (path.extension() == ".ass" || path.extension() == ".rsans") {
+            return "The video can't be a " + path.extension().string() + " file (choose a name ending in .mp4)";
+        }
+        // Replacing another file needs a second Enter
+        std::error_code ec;
+        if (std::filesystem::exists(path, ec) && path.string() != d_overwriteCandidate) {
+            d_overwriteCandidate = path.string();
+            return path.filename().string() + " already exists. Press Enter again to replace it.";
+        }
+        if (!startVideoStep(step, path.string())) {
+            return std::string("Can't start: check the Run tab");
+        }
+        return std::string();
+    });
+}
+
 bool RsansApp::runStep(Step step) {
+    if (step == Step::Export || step == Step::Full) {
+        if (d_runner.isRunning() || !problemsFor(step).empty()) {
+            return false;
+        }
+        askWhereToSaveVideo(step);
+        return true;
+    }
+    return startVideoStep(step, "");
+}
+
+bool RsansApp::startVideoStep(Step step, const std::string& outputPath) {
     if (d_runner.isRunning() || !problemsFor(step).empty()) {
         return false;
+    }
+    const bool writesVideo = step == Step::Export || step == Step::Full;
+    if (writesVideo) {
+        if (outputPath.empty()) {
+            return false;
+        }
+        try {
+            subtitlePathFor(outputPath);
+        } catch (const std::invalid_argument&) {
+            return false;
+        }
+        d_lastVideoFolder = std::filesystem::absolute(outputPath).parent_path().string();
     }
 
     const ProjectData project = d_form.project();
@@ -1414,10 +1489,17 @@ bool RsansApp::runStep(Step step) {
 }
 
 Component RsansApp::makeRunTab() {
-    Component outputInput = TextInput(&outputPath, "path/to/video.mp4", singleLineInput());
-    Component ffmpegInput = TextInput(&ffmpegPath, "ffmpeg", singleLineInput());
-    Component outputBrowse = browseButton("output");
+    // Settings for this computer, saved for next time
+    InputOption ffmpegOption = singleLineInput();
+    ffmpegOption.on_change = [this] { settingsChanged(Setting::Ffmpeg); };
+    Component ffmpegInput = TextInput(&ffmpegPath, "ffmpeg", ffmpegOption);
     Component ffmpegBrowse = browseButton("ffmpeg");
+    InputOption whisperOption = singleLineInput();
+    whisperOption.on_change = [this] {
+        settingsChanged(Setting::Whisper);
+        refreshWhisperModels();
+    };
+    Component whisperInput = TextInput(&whisperDir, "path to a whisper.cpp checkout", whisperOption);
 
     struct StepButton {
         Step step;
@@ -1427,7 +1509,7 @@ Component RsansApp::makeRunTab() {
     std::vector<StepButton> steps;
     for (const auto& [step, label] : std::vector<std::pair<Step, std::string>>{
              {Step::Analyze, "Analyze"}, {Step::Rhyme, "Detect rhymes"},
-             {Step::Export, "Export"}, {Step::Full, "Full run"}}) {
+             {Step::Export, "Export..."}, {Step::Full, "Full run..."}}) {
         const Step thisStep = step;
         steps.push_back({step, label, Button(label, [this, thisStep] { runStep(thisStep); },
                                              ButtonOption::Ascii())});
@@ -1441,13 +1523,12 @@ Component RsansApp::makeRunTab() {
     buttons.push_back(cancelButton);
 
     Component container = Container::Vertical({
-        Container::Horizontal({outputInput, outputBrowse}),
         Container::Horizontal({ffmpegInput, ffmpegBrowse}),
+        whisperInput,
         Container::Horizontal(buttons),
     });
 
-    return Renderer(container, [this, outputInput, ffmpegInput, outputBrowse, ffmpegBrowse, steps,
-                                cancelButton] {
+    return Renderer(container, [this, ffmpegInput, ffmpegBrowse, whisperInput, steps, cancelButton] {
         // Buttons for steps that can't run are dimmed (pressing them does nothing)
         Elements buttonRow;
         Elements checks;
@@ -1461,7 +1542,11 @@ Component RsansApp::makeRunTab() {
                 : text(problems.front() + (problems.size() > 1
                            ? "  (+" + std::to_string(problems.size() - 1) + " more)"
                            : "")) | color(ftxui::Color::Red);
-            checks.push_back(hbox({text("  " + entry.label) | size(WIDTH, EQUAL, labelWidth), status}));
+            std::string name = entry.label;
+            if (name.size() > 3 && name.compare(name.size() - 3, 3, "...") == 0) {
+                name.resize(name.size() - 3);  // "Export..." on its button, "Export" here
+            }
+            checks.push_back(hbox({text("  " + name) | size(WIDTH, EQUAL, labelWidth), status}));
         }
         buttonRow.push_back(text("   "));
         buttonRow.push_back(d_runner.isRunning() ? cancelButton->Render()
@@ -1486,10 +1571,13 @@ Component RsansApp::makeRunTab() {
               });
 
         return vbox({
-            hbox({text("  Output video") | size(WIDTH, EQUAL, labelWidth), outputInput->Render() | flex,
-                  text(" "), outputBrowse->Render()}),
+            hbox({text("Settings") | bold,
+                  text(d_settingsPath.empty() ? "" : "  saved for next time") | dim}),
             hbox({text("  FFmpeg") | size(WIDTH, EQUAL, labelWidth), ffmpegInput->Render() | flex,
                   text(" "), ffmpegBrowse->Render()}),
+            hbox({text("  whisper.cpp") | size(WIDTH, EQUAL, labelWidth), whisperInput->Render() | flex}),
+            d_settingsError.empty() ? text("") : text("  " + d_settingsError) | color(ftxui::Color::Red),
+            text("Export and Full run ask where to save the video.") | dim,
             text(""),
             hbox(std::move(buttonRow)),
             text(""),
@@ -1765,7 +1853,7 @@ Component RsansApp::makeLyricsTab() {
     });
 }
 
-int runTui(const std::string& ffmpegPath) {
+int runTui(const std::string& ffmpegPath, bool ffmpegGiven) {
     ScreenInteractive screen = ScreenInteractive::Fullscreen();
     // Ctrl+C is handled by the app (cancel and quit) instead of FTXUI's abort
     screen.ForceHandleCtrlC(false);
@@ -1779,6 +1867,7 @@ int runTui(const std::string& ffmpegPath) {
     {
         // Scoped so the app (and its worker thread) ends before the screen
         RsansApp app(ffmpegPath, post, screen.ExitLoopClosure());
+        app.useSettingsFile(defaultSettingsPath(), ffmpegGiven);
         app.scanFonts();  // In the background, so the UI appears straight away
         screen.Loop(app.component());
     }

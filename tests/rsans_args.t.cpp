@@ -94,3 +94,11 @@ TEST(ArgsTest, ParseArgsRunsSubcommandGivenSubcommandOutsideTerminal) {
     EXPECT_EQ(result.full.input, "in.json");
     EXPECT_EQ(result.full.output, "out.mp4");
 }
+
+TEST(ArgsTest, ParseArgsRecordsWhetherFfmpegWasGiven) {
+    Argv given({"--ffmpeg", "/opt/ffmpeg"});
+    EXPECT_TRUE(parseArgs(given.argc(), given.argv(), true).ffmpegGiven);
+
+    Argv none({});
+    EXPECT_FALSE(parseArgs(none.argc(), none.argv(), true).ffmpegGiven);
+}

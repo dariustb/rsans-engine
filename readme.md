@@ -81,7 +81,7 @@ It opens on a start screen with the RSANS title and four options:
 #### Editor
 The editor has three tabs, with the project's file name and **Save**, **Save as** and **Menu** buttons at the top right:
 - **Project:** every setting, grouped into Song, Audio, Video, Lyrics, Analysis and Colors. Problems are checked as you type. A red `!` marks a field that needs attention: on its own it means the value is required, and any other problem (a missing file, a non-number) is written underneath. Choosing an audio file shows its length.
-- **Run:** the output video path and FFmpeg path, then buttons for **Analyze**, **Detect rhymes**, **Export** and **Full run**. A step's button is dimmed until its settings are complete, and the Checks list shows what each step is still missing. While a step runs you get a progress bar, the current stage and a live log, and **Cancel** stops it (a cancelled export deletes its partial video).
+- **Run:** the app settings (FFmpeg and the whisper.cpp folder, see [Settings](#settings)), then buttons for **Analyze**, **Detect rhymes**, **Export...** and **Full run...**. Export and Full run first ask where to save the video, every time: the save dialog suggests the project's name with `.mp4` (e.g. `night-drive.mp4` for `night-drive.rsans`, or the song title before the project is saved), in the project's folder, or the folder you last saved this project's video to. `.mp4` is added if you leave out the extension, and replacing an existing video needs a second Enter. The subtitles are saved beside it as `.ass`. A step's button is dimmed until its settings are complete, and the Checks list shows what each step is still missing. While a step runs you get a progress bar, the current stage and a live log, and **Cancel** stops it (a cancelled export deletes its partial video).
 - **Lyrics:** the transcribed words, one row per line with its start time, with rhyming words shown in their rhyme color. Misheard words can be corrected here: move to a word with the arrow keys (the bar at the bottom shows it and when it's sung) and press Enter to edit it, or to **Delete word** for one that was never sung. Its timing is kept. Rhyme colors aren't updated by changing a word, so the tab reminds you to run **Detect rhymes** again. The same dialog sets the word's **Rhyme group** by hand: **None**, any group in use (shown in its color, with the words already in it), or **New group**. Running Detect rhymes again replaces groups set by hand. Editing waits while a step is running, since the step replaces the words when it finishes.
 
 **Menu** (or Esc) goes back to the start screen. It waits while a step is running, since the step's results belong to the open project.
@@ -96,7 +96,7 @@ Press **Ctrl+S**, or **Save**, to save the project, including the transcribed wo
 - The file name at the top shows `*` while there are unsaved changes. Quitting or going back to the start screen with unsaved changes asks whether to save first.
 
 #### Choosing files
-Every file path can be typed, or picked with its **Browse** button (move right from the path, or Tab to it). The file browser starts in the folder of the current path and lists folders plus the file types that setting accepts (images for the cover, audio files, and so on); tick **Show all files** to see everything. Type to filter the list, or type a path (`~` works) and press Enter to go straight to it. Enter opens a folder or chooses a file, Backspace with nothing typed goes up a folder, and Esc closes it. For the output video the typed text is the file name to save as, and `.mp4` is added if there's no extension.
+Every file path can be typed, or picked with its **Browse** button (move right from the path, or Tab to it). The file browser starts in the folder of the current path and lists folders plus the file types that setting accepts (images for the cover, audio files, and so on); tick **Show all files** to see everything. Type to filter the list, or type a path (`~` works) and press Enter to go straight to it. Enter opens a folder or chooses a file, Backspace with nothing typed goes up a folder, and Esc closes it. When saving (a project or a video) the typed text is the file name to save as.
 
 #### Fonts
 Fonts are chosen from the fonts installed on your system. Press Enter on **Header font** or **Lyrics font** to open the picker, type part of a name to filter the list, and press Enter to choose. Typing a path to a font file, or using **Browse files**, uses that file even if it isn't installed. Fonts are scanned in the background at startup, and the picker has a **Rescan fonts** button for fonts installed while it is running.
@@ -111,6 +111,10 @@ The models and their sizes are read from a whisper.cpp checkout (its `models/dow
 cmake -S . -B build -DRSANS_WHISPER_CPP_DIR=~/whisper.cpp
 WHISPER_CPP_DIR=~/whisper.cpp rsans
 ```
+or type the folder into **whisper.cpp** on the Run tab, which is remembered (see below).
+
+#### Settings
+The FFmpeg path and whisper.cpp folder belong to your computer rather than a project, so they're on the Run tab instead of in the project file. Changing one there saves it to `~/.config/rsans/settings.json` (or `$XDG_CONFIG_HOME/rsans/settings.json`), and it's used every time RSANS starts. Only the settings you change are saved. `--ffmpeg` and `WHISPER_CPP_DIR` still win for the run they're given in, and aren't saved unless you then change that setting on the Run tab. A missing or damaged settings file just means the defaults are used.
 
 #### Keys
 | Key | Action |

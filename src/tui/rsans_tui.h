@@ -4,6 +4,7 @@
 #include <rsans_file_browser.h>
 #include <rsans_fonts.h>
 #include <rsans_project_form.h>
+#include <rsans_settings.h>
 #include <rsans_step_runner.h>
 #include <rsans_whisper_models.h>
 
@@ -85,8 +86,21 @@ class RsansApp {
     // Why a step can't run yet, as "field: message" lines (empty if ready)
     std::vector<std::string> problemsFor(Step step) const;
 
-    // Starts a step if it is ready and nothing else is running
+    // Starts a step if it is ready and nothing else is running. Export and
+    // Full run first ask where to save the video (see videoPathSuggestion).
     bool runStep(Step step);
+    // Starts Export or Full run straight away, saving the video to output
+    bool startVideoStep(Step step, const std::string& output);
+    // Where the save dialog starts: this project's last video folder (this
+    // session), else the project's folder, else the working folder; named
+    // after the project file, else the song title, else "video", with .mp4
+    std::string videoPathSuggestion() const;
+
+    // Settings kept between runs (the FFmpeg path and whisper.cpp folder).
+    // Loads them from path and saves edits back there. Values given for this
+    // run win: --ffmpeg (ffmpegGiven) and $WHISPER_CPP_DIR.
+    void useSettingsFile(const std::string& path, bool ffmpegGiven);
+    const std::string& settingsError() const { return d_settingsError; }
 
     // Which font setting the picker fills in
     enum class FontTarget { Header, Layout };
@@ -129,7 +143,6 @@ class RsansApp {
     const FileBrowser* fileBrowser() const { return d_browser ? &*d_browser : nullptr; }
     std::string fileQuery;  // The file dialog's search (or, saving, file name) text
 
-    std::string outputPath;  // Edited on the Run tab
     std::string ffmpegPath;  // App-wide setting, not saved in the project
 
   private:
@@ -171,6 +184,18 @@ class RsansApp {
     int d_fileCursor = 0;  // In the search box
     bool d_showAllFiles = false;
     std::string d_fileError;
+
+    // Settings
+    std::string d_settingsPath;  // "" (as in tests): nothing is read or saved
+    AppSettings d_settings;
+    std::string d_settingsError;
+    // Saves the one setting that was edited; the others keep their saved value
+    enum class Setting { Ffmpeg, Whisper };
+    void settingsChanged(Setting edited);
+
+    // Where this project's video was last saved (this session)
+    std::string d_lastVideoFolder;
+    void askWhereToSaveVideo(Step step);
 
     // The word editor
     std::size_t d_wordSelected = 0;
@@ -244,6 +269,7 @@ class RsansApp {
 };
 
 // Runs the TUI until the user quits. Returns the process exit code.
-int runTui(const std::string& ffmpegPath);
+// ffmpegGiven: ffmpegPath was passed with --ffmpeg, so it wins over the saved setting.
+int runTui(const std::string& ffmpegPath, bool ffmpegGiven);
 
 #endif

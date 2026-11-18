@@ -66,7 +66,7 @@ int main(int argc, char** argv) {
             return code;
         }
         case CommandType::Tui:
-            return runTui(args.ffmpegPath);
+            return runTui(args.ffmpegPath, args.ffmpegGiven);
         case CommandType::Help:
             std::cout << args.helpText;
             return 1;
