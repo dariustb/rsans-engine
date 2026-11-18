@@ -9,11 +9,26 @@ add_library(rsans_tui
     rsans_whisper_models.cpp
 )
 
-# The whisper.cpp checkout whose models/download-ggml-model.sh lists and
-# downloads Whisper models; models are stored in its models/ folder. Defaults
-# to the copy fetched to build whisper.cpp. Overridden at run time by
-# $WHISPER_CPP_DIR.
+target_include_directories(rsans_tui PUBLIC ./
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+find_package(Threads REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
+
 include(FetchContent)
+
+# Fetch miniaudio
+FetchContent_Declare(
+    miniaudio
+    GIT_REPOSITORY https://github.com/mackron/miniaudio
+    GIT_TAG        master
+)
+FetchContent_MakeAvailable(miniaudio)
+
+# Fetch Whisper download-ggml-model.sh lists
+# (Overridden at run time by $WHISPER_CPP_DIR.)
 FetchContent_GetProperties(whisper)
 set(RSANS_WHISPER_CPP_DIR "" CACHE PATH "whisper.cpp checkout used for Whisper models (default: the fetched copy)")
 if(RSANS_WHISPER_CPP_DIR)
@@ -23,14 +38,6 @@ else()
 endif()
 set_source_files_properties(rsans_whisper_models.cpp PROPERTIES
     COMPILE_DEFINITIONS "RSANS_WHISPER_CPP_DIR=\"${whisperCppDir}\"")
-
-target_include_directories(rsans_tui PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-find_package(Threads REQUIRED)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
 
 target_link_libraries(rsans_tui PUBLIC
     rsans_core
