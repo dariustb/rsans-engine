@@ -52,6 +52,29 @@ std::vector<Token> extractTokensFromAudio(
     const CancelFlag* cancel = nullptr
 );
 
+// One piece of Whisper's output. Whisper's tokens are pieces of words, not
+// words: " Mon" + "a", " pepper" + "oni", " don" + "'t", ", ", and even half
+// a character (♪ arrives as two tokens of raw bytes).
+struct TokenPiece {
+    std::string text;     // As Whisper gives it; a leading space starts a new word
+    int startMs = 0;
+    int endMs = 0;
+    int segment = 0;      // Whisper's segment, which becomes a lyric line
+    bool special = false; // A timestamp or control token, not text
+};
+
+// Joins pieces into words: a piece starting with a space (or a new segment,
+// or after a special token) begins a word, and other pieces continue it, so
+// split words and characters are rejoined and punctuation stays on its word
+// ("Lisa,"). A word runs from its first piece's start to its last's end.
+// Words with no letters or digits (♪, "-") are dropped, any bytes that still
+// aren't valid UTF-8 are removed, and lines are numbered from 0 counting only
+// segments that have words. Ids are 0, 1, 2...
+std::vector<Token> wordsFromPieces(const std::vector<TokenPiece>& pieces);
+
+// Removes bytes that aren't part of a valid UTF-8 character
+std::string validUtf8(const std::string& text);
+
 void mergeContractions(std::vector<Token>& tokens);
 
 #endif

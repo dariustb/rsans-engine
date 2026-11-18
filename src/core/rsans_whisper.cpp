@@ -1,3 +1,5 @@
+#include <cctype>
+#include <algorithm>
 #include <rsans_whisper.h>
 
 #include <rsans_data.h>
@@ -342,8 +344,8 @@ std::vector<Token> extractTokensFromAudio(
     }
 
     const int nSegments = whisper_full_n_segments(ctx);
-    int tokenId = 0;
-    int lineIndex = 0;
+    const whisper_token firstSpecial = whisper_token_eot(ctx);
+    std::vector<TokenPiece> pieces;
 
     for (int i = 0; i < nSegments; ++i) {
         const int nTokens = whisper_full_n_tokens(ctx, i);
@@ -352,38 +354,21 @@ std::vector<Token> extractTokensFromAudio(
             const whisper_token_data tokenData = whisper_full_get_token_data(ctx, i, j);
             const char* text = whisper_full_get_token_text(ctx, i, j);
 
-            if (!text || text[0] == '\0') {
-                continue;
-            }
-
-            std::string tokenText(text);
-
-            tokenText.erase(0, tokenText.find_first_not_of(" \t\n\r"));
-            tokenText.erase(tokenText.find_last_not_of(" \t\n\r") + 1);
-
-            // This skips tokens with non-word text that Whisper creates sometimes
-            if (tokenText.empty() || tokenText == "[_BEG_]" ||
-                tokenText.rfind("[_TT_", 0) == 0 || tokenText[0] == '<') {
-                continue;
-            }
-
-            const Token token(
-                tokenId++,
-                tokenText,
-                static_cast<int>(tokenData.t0 * 10),
-                static_cast<int>(tokenData.t1 * 10),
-                lineIndex,
-                std::nullopt
-            );
-
-            tokens.push_back(token);
+            TokenPiece piece;
+            piece.text = text != nullptr ? text : "";
+            piece.startMs = static_cast<int>(tokenData.t0 * 10);
+            piece.endMs = static_cast<int>(tokenData.t1 * 10);
+            piece.segment = i;
+            // Timestamps and control tokens ([_BEG_], [_TT_136], <|endoftext|>)
+            piece.special = tokenData.id >= firstSpecial || piece.text.rfind("[_", 0) == 0 ||
+                            piece.text.rfind("<|", 0) == 0;
+            pieces.push_back(std::move(piece));
         }
-
-        ++lineIndex;
     }
 
     whisper_free(ctx);
 
+    tokens = wordsFromPieces(pieces);
     mergeContractions(tokens);
 
     // RSANS is for sung or spoken lyrics, so audio without words is an error
@@ -395,6 +380,92 @@ std::vector<Token> extractTokensFromAudio(
         onProgress(1.0);
     }
 
+    return tokens;
+}
+
+std::string validUtf8(const std::string& text) {
+    std::string result;
+    result.reserve(text.size());
+    std::size_t i = 0;
+    while (i < text.size()) {
+        const auto lead = static_cast<unsigned char>(text[i]);
+        std::size_t length = 0;
+        if (lead < 0x80) {
+            length = 1;
+        } else if (lead >= 0xC2 && lead <= 0xDF) {
+            length = 2;
+        } else if (lead >= 0xE0 && lead <= 0xEF) {
+            length = 3;
+        } else if (lead >= 0xF0 && lead <= 0xF4) {
+            length = 4;
+        }
+        bool valid = length > 0 && i + length <= text.size();
+        for (std::size_t k = 1; valid && k < length; ++k) {
+            valid = (static_cast<unsigned char>(text[i + k]) & 0xC0) == 0x80;
+        }
+        if (valid && length >= 3) {
+            // No overlong forms, UTF-16 surrogates, or code points past U+10FFFF
+            const auto second = static_cast<unsigned char>(text[i + 1]);
+            valid = !(lead == 0xE0 && second < 0xA0) && !(lead == 0xED && second > 0x9F) &&
+                    !(lead == 0xF0 && second < 0x90) && !(lead == 0xF4 && second > 0x8F);
+        }
+        if (valid) {
+            result.append(text, i, length);
+            i += length;
+        } else {
+            ++i;  // Drop the stray byte and resynchronize on the next
+        }
+    }
+    return result;
+}
+
+std::vector<Token> wordsFromPieces(const std::vector<TokenPiece>& pieces) {
+    struct Word {
+        std::string text;
+        int startMs = 0;
+        int endMs = 0;
+        int segment = 0;
+    };
+    std::vector<Word> words;
+    bool open = false;  // Whether the next piece can continue the last word
+
+    for (const TokenPiece& piece : pieces) {
+        if (piece.special || piece.text.empty()) {
+            open = false;
+            continue;
+        }
+        const bool startsWord = !open || piece.text.front() == ' ' || words.back().segment != piece.segment;
+        if (startsWord) {
+            words.push_back({"", piece.startMs, piece.endMs, piece.segment});
+        }
+        Word& word = words.back();
+        word.text += piece.text;
+        word.endMs = piece.endMs;
+        open = true;
+    }
+
+    std::vector<Token> tokens;
+    int line = -1;
+    int lastSegment = -1;
+    for (const Word& word : words) {
+        std::string text = validUtf8(word.text);
+        text.erase(0, text.find_first_not_of(" \t\n\r"));
+        text.erase(text.find_last_not_of(" \t\n\r") + 1);
+        // Only real words, not ♪, "-" or "..." on their own. Transcription is
+        // English, so a word has at least one ASCII letter or digit.
+        const bool hasLetter = std::any_of(text.begin(), text.end(), [](char c) {
+            return std::isalnum(static_cast<unsigned char>(c)) != 0;
+        });
+        if (!hasLetter) {
+            continue;
+        }
+        if (word.segment != lastSegment) {
+            ++line;
+            lastSegment = word.segment;
+        }
+        tokens.emplace_back(static_cast<int>(tokens.size()), text, word.startMs, word.endMs, line,
+                            std::nullopt);
+    }
     return tokens;
 }
 

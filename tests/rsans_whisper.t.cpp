@@ -527,3 +527,102 @@ TEST(WhisperAudioTest, TokenizeAudioThrowsGivenUnconvertibleAudioAndMissingFfmpe
     }
     std::filesystem::remove(audio);
 }
+
+// Whisper's tokens into words
+
+namespace {
+
+TokenPiece piece(const std::string& text, int startMs, int endMs, int segment = 0, bool special = false) {
+    return TokenPiece{text, startMs, endMs, segment, special};
+}
+
+std::vector<std::string> textsOf(const std::vector<Token>& tokens) {
+    std::vector<std::string> texts;
+    for (const Token& token : tokens) {
+        texts.push_back(token.text);
+    }
+    return texts;
+}
+
+} // namespace
+
+TEST(WordsFromPiecesTest, JoinsSplitWordsAndKeepsPunctuationOnWord) {
+    // Real pieces from base.en on a song: " R" "iddle", " Mon" "a" " Lisa" ","
+    const std::vector<Token> words = wordsFromPieces({
+        piece(" R", 0, 100), piece("iddle", 100, 300), piece(" me", 300, 400),
+        piece(" Mon", 500, 600), piece("a", 600, 700), piece(" Lisa", 700, 900), piece(",", 900, 950),
+        piece(" pepper", 1000, 1200), piece("oni", 1200, 1500),
+    });
+
+    EXPECT_EQ(textsOf(words), (std::vector<std::string>{"Riddle", "me", "Mona", "Lisa,", "pepperoni"}));
+    // A word runs from its first piece to its last
+    EXPECT_EQ(words[0].startMs, 0);
+    EXPECT_EQ(words[0].endMs, 300);
+    EXPECT_EQ(words[4].startMs, 1000);
+    EXPECT_EQ(words[4].endMs, 1500);
+    for (std::size_t i = 0; i < words.size(); ++i) {
+        EXPECT_EQ(words[i].id, static_cast<int>(i));
+    }
+}
+
+TEST(WordsFromPiecesTest, RejoinsSplitCharacterAndDropsMusicNotes) {
+    // ♪ (E2 99 AA) arrives as two pieces of raw bytes, around the words
+    const std::vector<Token> words = wordsFromPieces({
+        piece("[_BEG_]", 0, 0, 0, true),
+        piece(" \xE2\x99", 0, 100), piece("\xAA", 100, 200),
+        piece(" Feel", 200, 400), piece(" my", 400, 500), piece(" heart", 500, 800),
+        piece(" \xE2\x99", 800, 900), piece("\xAA", 900, 1000),
+        piece("[_TT_136]", 1000, 1000, 0, true),
+    });
+
+    EXPECT_EQ(textsOf(words), (std::vector<std::string>{"Feel", "my", "heart"}));
+}
+
+TEST(WordsFromPiecesTest, KeepsContractionsTogether) {
+    const std::vector<Token> words = wordsFromPieces({
+        piece(" don", 0, 200), piece("'t", 200, 300), piece(" stop", 300, 600),
+    });
+
+    EXPECT_EQ(textsOf(words), (std::vector<std::string>{"don't", "stop"}));
+    EXPECT_EQ(words[0].endMs, 300);
+}
+
+TEST(WordsFromPiecesTest, SegmentsAndSpecialTokensEndWords) {
+    const std::vector<Token> words = wordsFromPieces({
+        piece(" walk", 0, 200, 0), piece("[_TT_50]", 200, 200, 0, true),
+        piece("ing", 300, 400, 0),  // After a timestamp: a word of its own
+        piece("home", 500, 700, 1), // A new segment without a space: still a new word
+    });
+
+    EXPECT_EQ(textsOf(words), (std::vector<std::string>{"walk", "ing", "home"}));
+}
+
+TEST(WordsFromPiecesTest, LinesCountOnlySegmentsWithWords) {
+    // Segment 1 is only music
+    const std::vector<Token> words = wordsFromPieces({
+        piece(" one", 0, 100, 0),
+        piece(" \xE2\x99", 200, 300, 1), piece("\xAA", 300, 400, 1),
+        piece(" two", 500, 600, 2), piece(" three", 600, 700, 2),
+    });
+
+    ASSERT_EQ(words.size(), 3);
+    EXPECT_EQ(words[0].lineIndex, 0);
+    EXPECT_EQ(words[1].lineIndex, 1);
+    EXPECT_EQ(words[2].lineIndex, 1);
+}
+
+TEST(WordsFromPiecesTest, StrayBytesAreRemoved) {
+    // Half a character with nothing to complete it, inside a word
+    const std::vector<Token> words = wordsFromPieces({piece(" caf\xC3", 0, 100), piece(" ok", 100, 200)});
+
+    EXPECT_EQ(textsOf(words), (std::vector<std::string>{"caf", "ok"}));
+}
+
+TEST(ValidUtf8Test, KeepsValidTextAndDropsStrayBytes) {
+    EXPECT_EQ(validUtf8("caf\xC3\xA9 \xE2\x99\xAA \xF0\x9F\x8E\xB5"), "caf\xC3\xA9 \xE2\x99\xAA \xF0\x9F\x8E\xB5");
+    EXPECT_EQ(validUtf8("a\x99" "b"), "ab");
+    EXPECT_EQ(validUtf8("\xE2\x99"), "");
+    EXPECT_EQ(validUtf8("\xC0\xAF"), "");          // Overlong
+    EXPECT_EQ(validUtf8("\xED\xA0\x80" "x"), "x");  // UTF-16 surrogate
+    EXPECT_EQ(validUtf8(""), "");
+}

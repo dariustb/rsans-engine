@@ -200,7 +200,9 @@ std::string ProjectData::toJson() const {
         j["colorSwatch"].push_back(color.hex());
     }
 
-    return j.dump();
+    // Text that isn't valid UTF-8 is replaced (with U+FFFD) rather than
+    // making the whole project impossible to save
+    return j.dump(-1, ' ', false, json::error_handler_t::replace);
 }
 
 namespace {

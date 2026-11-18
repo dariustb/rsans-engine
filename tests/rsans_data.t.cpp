@@ -1294,3 +1294,16 @@ TEST_F(ProjectValidationTest, ValidateForFullIsReadyGivenMp3Audio) {
     EXPECT_GT(project.audio.length, 0.0);
     EXPECT_TRUE(project.validateForFull().empty());
 }
+
+TEST(ProjectDataTest, ToJsonSavesInvalidUtf8AsReplacementCharacter) {
+    // Given: a word with half a character (as an old transcription could make)
+    ProjectData data(ProjectData().toJson());
+    data.tokens = {Token(0, "\xE2\x99", 0, 100, 0, std::nullopt)};
+
+    // When
+    const std::string json = data.toJson();
+
+    // Then: saved, and readable again
+    EXPECT_NE(json.find("\xEF\xBF\xBD"), std::string::npos) << json;
+    EXPECT_NO_THROW(ProjectData{json});
+}
