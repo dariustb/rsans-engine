@@ -24,7 +24,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesAudioConfigGivenValidJson) {
             "path": "test.wav",
             "length": 42
         },
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -52,7 +52,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesHeaderConfigGivenValidJson) {
             "media": "cover.png"
         },
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -102,7 +102,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesLayoutConfigGivenValidJson) {
     const std::string json = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {
             "fontName": "Helvetica",
             "fontPath": "fonts/helvetica.ttf",
@@ -128,7 +128,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesTokensGivenValidJson) {
     const std::string json = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -177,7 +177,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesRhymeGroupGivenTokenWithRhyme)
     const std::string json = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -208,7 +208,7 @@ TEST(ProjectDataTest, ProjectDataConstructorHandlesEmptyTokensGivenEmptyArray) {
     const std::string json = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -227,7 +227,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMixedRhymeGroupsGivenTokens) {
     const std::string json = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -276,7 +276,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMultipleLinesGivenDifferentLin
     const std::string json = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -323,7 +323,7 @@ TEST(ProjectDataTest, ProjectDataMoveConstructorPreservesDataGivenSource) {
     const std::string json = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 42},
-        "video": {"width": 1920, "height": 1080, "background": "#123456"},
+        "video": {"width": 1080, "height": 1920, "background": "#123456"},
         "layout": {"fontName": "Times", "fontPath": "fonts/times.ttf", "fontSize": 32, "lineHeight": 40},
         "model": {"path": "models/base.bin"},
         "colorSwatch": ["#ABCDEF"],
@@ -352,8 +352,8 @@ TEST(ProjectDataTest, ProjectDataMoveConstructorPreservesDataGivenSource) {
     EXPECT_EQ(data.header.media, "test.jpg");
     EXPECT_EQ(data.audio.path, "test.wav");
     EXPECT_EQ(data.audio.length, 42);
-    EXPECT_EQ(data.video.width, 1920);
-    EXPECT_EQ(data.video.height, 1080);
+    EXPECT_EQ(data.video.width, 1080);
+    EXPECT_EQ(data.video.height, 1920);
     EXPECT_EQ(data.video.background, "#123456");
     EXPECT_EQ(data.layout.fontName, "Times");
     EXPECT_EQ(data.layout.fontSize, 32);
@@ -370,7 +370,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesLargeTokenArrayGivenManyTokens
     json << R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -404,7 +404,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesSpecialCharactersGivenUtf8Text
     const std::string json = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -477,7 +477,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesNegativeLineIndexGivenValidJso
     const std::string json = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -506,7 +506,7 @@ TEST(ProjectDataTest, ProjectDataConstructorPreservesTokenOrderGivenSequentialTo
     const std::string json = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -532,7 +532,7 @@ TEST(ProjectDataTest, ToJsonProducesValidJsonGivenProjectData) {
     const std::string inputJson = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 42},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -552,7 +552,7 @@ TEST(ProjectDataTest, ToJsonPreservesAudioConfigGivenProjectData) {
     const std::string inputJson = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "music.mp3", "length": 180.5},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -582,7 +582,7 @@ TEST(ProjectDataTest, ToJsonPreservesHeaderConfigGivenProjectData) {
             "media": "cover.png"
         },
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -632,7 +632,7 @@ TEST(ProjectDataTest, ToJsonPreservesLayoutConfigGivenProjectData) {
     const std::string inputJson = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Helvetica", "fontPath": "fonts/helvetica.ttf", "fontSize": 36, "lineHeight": 50},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -655,7 +655,7 @@ TEST(ProjectDataTest, ToJsonPreservesModelPathGivenProjectData) {
     const std::string inputJson = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/whisper-large.bin"},
         "colorSwatch": [],
@@ -676,7 +676,7 @@ TEST(ProjectDataTest, ToJsonPreservesTokensGivenProjectDataWithTokens) {
     const std::string inputJson = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -708,7 +708,7 @@ TEST(ProjectDataTest, ToJsonPreservesRhymeGroupGivenTokenWithRhyme) {
     const std::string inputJson = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -732,7 +732,7 @@ TEST(ProjectDataTest, ToJsonHandlesEmptyCollectionsGivenMinimalData) {
     const std::string inputJson = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -826,8 +826,8 @@ class ProjectValidationTest : public ::testing::Test {
         writeTestBmp(project.header.media);
         project.audio.path = writeTestWav("rsans_validation_test/song.wav", 1, 16000);
         project.audio.length = 42.0;
-        project.video.width = 1920;
-        project.video.height = 1080;
+        project.video.width = 1080;
+        project.video.height = 1920;
         project.video.background = "black";
         project.layout.fontName = "Arial";
         project.layout.fontPath = project.header.fontPath;

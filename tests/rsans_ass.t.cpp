@@ -54,8 +54,8 @@ ProjectData createTestProjectData(
             "length": 10.5
         },
         "video": {
-            "width": 1920,
-            "height": 1080,
+            "width": 1080,
+            "height": 1920,
             "background": "#000000"
         },
         "layout": {
@@ -102,7 +102,7 @@ TEST(AssTest, AssConstructorCreatesValidOutputGivenBasicTokens) {
 }
 
 TEST(AssTest, AssConstructorGeneratesScriptInfoGivenVideoConfig) {
-    // Given: Token with video configuration (1920x1080)
+    // Given: Token with video configuration (1080x1920)
     std::vector<Token> tokens = {
         {1, "test", 0, 100, 0, std::nullopt}
     };
@@ -112,8 +112,8 @@ TEST(AssTest, AssConstructorGeneratesScriptInfoGivenVideoConfig) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text().find("PlayResX: 1920"), std::string::npos);
-    EXPECT_NE(ass.text().find("PlayResY: 1080"), std::string::npos);
+    EXPECT_NE(ass.text().find("PlayResX: 1080"), std::string::npos);
+    EXPECT_NE(ass.text().find("PlayResY: 1920"), std::string::npos);
     EXPECT_NE(ass.text().find("ScriptType: v4.00+"), std::string::npos);
 }
 

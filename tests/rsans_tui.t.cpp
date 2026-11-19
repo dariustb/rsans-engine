@@ -98,7 +98,7 @@ bool contains(const std::string& haystack, const std::string& needle) {
 TEST(ProjectFormTest, FieldsShowDefaultProjectValues) {
     ProjectForm form(defaultProject());
 
-    EXPECT_EQ(fieldFor(form, "video.width").text, "1920");
+    EXPECT_EQ(fieldFor(form, "video.width").text, "1080");
     EXPECT_EQ(fieldFor(form, "video.background").text, "black");
     EXPECT_EQ(fieldFor(form, "header.title").text, "");
     EXPECT_EQ(fieldFor(form, "colorSwatch").text.rfind("#FF8800, ", 0), 0u);
@@ -811,7 +811,7 @@ TEST(StartScreenTest, NewProjectOpensEditorWithDefaults) {
     EXPECT_TRUE(contains(renderToString(fresh.component()), "Title size"));
     EXPECT_EQ(app.form().project().header.title, "");
     EXPECT_EQ(fieldFor(app.form(), "header.title").text, "");
-    EXPECT_EQ(app.form().project().video.width, 1920);
+    EXPECT_EQ(app.form().project().video.width, 1080);
 }
 
 TEST(StartScreenTest, CreditsListsLibrariesAndEscapeGoesBack) {

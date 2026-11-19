@@ -74,7 +74,7 @@ rsans --ffmpeg /opt/ffmpeg/bin/ffmpeg   # with a specific ffmpeg binary
 
 #### Start screen
 It opens on a start screen with the RSANS title and four options:
-- **New project:** a blank project with default settings: 1920x1080 video on black, standard text sizes and six rhyme colors. When `rsans` is started from the repository folder, the bundled `data/cmudict.dict` is filled in too.
+- **New project:** a blank project with default settings: 1080x1920 video on black, standard text sizes and six rhyme colors. When `rsans` is started from the repository folder, the bundled `data/cmudict.dict` is filled in too.
 - **Load project:** choose a project file (`.rsans`, or an older `.json` one) with the file browser. Its settings and any transcribed words are loaded; relative paths in it are read from the folder `rsans` was started in, as on the command line.
 - **Credits:** the libraries RSANS is built on.
 - **Quit**
@@ -168,7 +168,7 @@ A project is a `.rsans` file containing JSON. The interactive UI saves projects 
         "media": "cover.png"
     },
     "audio": { "path": "song.mp3", "length": null },
-    "video": { "width": 1920, "height": 1080, "background": "black" },
+    "video": { "width": 1080, "height": 1920, "background": "black" },
     "layout": {
         "fontName": "DejaVu Sans", "fontPath": "fonts/DejaVuSans.ttf",
         "fontSize": 48, "lineHeight": 60

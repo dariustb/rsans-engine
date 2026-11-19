@@ -113,8 +113,8 @@ ProjectData defaultProject() {
     ProjectData project;
     project.header.titleSize = 64;
     project.header.artistSize = 36;
-    project.video.width = 1920;
-    project.video.height = 1080;
+    project.video.width = 1080;
+    project.video.height = 1920;
     project.video.background = "black";
     project.layout.fontSize = 48;
     project.layout.lineHeight = 60;
