@@ -41,12 +41,12 @@ jobs:
       working-directory: ${{github.workspace}}/build
       run: |
         lcov --capture --directory . --output-file coverage.info \
-          --ignore-errors mismatch
+          --ignore-errors mismatch,inconsistent
         lcov --remove coverage.info \
           "*/usr/*" \
           "*/_deps/*" \
           --output-file coverage.info \
-          --ignore-errors mismatch
+          --ignore-errors mismatch,inconsistent
         lcov --list coverage.info
 
     - name: Upload coverage reports to Codecov
