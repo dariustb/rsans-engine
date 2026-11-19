@@ -867,8 +867,8 @@ TEST(StartScreenTest, CreditsListsLibrariesAndEscapeGoesBack) {
     const std::string screen = renderToString(app.component());
     const std::array<std::string, 12> names = {
         "FFmpeg", "Whisper.cpp", "CMU Pronouncing Dictionary",
-        "FTXUI", "CLI11", "nlohmann/json", "libass",
-        "libsndfile", "dr_libs", "stb"
+        "FTXUI", "CLI11", "nlohmann/json", "fontconfig",
+        "libsndfile", "miniaudio", "libass", "dr_libs", "stb"
     };
     for (const std::string name : names) {
         EXPECT_TRUE(contains(screen, name)) << name << "\n" << screen;
