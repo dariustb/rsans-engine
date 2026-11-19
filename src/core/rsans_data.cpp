@@ -2,14 +2,18 @@
 
 #include <nlohmann/json.hpp>
 #include <sndfile.h>
+#include <stb_image.h>
 
+#include <algorithm>
+#include <cctype>
+#include <filesystem>
 #include <optional>
 #include <string>
+#include <system_error>
+#include <utility>
 #include <vector>
 
 using json = nlohmann::json;
-
-namespace {
 
 double getAudioDuration(const std::string& audioPath) {
     SF_INFO info{};
@@ -21,6 +25,43 @@ double getAudioDuration(const std::string& audioPath) {
 
     sf_close(f);
     return seconds;
+}
+
+namespace {
+
+bool isExistingFile(const std::string& path) {
+    std::error_code ec;
+    return std::filesystem::is_regular_file(path, ec);
+}
+
+// True if libsndfile can open the file. RSANS only accepts audio it can read,
+// so audio.length can always be measured. libsndfile 1.2 reads WAV, FLAC,
+// OGG/Vorbis, Opus, MP3 and AIFF, but not AAC/M4A.
+bool isReadableAudio(const std::string& path) {
+    SF_INFO info{};
+    SNDFILE* file = sf_open(path.c_str(), SFM_READ, &info);
+    if (file == nullptr) {
+        return false;
+    }
+    sf_close(file);
+    return true;
+}
+
+// True if stb_image (used by rsans_ass.cpp to size the cover) can read the
+// file as an image. Only reads the header, so it is cheap.
+bool isReadableImage(const std::string& path) {
+    int width = 0;
+    int height = 0;
+    int channels = 0;
+    return stbi_info(path.c_str(), &width, &height, &channels) != 0;
+}
+
+bool isHexColor(const std::string& value) {
+    if (value.size() != 7 || value[0] != '#') {
+        return false;
+    }
+    return std::all_of(value.begin() + 1, value.end(),
+                       [](unsigned char c) { return std::isxdigit(c) != 0; });
 }
 
 }
@@ -109,22 +150,6 @@ ProjectData::ProjectData(const std::string& jsonContent) {
     }
 }
 
-ProjectData::ProjectData(ProjectData base, std::vector<Token>& newTokens)
-: ProjectData(std::move(base)) {
-    tokens = std::move(newTokens);
-}
-
-ProjectData::ProjectData(ProjectData&& other) noexcept
-: header(other.header)
-, audio(other.audio)
-, video(other.video)
-, layout(other.layout)
-, model(other.model)
-, cmudict(std::move(other.cmudict))
-, tokens(std::move(other.tokens))
-, colorSwatch(std::move(other.colorSwatch))
-{}
-
 std::string ProjectData::toJson() const {
     json j;
 
@@ -175,5 +200,224 @@ std::string ProjectData::toJson() const {
         j["colorSwatch"].push_back(color.hex());
     }
 
-    return j.dump();
+    // Text that isn't valid UTF-8 is replaced (with U+FFFD) rather than
+    // making the whole project impossible to save
+    return j.dump(-1, ' ', false, json::error_handler_t::replace);
+}
+
+namespace {
+
+// Collects validation errors. Each check* function covers one part of the
+// project, so the project-wide and per-step validations can share them.
+class Validator {
+  private:
+    std::vector<ValidationError> d_errors;
+
+  public:
+    void addError(const std::string& field, const std::string& message) {
+        d_errors.push_back({field, message});
+    }
+
+    void requireText(const std::string& field, const std::string& value) {
+        if (value.empty()) {
+            addError(field, "is required");
+        }
+    }
+
+    void requireFile(const std::string& field, const std::string& path) {
+        if (path.empty()) {
+            addError(field, "is required");
+        } else if (!isExistingFile(path)) {
+            addError(field, "file not found: " + path);
+        }
+    }
+
+    void optionalFile(const std::string& field, const std::string& path) {
+        if (!path.empty() && !isExistingFile(path)) {
+            addError(field, "file not found: " + path);
+        }
+    }
+
+    void requirePositive(const std::string& field, int value) {
+        if (value <= 0) {
+            addError(field, "must be greater than 0");
+        }
+    }
+
+    std::vector<ValidationError> errors() && {
+        return std::move(d_errors);
+    }
+};
+
+void checkHeader(const ProjectData& p, Validator& v) {
+    v.requireText("header.fontName", p.header.fontName);
+    v.requireFile("header.fontPath", p.header.fontPath);
+    v.requireText("header.title", p.header.title);
+    v.requirePositive("header.titleSize", p.header.titleSize);
+    v.requireText("header.artist", p.header.artist);
+    v.requirePositive("header.artistSize", p.header.artistSize);
+    v.requireFile("header.media", p.header.media);
+    // Only images are supported as the cover (not video)
+    if (isExistingFile(p.header.media) && !isReadableImage(p.header.media)) {
+        v.addError("header.media", "must be a PNG, JPEG, BMP, GIF or TGA image");
+    }
+}
+
+void checkAudioPath(const ProjectData& p, Validator& v) {
+    v.requireFile("audio.path", p.audio.path);
+    if (isExistingFile(p.audio.path) && !isReadableAudio(p.audio.path)) {
+        v.addError("audio.path", "unsupported audio format; use WAV, FLAC, OGG, Opus, "
+                                 "MP3 or AIFF (AAC/M4A is not supported)");
+    }
+}
+
+void checkAudioLength(const ProjectData& p, Validator& v) {
+    // Unusable audio is already reported by checkAudioPath, and its length
+    // can't be measured, so a second error would only repeat the problem
+    if (!isExistingFile(p.audio.path) || !isReadableAudio(p.audio.path)) {
+        return;
+    }
+    if (p.audio.length <= 0.0) {
+        v.addError("audio.length", "must be greater than 0");
+    }
+}
+
+void checkVideo(const ProjectData& p, Validator& v) {
+    // libx264's yuv420p output needs even dimensions
+    v.requirePositive("video.width", p.video.width);
+    v.requirePositive("video.height", p.video.height);
+    if (p.video.width > 0 && p.video.width % 2 != 0) {
+        v.addError("video.width", "must be an even number");
+    }
+    if (p.video.height > 0 && p.video.height % 2 != 0) {
+        v.addError("video.height", "must be an even number");
+    }
+    v.requireText("video.background", p.video.background);
+}
+
+void checkLayout(const ProjectData& p, Validator& v) {
+    v.requireText("layout.fontName", p.layout.fontName);
+    v.requireFile("layout.fontPath", p.layout.fontPath);
+    v.requirePositive("layout.fontSize", p.layout.fontSize);
+    v.requirePositive("layout.lineHeight", p.layout.lineHeight);
+}
+
+void checkModel(const ProjectData& p, Validator& v) {
+    v.requireFile("model.path", p.model.base);
+}
+
+void checkCmudict(const ProjectData& p, Validator& v, bool required) {
+    if (required) {
+        v.requireFile("cmudict", p.cmudict);
+    } else {
+        v.optionalFile("cmudict", p.cmudict);
+    }
+}
+
+void checkColorSwatch(const ProjectData& p, Validator& v) {
+    for (size_t i = 0; i < p.colorSwatch.size(); ++i) {
+        if (!isHexColor(p.colorSwatch[i].hex())) {
+            v.addError("colorSwatch[" + std::to_string(i) + "]",
+                       "must be a #RRGGBB color, got: " + p.colorSwatch[i].hex());
+        }
+    }
+}
+
+void checkTokens(const ProjectData& p, Validator& v, bool required) {
+    if (required && p.tokens.empty()) {
+        v.addError("tokens", "no lyrics yet; run analyze first");
+    }
+
+    bool hasRhymes = false;
+    for (size_t i = 0; i < p.tokens.size(); ++i) {
+        const Token& token = p.tokens[i];
+        const std::string field = "tokens[" + std::to_string(i) + "]";
+        if (token.text.empty()) {
+            v.addError(field + ".text", "must not be empty");
+        }
+        if (token.startMs < 0) {
+            v.addError(field + ".startMs", "must not be negative");
+        }
+        if (token.endMs < token.startMs) {
+            v.addError(field + ".endMs", "must not be before startMs");
+        }
+        if (token.lineIndex < 0) {
+            v.addError(field + ".lineIndex", "must not be negative");
+        }
+        if (token.rhymeIndex.has_value()) {
+            hasRhymes = true;
+            if (token.rhymeIndex.value() < 0) {
+                v.addError(field + ".rhymeIndex", "must not be negative");
+            }
+        }
+    }
+
+    // Rhyme groups are colored from the swatch, so one is needed once rhymes exist
+    if (hasRhymes && p.colorSwatch.empty()) {
+        v.addError("colorSwatch", "needs at least one color when tokens have rhyme groups");
+    }
+}
+
+} // namespace
+
+std::vector<ValidationError> ProjectData::validate() const {
+    Validator v;
+    checkHeader(*this, v);
+    checkAudioPath(*this, v);
+    checkAudioLength(*this, v);
+    checkVideo(*this, v);
+    checkLayout(*this, v);
+    checkModel(*this, v);
+    checkCmudict(*this, v, false);
+    checkColorSwatch(*this, v);
+    checkTokens(*this, v, false);
+    return std::move(v).errors();
+}
+
+bool ProjectData::isValid() const {
+    return validate().empty();
+}
+
+std::vector<ValidationError> ProjectData::validateForAnalyze() const {
+    Validator v;
+    checkAudioPath(*this, v);
+    checkModel(*this, v);
+    return std::move(v).errors();
+}
+
+std::vector<ValidationError> ProjectData::validateForRhyme() const {
+    Validator v;
+    checkCmudict(*this, v, true);
+    checkTokens(*this, v, true);
+    return std::move(v).errors();
+}
+
+std::vector<ValidationError> ProjectData::validateForExport() const {
+    Validator v;
+    checkHeader(*this, v);
+    checkAudioPath(*this, v);
+    checkAudioLength(*this, v);
+    checkVideo(*this, v);
+    checkLayout(*this, v);
+    checkColorSwatch(*this, v);
+    checkTokens(*this, v, true);
+    return std::move(v).errors();
+}
+
+std::vector<ValidationError> ProjectData::validateForFull() const {
+    // Everything analyze, rhyme, and export need, except tokens, which
+    // analyze produces. Rhymes will be found, so a swatch is needed too.
+    Validator v;
+    checkHeader(*this, v);
+    checkAudioPath(*this, v);
+    checkAudioLength(*this, v);
+    checkVideo(*this, v);
+    checkLayout(*this, v);
+    checkModel(*this, v);
+    checkCmudict(*this, v, true);
+    checkColorSwatch(*this, v);
+    if (colorSwatch.empty()) {
+        v.addError("colorSwatch", "needs at least one color to highlight rhymes");
+    }
+    return std::move(v).errors();
 }

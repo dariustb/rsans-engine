@@ -4,8 +4,10 @@
 
 #include <gtest/gtest.h>
 
+#include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
 #include <vector>
 
 namespace {
@@ -13,7 +15,8 @@ namespace {
 // Helper to create a temporary dictionary file for testing
 class TempDictFile {
 public:
-    TempDictFile(const std::string& content) : path_("/tmp/test_cmudict_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + ".dict") {
+    TempDictFile(const std::string& content) : path_((std::filesystem::temp_directory_path() /
+                                                  ("test_cmudict_" + std::to_string(reinterpret_cast<uintptr_t>(this)) + ".dict")).string()) {
         std::ofstream file(path_);
         file << content;
     }
@@ -34,7 +37,7 @@ std::string createTestProjectJson(const std::vector<Token>& tokens, const std::s
     json << R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": { "path": "test.wav", "length": 10.5 },
-        "video": { "width": 1920, "height": 1080, "background": "#000000" },
+        "video": { "width": 1080, "height": 1920, "background": "#000000" },
         "layout": { "fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60 },
         "model": { "path": "models/base.bin" },)";
 
@@ -362,15 +365,38 @@ TEST(CMUDictTest, GetPhonemesHandlesApostropheWordsGivenContractions) {
     EXPECT_EQ(phonemes[0], "B");
 }
 
-TEST(CMUDictTest, ConstructorHandlesNonExistentFileGivenInvalidPath) {
-    // Given: A path to a non-existent file
-    CMUDict dict("/nonexistent/path/to/dict.dict");
+TEST(CMUDictTest, ConstructorThrowsGivenNonExistentFile) {
+    // Given
+    const std::string path = "/nonexistent/path/to/dict.dict";
 
-    // When
-    const std::vector<std::string> phonemes = dict.getPhonemes("any");
+    // When / Then
+    try {
+        const CMUDict dict(path);
+        FAIL() << "Expected std::runtime_error";
+    } catch (const std::runtime_error& e) {
+        EXPECT_NE(std::string(e.what()).find("Failed to open pronunciation dictionary"),
+                  std::string::npos) << e.what();
+    }
+}
 
-    // Then: Should return empty without crashing
-    EXPECT_TRUE(phonemes.empty());
+TEST(CMUDictTest, ConstructorThrowsGivenEmptyPath) {
+    EXPECT_THROW(CMUDict(""), std::runtime_error);
+}
+
+TEST(CMUDictTest, ConstructorThrowsGivenEmptyFile) {
+    // Given
+    TempDictFile dictFile("");
+
+    // When / Then
+    EXPECT_THROW(CMUDict(dictFile.path()), std::runtime_error);
+}
+
+TEST(CMUDictTest, ConstructorThrowsGivenFileWithNoPronunciations) {
+    // Given: only comments and words without phonemes, like a wrong file
+    TempDictFile dictFile(";;; a comment\nhello\nworld\n");
+
+    // When / Then
+    EXPECT_THROW(CMUDict(dictFile.path()), std::runtime_error);
 }
 
 TEST(RhymeGrouperTest, FindReturnsElementItselfGivenNewElement) {
@@ -529,6 +555,30 @@ TEST(DetectRhymesTest, DetectRhymesHandlesUnknownWordsGivenWordsNotInDict) {
     EXPECT_FALSE(result.tokens[1].rhymeIndex.has_value());
 }
 
+TEST(DetectRhymesTest, DetectRhymesThrowsGivenNoDictionarySet) {
+    // Given: cmudict is null in the project
+    const std::vector<Token> tokens = {
+        {0, "cat", 0, 100, 0, std::nullopt},
+        {1, "hat", 100, 200, 0, std::nullopt}
+    };
+    const ProjectData input(createTestProjectJson(tokens));
+
+    // When / Then
+    EXPECT_THROW(detectRhymes(input), std::runtime_error);
+}
+
+TEST(DetectRhymesTest, DetectRhymesThrowsGivenNonExistentDictionary) {
+    // Given
+    const std::vector<Token> tokens = {
+        {0, "cat", 0, 100, 0, std::nullopt},
+        {1, "hat", 100, 200, 0, std::nullopt}
+    };
+    const ProjectData input(createTestProjectJson(tokens, "/nonexistent/path/to/dict.dict"));
+
+    // When / Then
+    EXPECT_THROW(detectRhymes(input), std::runtime_error);
+}
+
 TEST(DetectRhymesTest, DetectRhymesReturnsUnchangedDataGivenEmptyTokens) {
     // Given: Project with no tokens
     TempDictFile dictFile("cat K AE1 T\n");
@@ -636,4 +686,29 @@ TEST(DetectRhymesTest, DetectRhymesAssignsNonNegativeIndexGivenRhymingTokens) {
     // Then: rhymeIndex should be a non-negative integer
     ASSERT_TRUE(result.tokens[0].rhymeIndex.has_value());
     EXPECT_GE(result.tokens[0].rhymeIndex.value(), 0);
+}
+
+TEST(DetectRhymesTest, DetectRhymesPreservesNonTokenFieldsGivenProject) {
+    // Given
+    TempDictFile dictFile("cat K AE1 T\nhat HH AE1 T\n");
+    const std::vector<Token> tokens = {
+        {0, "cat", 0, 100, 0, std::nullopt},
+        {1, "hat", 100, 200, 0, std::nullopt}
+    };
+    ProjectData input(createTestProjectJson(tokens, dictFile.path()));
+    input.colorSwatch = {Color("#FF8800"), Color("#00AAFF")};
+
+    // When
+    ProjectData result = detectRhymes(input);
+
+    // Then: apart from the tokens' rhyme groups, nothing changes
+    ASSERT_EQ(result.tokens.size(), input.tokens.size());
+    for (size_t i = 0; i < result.tokens.size(); ++i) {
+        EXPECT_EQ(result.tokens[i].text, input.tokens[i].text);
+        EXPECT_EQ(result.tokens[i].startMs, input.tokens[i].startMs);
+        EXPECT_EQ(result.tokens[i].endMs, input.tokens[i].endMs);
+        EXPECT_EQ(result.tokens[i].lineIndex, input.tokens[i].lineIndex);
+    }
+    result.tokens = input.tokens;
+    EXPECT_EQ(result.toJson(), input.toJson());
 }

@@ -1,9 +1,18 @@
 #include <rsans_data.h>
+#include <rsans_process.h>
+#include <rsans_test_utils.h>
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
+#include <cstdint>
+#include <type_traits>
+#include <filesystem>
+#include <fstream>
 #include <sstream>
+#include <string>
+#include <vector>
 
 using json = nlohmann::json;
 
@@ -15,7 +24,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesAudioConfigGivenValidJson) {
             "path": "test.wav",
             "length": 42
         },
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -43,7 +52,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesHeaderConfigGivenValidJson) {
             "media": "cover.png"
         },
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -93,7 +102,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesLayoutConfigGivenValidJson) {
     const std::string json = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {
             "fontName": "Helvetica",
             "fontPath": "fonts/helvetica.ttf",
@@ -119,7 +128,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesTokensGivenValidJson) {
     const std::string json = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -168,7 +177,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesRhymeGroupGivenTokenWithRhyme)
     const std::string json = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -199,7 +208,7 @@ TEST(ProjectDataTest, ProjectDataConstructorHandlesEmptyTokensGivenEmptyArray) {
     const std::string json = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -218,7 +227,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMixedRhymeGroupsGivenTokens) {
     const std::string json = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -267,7 +276,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMultipleLinesGivenDifferentLin
     const std::string json = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -309,49 +318,12 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesMultipleLinesGivenDifferentLin
     EXPECT_EQ(data.tokens[2].lineIndex, 2);
 }
 
-TEST(ProjectDataTest, ProjectDataConstructorReplacesTokensGivenBaseAndNewTokens) {
-    // Given
-    const std::string json = R"({
-        "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
-        "audio": {"path": "original.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
-        "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
-        "model": {"path": "models/base.bin"},
-        "colorSwatch": [],
-        "tokens": [
-            {
-                "id": 1,
-                "text": "old",
-                "startMs": 0,
-                "endMs": 500,
-                "lineIndex": 0,
-                "rhymeIndex": null
-            }
-        ]
-    })";
-    ProjectData base(json);
-    std::vector<Token> newTokens = {
-        {2, "new", 100, 600, 0, std::nullopt}
-    };
-
-    // When
-    ProjectData data(std::move(base), newTokens);
-
-    // Then
-    EXPECT_EQ(data.tokens.size(), 1);
-    EXPECT_EQ(data.tokens[0].id, 2);
-    EXPECT_EQ(data.tokens[0].text, "new");
-    EXPECT_EQ(data.audio.path, "original.wav");
-    EXPECT_EQ(data.video.width, 1920);
-    EXPECT_EQ(data.layout.fontName, "Arial");
-}
-
 TEST(ProjectDataTest, ProjectDataMoveConstructorPreservesDataGivenSource) {
     // Given
     const std::string json = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 42},
-        "video": {"width": 1920, "height": 1080, "background": "#123456"},
+        "video": {"width": 1080, "height": 1920, "background": "#123456"},
         "layout": {"fontName": "Times", "fontPath": "fonts/times.ttf", "fontSize": 32, "lineHeight": 40},
         "model": {"path": "models/base.bin"},
         "colorSwatch": ["#ABCDEF"],
@@ -380,8 +352,8 @@ TEST(ProjectDataTest, ProjectDataMoveConstructorPreservesDataGivenSource) {
     EXPECT_EQ(data.header.media, "test.jpg");
     EXPECT_EQ(data.audio.path, "test.wav");
     EXPECT_EQ(data.audio.length, 42);
-    EXPECT_EQ(data.video.width, 1920);
-    EXPECT_EQ(data.video.height, 1080);
+    EXPECT_EQ(data.video.width, 1080);
+    EXPECT_EQ(data.video.height, 1920);
     EXPECT_EQ(data.video.background, "#123456");
     EXPECT_EQ(data.layout.fontName, "Times");
     EXPECT_EQ(data.layout.fontSize, 32);
@@ -398,7 +370,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesLargeTokenArrayGivenManyTokens
     json << R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -432,7 +404,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesSpecialCharactersGivenUtf8Text
     const std::string json = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -505,7 +477,7 @@ TEST(ProjectDataTest, ProjectDataConstructorParsesNegativeLineIndexGivenValidJso
     const std::string json = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -534,7 +506,7 @@ TEST(ProjectDataTest, ProjectDataConstructorPreservesTokenOrderGivenSequentialTo
     const std::string json = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -560,7 +532,7 @@ TEST(ProjectDataTest, ToJsonProducesValidJsonGivenProjectData) {
     const std::string inputJson = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 42},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -580,7 +552,7 @@ TEST(ProjectDataTest, ToJsonPreservesAudioConfigGivenProjectData) {
     const std::string inputJson = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "music.mp3", "length": 180.5},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -610,7 +582,7 @@ TEST(ProjectDataTest, ToJsonPreservesHeaderConfigGivenProjectData) {
             "media": "cover.png"
         },
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -660,7 +632,7 @@ TEST(ProjectDataTest, ToJsonPreservesLayoutConfigGivenProjectData) {
     const std::string inputJson = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Helvetica", "fontPath": "fonts/helvetica.ttf", "fontSize": 36, "lineHeight": 50},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -683,7 +655,7 @@ TEST(ProjectDataTest, ToJsonPreservesModelPathGivenProjectData) {
     const std::string inputJson = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/whisper-large.bin"},
         "colorSwatch": [],
@@ -704,7 +676,7 @@ TEST(ProjectDataTest, ToJsonPreservesTokensGivenProjectDataWithTokens) {
     const std::string inputJson = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -736,7 +708,7 @@ TEST(ProjectDataTest, ToJsonPreservesRhymeGroupGivenTokenWithRhyme) {
     const std::string inputJson = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -760,7 +732,7 @@ TEST(ProjectDataTest, ToJsonHandlesEmptyCollectionsGivenMinimalData) {
     const std::string inputJson = R"({
         "header": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "title": "Test Title", "titleSize": 64, "artist": "Test Artist", "artistSize": 36, "media": "test.jpg"},
         "audio": {"path": "test.wav", "length": 10},
-        "video": {"width": 1920, "height": 1080, "background": "#000000"},
+        "video": {"width": 1080, "height": 1920, "background": "#000000"},
         "layout": {"fontName": "Arial", "fontPath": "fonts/arial.ttf", "fontSize": 48, "lineHeight": 60},
         "model": {"path": "models/base.bin"},
         "colorSwatch": [],
@@ -818,4 +790,520 @@ TEST(ProjectDataTest, ToJsonRoundTripPreservesDataGivenCompleteProjectData) {
     EXPECT_EQ(restored.tokens[0].rhymeIndex.value(), original.tokens[0].rhymeIndex.value());
     EXPECT_FALSE(restored.tokens[1].rhymeIndex.has_value());
     EXPECT_EQ(restored.colorSwatch.size(), original.colorSwatch.size());
+}
+
+namespace {
+
+bool hasErrorFor(const std::vector<ValidationError>& errors, const std::string& field) {
+    return std::any_of(errors.begin(), errors.end(),
+                       [&](const ValidationError& e) { return e.field == field; });
+}
+
+// Creates empty placeholder files and a project that refers to them, so
+// validation (which only checks that files exist) sees a complete project
+class ProjectValidationTest : public ::testing::Test {
+  protected:
+    std::filesystem::path dir;
+    ProjectData project;
+
+    std::string touch(const std::string& name) {
+        const std::filesystem::path path = dir / name;
+        std::ofstream(path).put('x');
+        return path.string();
+    }
+
+    void SetUp() override {
+        dir = std::filesystem::temp_directory_path() / "rsans_validation_test";
+        std::filesystem::create_directories(dir);
+
+        project.header.fontName = "Arial";
+        project.header.fontPath = touch("font.ttf");
+        project.header.title = "Title";
+        project.header.titleSize = 64;
+        project.header.artist = "Artist";
+        project.header.artistSize = 36;
+        project.header.media = (dir / "cover.bmp").string();
+        writeTestBmp(project.header.media);
+        project.audio.path = writeTestWav("rsans_validation_test/song.wav", 1, 16000);
+        project.audio.length = 42.0;
+        project.video.width = 1080;
+        project.video.height = 1920;
+        project.video.background = "white";
+        project.layout.fontName = "Arial";
+        project.layout.fontPath = project.header.fontPath;
+        project.layout.fontSize = 48;
+        project.layout.lineHeight = 60;
+        project.model.base = touch("model.bin");
+    }
+
+    void TearDown() override {
+        std::filesystem::remove_all(dir);
+    }
+};
+
+} // namespace
+
+TEST(ProjectDataTest, DefaultConstructorCreatesBlankProject) {
+    // When
+    const ProjectData project;
+
+    // Then
+    EXPECT_TRUE(project.audio.path.empty());
+    EXPECT_EQ(project.audio.length, 0.0);
+    EXPECT_EQ(project.video.width, 0);
+    EXPECT_EQ(project.layout.fontSize, 0);
+    EXPECT_TRUE(project.tokens.empty());
+    EXPECT_TRUE(project.colorSwatch.empty());
+}
+
+TEST(ProjectDataTest, ValidateReportsEveryMandatoryFieldGivenBlankProject) {
+    // Given
+    const ProjectData project;
+
+    // When
+    const std::vector<ValidationError> errors = project.validate();
+
+    // Then
+    EXPECT_FALSE(project.isValid());
+    for (const std::string field : {
+             "header.fontName", "header.fontPath", "header.title", "header.titleSize",
+             "header.artist", "header.artistSize",
+             "header.media", "audio.path", "video.width", "video.height",
+             "video.background", "layout.fontName", "layout.fontPath", "layout.fontSize",
+             "layout.lineHeight", "model.path"}) {
+        EXPECT_TRUE(hasErrorFor(errors, field)) << "No error for " << field;
+    }
+}
+
+TEST(ProjectDataTest, ValidateDoesNotRequireOptionalFieldsGivenBlankProject) {
+    // Given
+    const ProjectData project;
+
+    // When
+    const std::vector<ValidationError> errors = project.validate();
+
+    // Then
+    for (const std::string field : {"cmudict", "colorSwatch"}) {
+        EXPECT_FALSE(hasErrorFor(errors, field)) << "Unexpected error for " << field;
+    }
+}
+
+TEST_F(ProjectValidationTest, IsValidGivenCompleteProject) {
+    EXPECT_TRUE(project.validate().empty());
+    EXPECT_TRUE(project.isValid());
+}
+
+TEST_F(ProjectValidationTest, ReportsRequiredGivenEmptyTitleAndArtist) {
+    // Given
+    project.header.title = "";
+    project.header.artist = "";
+
+    // When
+    const std::vector<ValidationError> errors = project.validate();
+
+    // Then
+    ASSERT_EQ(errors.size(), 2);
+    EXPECT_TRUE(hasErrorFor(errors, "header.title"));
+    EXPECT_TRUE(hasErrorFor(errors, "header.artist"));
+}
+
+TEST_F(ProjectValidationTest, ReportsMissingFileGivenNonExistentAudioPath) {
+    // Given
+    project.audio.path = (dir / "missing.wav").string();
+
+    // When
+    const std::vector<ValidationError> errors = project.validate();
+
+    // Then
+    ASSERT_EQ(errors.size(), 1);
+    EXPECT_EQ(errors[0].field, "audio.path");
+    EXPECT_NE(errors[0].message.find("file not found"), std::string::npos);
+}
+
+TEST_F(ProjectValidationTest, ReportsMissingFileGivenDirectoryAsModelPath) {
+    // Given
+    project.model.base = dir.string();
+
+    // Then
+    EXPECT_TRUE(hasErrorFor(project.validate(), "model.path"));
+}
+
+TEST_F(ProjectValidationTest, ReportsOddDimensionsGivenOddWidthAndHeight) {
+    // Given
+    project.video.width = 1921;
+    project.video.height = 1081;
+
+    // When
+    const std::vector<ValidationError> errors = project.validate();
+
+    // Then
+    EXPECT_TRUE(hasErrorFor(errors, "video.width"));
+    EXPECT_TRUE(hasErrorFor(errors, "video.height"));
+}
+
+TEST_F(ProjectValidationTest, ReportsNegativeAudioLengthGivenUnreadableAudio) {
+    // Given: the JSON loader sets -1 when libsndfile cannot read the file
+    project.audio.length = -1.0;
+
+    // Then
+    EXPECT_TRUE(hasErrorFor(project.validate(), "audio.length"));
+}
+
+TEST_F(ProjectValidationTest, IsValidGivenExistingCmudict) {
+    // Given
+    project.cmudict = touch("cmudict.dict");
+
+    // Then
+    EXPECT_TRUE(project.isValid());
+}
+
+TEST_F(ProjectValidationTest, ReportsMissingFileGivenNonExistentCmudict) {
+    // Given
+    project.cmudict = (dir / "missing.dict").string();
+
+    // Then
+    EXPECT_TRUE(hasErrorFor(project.validate(), "cmudict"));
+}
+
+TEST_F(ProjectValidationTest, ReportsBadColorGivenNonHexSwatchEntry) {
+    // Given
+    project.colorSwatch = {Color("#FF8800"), Color("#GG0000")};
+
+    // When
+    const std::vector<ValidationError> errors = project.validate();
+
+    // Then
+    ASSERT_EQ(errors.size(), 1);
+    EXPECT_EQ(errors[0].field, "colorSwatch[1]");
+}
+
+TEST_F(ProjectValidationTest, ReportsEmptySwatchGivenTokensWithRhymeGroups) {
+    // Given
+    project.tokens = {Token(0, "day", 0, 500, 0, 0), Token(1, "way", 500, 1000, 0, 0)};
+
+    // Then
+    EXPECT_TRUE(hasErrorFor(project.validate(), "colorSwatch"));
+}
+
+TEST_F(ProjectValidationTest, IsValidGivenTokensWithRhymeGroupsAndSwatch) {
+    // Given
+    project.tokens = {Token(0, "day", 0, 500, 0, 0), Token(1, "way", 500, 1000, 0, 0)};
+    project.colorSwatch = {Color("#FF8800")};
+
+    // Then
+    EXPECT_TRUE(project.isValid());
+}
+
+TEST_F(ProjectValidationTest, ReportsTokenErrorsGivenInvalidToken) {
+    // Given
+    project.tokens = {Token(0, "", -100, -200, -1, -1)};
+    project.colorSwatch = {Color("#FF8800")};
+
+    // When
+    const std::vector<ValidationError> errors = project.validate();
+
+    // Then
+    EXPECT_TRUE(hasErrorFor(errors, "tokens[0].text"));
+    EXPECT_TRUE(hasErrorFor(errors, "tokens[0].startMs"));
+    EXPECT_TRUE(hasErrorFor(errors, "tokens[0].endMs"));
+    EXPECT_TRUE(hasErrorFor(errors, "tokens[0].lineIndex"));
+    EXPECT_TRUE(hasErrorFor(errors, "tokens[0].rhymeIndex"));
+}
+
+static_assert(std::is_copy_constructible_v<ProjectData>);
+static_assert(std::is_copy_assignable_v<ProjectData>);
+static_assert(std::is_nothrow_move_constructible_v<ProjectData>);
+static_assert(std::is_nothrow_move_assignable_v<ProjectData>);
+
+TEST_F(ProjectValidationTest, CopyConstructorCopiesEveryMember) {
+    // Given
+    project.cmudict = "dict";
+    project.tokens = {Token(0, "day", 0, 500, 0, 1)};
+    project.colorSwatch = {Color("#FF8800")};
+
+    // When
+    const ProjectData copy(project);
+
+    // Then
+    EXPECT_EQ(copy.toJson(), project.toJson());
+}
+
+TEST_F(ProjectValidationTest, CopyIsIndependentOfOriginal) {
+    // Given
+    project.tokens = {Token(0, "day", 0, 500, 0, std::nullopt)};
+    ProjectData copy(project);
+
+    // When
+    copy.header.title = "Changed";
+    copy.tokens[0].text = "way";
+
+    // Then
+    EXPECT_EQ(project.header.title, "Title");
+    EXPECT_EQ(project.tokens[0].text, "day");
+}
+
+TEST_F(ProjectValidationTest, CopyAssignmentReplacesEveryMember) {
+    // Given
+    ProjectData target;
+
+    // When
+    target = project;
+
+    // Then
+    EXPECT_EQ(target.toJson(), project.toJson());
+    EXPECT_TRUE(target.isValid());
+}
+
+TEST(AudioDurationTest, ReturnsLengthInSecondsGivenWavFile) {
+    // Given: a 2 second, 16 kHz mono 16-bit WAV
+    const std::string path = writeTestWav("rsans_duration_test.wav", 1, 16000, 2000);
+
+    // When
+    const double seconds = getAudioDuration(path);
+
+    // Then
+    EXPECT_DOUBLE_EQ(seconds, 2.0);
+    std::filesystem::remove(path);
+}
+
+TEST(AudioDurationTest, ReturnsNegativeOneGivenNonExistentFile) {
+    EXPECT_EQ(getAudioDuration("/nonexistent/path/to/audio.wav"), -1.0);
+}
+
+// Step-level validation
+
+TEST(StepValidationTest, ValidateForAnalyzeRequiresOnlyAudioAndModelGivenBlankProject) {
+    // Given
+    const ProjectData project;
+
+    // When
+    const std::vector<ValidationError> errors = project.validateForAnalyze();
+
+    // Then
+    ASSERT_EQ(errors.size(), 2);
+    EXPECT_TRUE(hasErrorFor(errors, "audio.path"));
+    EXPECT_TRUE(hasErrorFor(errors, "model.path"));
+}
+
+TEST_F(ProjectValidationTest, ValidateForAnalyzeIsReadyGivenOnlyAudioAndModel) {
+    // Given: everything else blank
+    ProjectData analyzeOnly;
+    analyzeOnly.audio.path = project.audio.path;
+    analyzeOnly.model.base = project.model.base;
+
+    // Then
+    EXPECT_TRUE(analyzeOnly.validateForAnalyze().empty());
+    EXPECT_FALSE(analyzeOnly.isValid());
+}
+
+TEST_F(ProjectValidationTest, ValidateForRhymeRequiresCmudictAndTokensGivenNeitherSet) {
+    // When
+    const std::vector<ValidationError> errors = project.validateForRhyme();
+
+    // Then
+    ASSERT_EQ(errors.size(), 2);
+    EXPECT_TRUE(hasErrorFor(errors, "cmudict"));
+    EXPECT_TRUE(hasErrorFor(errors, "tokens"));
+}
+
+TEST_F(ProjectValidationTest, ValidateForRhymeIsReadyGivenCmudictAndTokens) {
+    // Given
+    project.cmudict = touch("cmudict.dict");
+    project.tokens = {Token(0, "day", 0, 500, 0, std::nullopt)};
+
+    // Then
+    EXPECT_TRUE(project.validateForRhyme().empty());
+}
+
+TEST_F(ProjectValidationTest, ValidateForRhymeReportsMissingFileGivenNonExistentCmudict) {
+    // Given
+    project.cmudict = (dir / "missing.dict").string();
+    project.tokens = {Token(0, "day", 0, 500, 0, std::nullopt)};
+
+    // When
+    const std::vector<ValidationError> errors = project.validateForRhyme();
+
+    // Then
+    ASSERT_EQ(errors.size(), 1);
+    EXPECT_EQ(errors[0].field, "cmudict");
+}
+
+TEST_F(ProjectValidationTest, ValidateForExportRequiresTokensGivenNoTokens) {
+    // When
+    const std::vector<ValidationError> errors = project.validateForExport();
+
+    // Then
+    ASSERT_EQ(errors.size(), 1);
+    EXPECT_EQ(errors[0].field, "tokens");
+}
+
+TEST_F(ProjectValidationTest, ValidateForExportIsReadyGivenTokensWithoutModelOrCmudict) {
+    // Given: export does not read the model or dictionary
+    project.model.base = "";
+    project.tokens = {Token(0, "day", 0, 500, 0, std::nullopt)};
+
+    // Then
+    EXPECT_TRUE(project.validateForExport().empty());
+}
+
+TEST_F(ProjectValidationTest, ValidateForExportReportsVisualSettingsGivenBlankHeaderAndLayout) {
+    // Given
+    project.header = ProjectData::HeaderData{};
+    project.layout = ProjectData::LayoutConfig{};
+    project.tokens = {Token(0, "day", 0, 500, 0, std::nullopt)};
+
+    // When
+    const std::vector<ValidationError> errors = project.validateForExport();
+
+    // Then
+    EXPECT_TRUE(hasErrorFor(errors, "header.title"));
+    EXPECT_TRUE(hasErrorFor(errors, "header.media"));
+    EXPECT_TRUE(hasErrorFor(errors, "layout.fontPath"));
+    EXPECT_FALSE(hasErrorFor(errors, "tokens"));
+}
+
+TEST_F(ProjectValidationTest, ValidateForExportReportsEmptySwatchGivenRhymedTokens) {
+    // Given
+    project.tokens = {Token(0, "day", 0, 500, 0, 0)};
+
+    // Then
+    EXPECT_TRUE(hasErrorFor(project.validateForExport(), "colorSwatch"));
+}
+
+TEST_F(ProjectValidationTest, ValidateForFullIsReadyGivenNoTokens) {
+    // Given: tokens come from analyze, so none are needed yet
+    project.cmudict = touch("cmudict.dict");
+    project.colorSwatch = {Color("#FF8800")};
+
+    // Then
+    EXPECT_TRUE(project.validateForFull().empty());
+}
+
+TEST_F(ProjectValidationTest, ValidateForFullRequiresCmudictAndSwatchGivenNeitherSet) {
+    // When
+    const std::vector<ValidationError> errors = project.validateForFull();
+
+    // Then
+    ASSERT_EQ(errors.size(), 2);
+    EXPECT_TRUE(hasErrorFor(errors, "cmudict"));
+    EXPECT_TRUE(hasErrorFor(errors, "colorSwatch"));
+}
+
+TEST(StepValidationTest, ValidateForFullReportsEveryInputGivenBlankProject) {
+    // Given
+    const ProjectData project;
+
+    // When
+    const std::vector<ValidationError> errors = project.validateForFull();
+
+    // Then
+    for (const std::string field : {
+             "header.title", "header.media", "audio.path", "video.width",
+             "layout.fontPath", "model.path", "cmudict", "colorSwatch"}) {
+        EXPECT_TRUE(hasErrorFor(errors, field)) << "No error for " << field;
+    }
+    EXPECT_FALSE(hasErrorFor(errors, "tokens"));
+    // The length is measured from the audio file, so only the path is reported
+    EXPECT_FALSE(hasErrorFor(errors, "audio.length"));
+}
+
+TEST_F(ProjectValidationTest, ReportsNotAnImageGivenNonImageMedia) {
+    // Given: a file that exists but isn't an image, such as a video
+    project.header.media = touch("cover.mp4");
+
+    // When
+    const std::vector<ValidationError> errors = project.validate();
+
+    // Then
+    ASSERT_EQ(errors.size(), 1);
+    EXPECT_EQ(errors[0].field, "header.media");
+    EXPECT_NE(errors[0].message.find("image"), std::string::npos);
+}
+
+TEST_F(ProjectValidationTest, ReportsNotAnImageGivenImageExtensionWithOtherContent) {
+    // Given: the check reads the file's contents, not its name
+    project.header.media = touch("cover.png");
+
+    // Then
+    EXPECT_TRUE(hasErrorFor(project.validateForExport(), "header.media"));
+}
+
+TEST_F(ProjectValidationTest, ReportsOnlyMissingFileGivenNonExistentMedia) {
+    // Given
+    project.header.media = (dir / "missing.png").string();
+
+    // When
+    const std::vector<ValidationError> errors = project.validate();
+
+    // Then: one error for the missing file, not a second about the format
+    ASSERT_EQ(errors.size(), 1);
+    EXPECT_NE(errors[0].message.find("file not found"), std::string::npos);
+}
+
+TEST_F(ProjectValidationTest, ReportsUnsupportedFormatGivenNonAudioFile) {
+    // Given
+    project.audio.path = touch("song.mp3");
+
+    // When
+    const std::vector<ValidationError> errors = project.validate();
+
+    // Then: one error naming the format, not a second one about the length
+    ASSERT_EQ(errors.size(), 1);
+    EXPECT_EQ(errors[0].field, "audio.path");
+    EXPECT_NE(errors[0].message.find("unsupported audio format"), std::string::npos);
+}
+
+TEST_F(ProjectValidationTest, ReportsUnsupportedFormatInEveryStepGivenM4aAudio) {
+    if (!ffmpegAvailable()) {
+        GTEST_SKIP() << "ffmpeg not found";
+    }
+    // Given: AAC in an M4A container, which ffmpeg reads but libsndfile doesn't
+    const std::string m4a = (dir / "song.m4a").string();
+    ASSERT_EQ(runProcess({"ffmpeg", "-nostdin", "-y", "-loglevel", "error",
+                          "-f", "lavfi", "-i", "sine=frequency=440:duration=1",
+                          "-c:a", "aac", m4a}), 0);
+    project.audio.path = m4a;
+    project.audio.length = getAudioDuration(m4a);  // What loading a project would set
+    project.cmudict = touch("cmudict.dict");
+    project.colorSwatch = {Color("#FF8800")};
+    project.tokens = {Token(0, "day", 0, 500, 0, std::nullopt)};
+
+    // Then
+    for (const auto& errors : {project.validateForAnalyze(), project.validateForExport(),
+                               project.validateForFull()}) {
+        ASSERT_EQ(errors.size(), 1);
+        EXPECT_EQ(errors[0].field, "audio.path");
+        EXPECT_NE(errors[0].message.find("AAC/M4A"), std::string::npos);
+    }
+}
+
+TEST_F(ProjectValidationTest, ValidateForFullIsReadyGivenMp3Audio) {
+    if (!ffmpegAvailable()) {
+        GTEST_SKIP() << "ffmpeg not found";
+    }
+    // Given: MP3 is readable by libsndfile, so its length is measured on load
+    const std::string mp3 = (dir / "song.mp3").string();
+    ASSERT_EQ(runProcess({"ffmpeg", "-nostdin", "-y", "-loglevel", "error",
+                          "-f", "lavfi", "-i", "sine=frequency=440:duration=1", mp3}), 0);
+    project.audio.path = mp3;
+    project.audio.length = getAudioDuration(mp3);
+    project.cmudict = touch("cmudict.dict");
+    project.colorSwatch = {Color("#FF8800")};
+
+    // Then
+    EXPECT_GT(project.audio.length, 0.0);
+    EXPECT_TRUE(project.validateForFull().empty());
+}
+
+TEST(ProjectDataTest, ToJsonSavesInvalidUtf8AsReplacementCharacter) {
+    // Given: a word with half a character (as an old transcription could make)
+    ProjectData data(ProjectData().toJson());
+    data.tokens = {Token(0, "\xE2\x99", 0, 100, 0, std::nullopt)};
+
+    // When
+    const std::string json = data.toJson();
+
+    // Then: saved, and readable again
+    EXPECT_NE(json.find("\xEF\xBF\xBD"), std::string::npos) << json;
+    EXPECT_NO_THROW(ProjectData{json});
 }

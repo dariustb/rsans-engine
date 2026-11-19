@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -14,7 +15,7 @@ std::string getTestImagePath() {
     static std::string path;
     if (!path.empty()) return path;
 
-    path = "/tmp/test_rsans_1x1.bmp";
+    path = (std::filesystem::temp_directory_path() / "test_rsans_1x1.bmp").string();
     const unsigned char bmp[] = {
         0x42,0x4D,0x3A,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x36,0x00,0x00,0x00,
         0x28,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x00,
@@ -53,8 +54,8 @@ ProjectData createTestProjectData(
             "length": 10.5
         },
         "video": {
-            "width": 1920,
-            "height": 1080,
+            "width": 1080,
+            "height": 1920,
             "background": "#000000"
         },
         "layout": {
@@ -78,7 +79,8 @@ ProjectData createTestProjectData(
     })";
 
     ProjectData data(json.str());
-    return ProjectData(std::move(data), const_cast<std::vector<Token>&>(tokens));
+    data.tokens = tokens;
+    return data;
 }
 
 TEST(AssTest, AssConstructorCreatesValidOutputGivenBasicTokens) {
@@ -100,7 +102,7 @@ TEST(AssTest, AssConstructorCreatesValidOutputGivenBasicTokens) {
 }
 
 TEST(AssTest, AssConstructorGeneratesScriptInfoGivenVideoConfig) {
-    // Given: Token with video configuration (1920x1080)
+    // Given: Token with video configuration (1080x1920)
     std::vector<Token> tokens = {
         {1, "test", 0, 100, 0, std::nullopt}
     };
@@ -110,8 +112,8 @@ TEST(AssTest, AssConstructorGeneratesScriptInfoGivenVideoConfig) {
     const Ass ass(data);
 
     // Then
-    EXPECT_NE(ass.text().find("PlayResX: 1920"), std::string::npos);
-    EXPECT_NE(ass.text().find("PlayResY: 1080"), std::string::npos);
+    EXPECT_NE(ass.text().find("PlayResX: 1080"), std::string::npos);
+    EXPECT_NE(ass.text().find("PlayResY: 1920"), std::string::npos);
     EXPECT_NE(ass.text().find("ScriptType: v4.00+"), std::string::npos);
 }
 

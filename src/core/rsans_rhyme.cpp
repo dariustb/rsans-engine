@@ -6,6 +6,7 @@
 #include <cctype>
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
 #include <unordered_map>
 
 namespace {
@@ -39,9 +40,13 @@ std::string phonemeVecToString(const std::vector<std::string>& phonemes) {
 } // namespace
 
 CMUDict::CMUDict(const std::string& dictPath) {
+    if (dictPath.empty()) {
+        throw std::runtime_error("No pronunciation dictionary is set (cmudict)");
+    }
+
     std::ifstream file(dictPath);
     if (!file.is_open()) {
-        return;
+        throw std::runtime_error("Failed to open pronunciation dictionary: " + dictPath);
     }
 
     std::string line;
@@ -93,6 +98,11 @@ CMUDict::CMUDict(const std::string& dictPath) {
         if (d_entries.find(key) == d_entries.end()) {
             d_entries[key] = phonemes;
         }
+    }
+
+    // An empty result means the file is the wrong one, or not in CMUdict format
+    if (d_entries.empty()) {
+        throw std::runtime_error("Pronunciation dictionary contains no entries: " + dictPath);
     }
 }
 
@@ -194,7 +204,7 @@ ProjectData detectRhymes(const ProjectData& project) {
     CMUDict dict(project.cmudict);
 
     // Copy the project to modify tokens
-    ProjectData result(project.toJson());
+    ProjectData result = project;
 
     if (result.tokens.empty()) {
         return result;

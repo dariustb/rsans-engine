@@ -1,5 +1,6 @@
 add_library(rsans_io
     rsans_io.cpp
+    rsans_process.cpp
 )
 
 target_include_directories(rsans_io PUBLIC ./

@@ -38,37 +38,42 @@ class Color {
     Color(const std::string& hexValue);
 };
 
+struct ValidationError {
+    std::string field;    // Dotted path matching the JSON keys, e.g. "audio.path"
+    std::string message;
+};
+
 struct ProjectData {
     struct HeaderData {
         std::string fontName;
         std::string fontPath;
         std::string title;
-        int titleSize;
+        int titleSize = 0;
         std::string artist;
-        int artistSize;
+        int artistSize = 0;
         std::string media;
     } header;
 
     struct AudioData {
         std::string path;
-        double length;
+        double length = 0.0;
     } audio;
 
     struct VideoConfig {
-        int width;
-        int height;
+        int width = 0;
+        int height = 0;
         std::string background;
     } video;
     
     struct LayoutConfig {
         std::string fontName;
         std::string fontPath;
-        int fontSize;
-        int lineHeight;
+        int fontSize = 0;
+        int lineHeight = 0;
     } layout;
 
     struct ModelPaths {
-        // TODO: Add tiny/small/med/lg/turbo model support
+        // Any Whisper model file (tiny to large); "base" is only the field's name
         std::string base;
     } model;
 
@@ -78,12 +83,34 @@ struct ProjectData {
 
     std::vector<Color> colorSwatch;
 
-    ProjectData() = delete;
+    ProjectData() = default;  // Blank project: not valid until mandatory values are filled in.
     ProjectData(const std::string& jsonContent);
-    ProjectData(ProjectData base, std::vector<Token>& newTokens);
-    ProjectData(ProjectData&& other) noexcept;
+
+    // Copyable and movable; every member copies or moves on its own
+    ProjectData(const ProjectData& other) = default;
+    ProjectData(ProjectData&& other) noexcept = default;
+    ProjectData& operator=(const ProjectData& other) = default;
+    ProjectData& operator=(ProjectData&& other) noexcept = default;
+    ~ProjectData() = default;
 
     std::string toJson() const;
+
+    // Checks that mandatory values are present and that every value present is
+    // usable. Returns one error per problem, or an empty vector if valid.
+    std::vector<ValidationError> validate() const;
+    bool isValid() const;
+
+    // Per-step checks: only what each step reads, so a project can be ready
+    // for one step but not another (e.g. analyze before any fonts are chosen).
+    // Each returns one error per problem, or an empty vector if ready.
+    std::vector<ValidationError> validateForAnalyze() const;  // audio.path, model.path
+    std::vector<ValidationError> validateForRhyme() const;    // cmudict, tokens
+    std::vector<ValidationError> validateForExport() const;   // all visual settings, audio, tokens
+    std::vector<ValidationError> validateForFull() const;     // all of the above, except tokens
 };
+
+// Returns the length of the audio file in seconds, or -1.0 if libsndfile
+// cannot open it.
+double getAudioDuration(const std::string& audioPath);
 
 #endif
