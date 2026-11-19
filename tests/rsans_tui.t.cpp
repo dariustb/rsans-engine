@@ -336,6 +336,12 @@ TEST(RsansAppTest, RunTabShowsStepsAndWhyTheyCantRun) {
     EXPECT_TRUE(contains(screen, "Full run"));
     EXPECT_TRUE(contains(screen, "Checks"));
     EXPECT_TRUE(contains(screen, "audio.path: is required"));
+    // The hint is shown once, above the buttons
+    const auto hint = screen.find("Choose a step to run");
+    ASSERT_NE(hint, std::string::npos) << screen;
+    EXPECT_EQ(screen.find("Choose a step to run", hint + 1), std::string::npos) << screen;
+    EXPECT_LT(hint, screen.find("Analyze")) << screen;
+    EXPECT_FALSE(contains(screen, "ask where to save the video")) << screen;
 }
 
 TEST(RsansAppTest, ProblemsForExportDontIncludeOutputPath) {
@@ -2536,7 +2542,60 @@ TEST(AppSettingsTest, SavedSettingsAreUsedUnlessGivenForThisRun) {
     EXPECT_EQ(given.whisperDir, "/env/whisper.cpp");
 }
 
-TEST(AppSettingsTest, EditingOnRunTabSavesForNextTime) {
+namespace {
+
+// From the tab bar, down the Project tab to Advanced settings, and opens them
+// (focus stays on the heading; one more ArrowDown reaches FFmpeg)
+bool openAdvancedSettings(RsansApp& app) {
+    for (int i = 0; i < 60; ++i) {
+        app.component()->OnEvent(ftxui::Event::ArrowDown);
+        if (contains(renderToString(app.component()), "[\u25B8 Advanced settings]")) {
+            app.component()->OnEvent(ftxui::Event::Return);
+            return true;
+        }
+    }
+    return false;
+}
+
+}  // namespace
+
+TEST(AppSettingsTest, AdvancedSettingsAreCollapsedOnProjectTab) {
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+
+    // Collapsed at first: only the heading
+    std::string screen = renderToString(app.component(), 120, 80);
+    EXPECT_TRUE(contains(screen, "Advanced settings")) << screen;
+    EXPECT_FALSE(contains(screen, "whisper.cpp")) << screen;
+    EXPECT_FALSE(contains(screen, "Pronouncing dict")) << screen;
+
+    // Opened: FFmpeg, whisper.cpp and the pronouncing dictionary
+    ASSERT_TRUE(openAdvancedSettings(app));
+    screen = renderToString(app.component(), 120, 80);
+    EXPECT_TRUE(contains(screen, "\u25BE Advanced settings")) << screen;
+    EXPECT_TRUE(contains(screen, "FFmpeg")) << screen;
+    EXPECT_TRUE(contains(screen, "whisper.cpp")) << screen;
+    EXPECT_TRUE(contains(screen, "Pronouncing dict")) << screen;
+
+    // And no longer on the Run tab
+    RsansApp other("ffmpeg", ui.post(), [] {});
+    other.newProject();
+    other.component()->OnEvent(ftxui::Event::ArrowRight);
+    const std::string run = renderToString(other.component());
+    EXPECT_TRUE(contains(run, "Checks")) << run;
+    EXPECT_FALSE(contains(run, "whisper.cpp")) << run;
+}
+
+TEST(AppSettingsTest, CollapsedAdvancedSettingsFlagAProblem) {
+    ManualPost ui;
+    RsansApp app("", ui.post(), [] {});  // No FFmpeg
+    app.newProject();
+    const std::string screen = renderToString(app.component(), 120, 80);
+    EXPECT_TRUE(contains(screen, "Advanced settings  !")) << screen;
+}
+
+TEST(AppSettingsTest, EditingOnProjectTabSavesForNextTime) {
     // Given: no settings yet
     SettingsFolder settings;
     ManualPost ui;
@@ -2545,8 +2604,8 @@ TEST(AppSettingsTest, EditingOnRunTabSavesForNextTime) {
     app.newProject();
     EXPECT_TRUE(contains(renderToString(app.component()), "") );
 
-    // When: the Run tab's FFmpeg box is edited
-    app.component()->OnEvent(ftxui::Event::ArrowRight);  // Run tab
+    // When: the FFmpeg box under Advanced settings is edited
+    ASSERT_TRUE(openAdvancedSettings(app));
     app.component()->OnEvent(ftxui::Event::ArrowDown);   // FFmpeg
     EXPECT_TRUE(contains(renderToString(app.component()), "saved for next time"));
     type(app, "7");
@@ -2561,12 +2620,116 @@ TEST(AppSettingsTest, EditingOnRunTabSavesForNextTime) {
     EXPECT_EQ(next.ffmpegPath, app.ffmpegPath);
 }
 
+namespace {
+
+// A small pronouncing dictionary file, removed afterwards
+struct DictFile {
+    std::filesystem::path path =
+        std::filesystem::temp_directory_path() / ("rsans_settings_dict_" + std::to_string(::getpid()) + ".dict");
+    DictFile() { std::ofstream(path) << "cat K AE1 T\nhat HH AE1 T\n"; }
+    ~DictFile() { std::filesystem::remove(path); }
+    DictFile(const DictFile&) = delete;
+    DictFile& operator=(const DictFile&) = delete;
+    DictFile(DictFile&&) = delete;
+    DictFile& operator=(DictFile&&) = delete;
+};
+
+}  // namespace
+
+TEST(AppSettingsTest, PronouncingDictIsSavedForNextTime) {
+    // Given: no settings yet, and the dictionary's path typed but for its last letter
+    SettingsFolder settings;
+    DictFile dict;
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.useSettingsFile(settings.file.string(), false);
+    app.newProject();
+    const std::string full = dict.path.string();
+    app.form().setFieldText("cmudict", full.substr(0, full.size() - 1));
+
+    // When: it's finished under Advanced settings (FFmpeg, whisper.cpp, then the dictionary)
+    ASSERT_TRUE(openAdvancedSettings(app));
+    for (int i = 0; i < 3; ++i) {
+        app.component()->OnEvent(ftxui::Event::ArrowDown);
+    }
+    app.component()->OnEvent(ftxui::Event::End);
+    type(app, full.substr(full.size() - 1));
+    ASSERT_EQ(app.form().project().cmudict, full);
+
+    // Then: remembered, and the next new project starts with it
+    EXPECT_EQ(loadSettings(settings.file.string()).cmudictPath, full);
+    RsansApp next("ffmpeg", ui.post(), [] {});
+    next.useSettingsFile(settings.file.string(), false);
+    next.newProject();
+    EXPECT_EQ(next.form().project().cmudict, full);
+    EXPECT_FALSE(next.hasUnsavedChanges());
+}
+
+TEST(AppSettingsTest, UnfinishedDictPathIsNotRemembered) {
+    SettingsFolder settings;
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.useSettingsFile(settings.file.string(), false);
+    app.newProject();
+    app.form().setFieldText("cmudict", "");
+
+    ASSERT_TRUE(openAdvancedSettings(app));
+    for (int i = 0; i < 3; ++i) {
+        app.component()->OnEvent(ftxui::Event::ArrowDown);
+    }
+    type(app, "/no");
+
+    EXPECT_EQ(loadSettings(settings.file.string()).cmudictPath, "");
+}
+
+TEST(AppSettingsTest, LoadedProjectWithoutDictUsesRememberedOne) {
+    // Given: a remembered dictionary, and a project saved without one
+    SettingsFolder settings;
+    DictFile dict;
+    ASSERT_EQ(saveSettings(settings.file.string(), {"", "", dict.path.string()}), "");
+    const std::filesystem::path projectFile = settings.root / "song.rsans";
+    std::filesystem::create_directories(settings.root);
+    ManualPost ui;
+    RsansApp writer("ffmpeg", ui.post(), [] {});
+    writer.newProject();
+    writer.form().setFieldText("cmudict", "");
+    ASSERT_EQ(writer.saveProject(projectFile.string()), "");
+
+    // When
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.useSettingsFile(settings.file.string(), false);
+    ASSERT_EQ(app.loadProject(projectFile.string()), "");
+
+    // Then: filled in, without counting as an unsaved change
+    EXPECT_EQ(app.form().project().cmudict, dict.path.string());
+    EXPECT_FALSE(app.hasUnsavedChanges());
+}
+
+TEST(AppSettingsTest, LoadedProjectKeepsItsOwnDict) {
+    SettingsFolder settings;
+    DictFile dict;
+    ASSERT_EQ(saveSettings(settings.file.string(), {"", "", "/remembered.dict"}), "");
+    const std::filesystem::path projectFile = settings.root / "song.rsans";
+    std::filesystem::create_directories(settings.root);
+    ManualPost ui;
+    RsansApp writer("ffmpeg", ui.post(), [] {});
+    writer.newProject();
+    writer.form().setFieldText("cmudict", dict.path.string());
+    ASSERT_EQ(writer.saveProject(projectFile.string()), "");
+
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.useSettingsFile(settings.file.string(), false);
+    ASSERT_EQ(app.loadProject(projectFile.string()), "");
+
+    EXPECT_EQ(app.form().project().cmudict, dict.path.string());
+}
+
 TEST(AppSettingsTest, WithoutSettingsFileNothingIsSaved) {
     // Tests (and other embedders) don't touch the real settings file
     ManualPost ui;
     RsansApp app("ffmpeg", ui.post(), [] {});
     app.newProject();
-    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    ASSERT_TRUE(openAdvancedSettings(app));
     app.component()->OnEvent(ftxui::Event::ArrowDown);
     type(app, "7");
 
@@ -2583,8 +2746,8 @@ TEST(AppSettingsTest, OnlyTheEditedSettingIsSaved) {
     app.useSettingsFile(settings.file.string(), true);
     app.newProject();
 
-    // When: only whisper.cpp is edited (Run tab, down past FFmpeg)
-    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    // When: only whisper.cpp is edited (Advanced settings, down past FFmpeg)
+    ASSERT_TRUE(openAdvancedSettings(app));
     app.component()->OnEvent(ftxui::Event::ArrowDown);
     app.component()->OnEvent(ftxui::Event::ArrowDown);
     type(app, "x");

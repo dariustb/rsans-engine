@@ -217,6 +217,8 @@ class RsansApp {
     int d_modelView = 0;  // 0: the list, 1: confirm a download
     std::optional<std::size_t> d_modelToDownload;
     std::string d_modelButtonLabel;
+    bool d_advancedOpen = false;  // The Project tab's Advanced settings are shown
+    std::string d_advancedLabel;
 
     // The file dialog
     std::optional<FileBrowser> d_browser;
@@ -234,7 +236,7 @@ class RsansApp {
     AppSettings d_settings;
     std::string d_settingsError;
     // Saves the one setting that was edited; the others keep their saved value
-    enum class Setting { Ffmpeg, Whisper };
+    enum class Setting { Ffmpeg, Whisper, Dict };
     void settingsChanged(Setting edited);
 
     // Where this project's video was last saved (this session)

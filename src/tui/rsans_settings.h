@@ -8,6 +8,7 @@
 struct AppSettings {
     std::string ffmpegPath;
     std::string whisperDir;
+    std::string cmudictPath;  // The pronouncing dictionary new projects start with
 };
 
 // Where settings are kept: $XDG_CONFIG_HOME/rsans/settings.json, else

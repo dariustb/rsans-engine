@@ -43,11 +43,12 @@ struct EnvGuard {
 TEST_F(SettingsTest, SaveCreatesFolderAndLoadReadsBack) {
     const fs::path file = root / "a" / "b" / "settings.json";
 
-    ASSERT_EQ(saveSettings(file.string(), {"/opt/ffmpeg", "~/whisper.cpp"}), "");
+    ASSERT_EQ(saveSettings(file.string(), {"/opt/ffmpeg", "~/whisper.cpp", "/opt/cmudict.dict"}), "");
     const AppSettings loaded = loadSettings(file.string());
 
     EXPECT_EQ(loaded.ffmpegPath, "/opt/ffmpeg");
     EXPECT_EQ(loaded.whisperDir, "~/whisper.cpp");
+    EXPECT_EQ(loaded.cmudictPath, "/opt/cmudict.dict");
     EXPECT_FALSE(fs::exists(file.string() + ".tmp"));
 }
 
@@ -58,6 +59,7 @@ TEST_F(SettingsTest, EmptyValuesAreLeftOut) {
     std::ifstream in(file);
     const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     EXPECT_EQ(text.find("whisperDir"), std::string::npos) << text;
+    EXPECT_EQ(text.find("cmudictPath"), std::string::npos) << text;
     EXPECT_EQ(loadSettings(file.string()).whisperDir, "");
 }
 

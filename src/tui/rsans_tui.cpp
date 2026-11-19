@@ -746,15 +746,26 @@ void RsansApp::settingsChanged(Setting edited) {
     // one run, or a default, isn't written unless changed here
     if (edited == Setting::Ffmpeg) {
         d_settings.ffmpegPath = ffmpegPath;
-    } else {
+    } else if (edited == Setting::Whisper) {
         d_settings.whisperDir = whisperDir;
+    } else {
+        // Remembered once it's a usable file, so a half-typed path never
+        // becomes the next project's dictionary
+        if (!d_form.errorsFor("cmudict").empty()) {
+            return;
+        }
+        d_settings.cmudictPath = d_form.project().cmudict;
     }
     d_settingsError = saveSettings(d_settingsPath, d_settings);
 }
 
 void RsansApp::newProject() {
     closeAudio();
-    d_form.reset(defaultProject());
+    ProjectData project = defaultProject();
+    if (!d_settings.cmudictPath.empty()) {
+        project.cmudict = d_settings.cmudictPath;  // The one chosen last time
+    }
+    d_form.reset(std::move(project));
     d_lastVideoFolder.clear();
     d_projectPath.clear();
     d_saveMessage.clear();
@@ -768,6 +779,9 @@ void RsansApp::newProject() {
 std::string RsansApp::loadProject(const std::string& path) {
     try {
         ProjectData project(readFile(path));
+        if (project.cmudict.empty()) {
+            project.cmudict = d_settings.cmudictPath;  // The remembered one, saved with the project next time
+        }
         d_form.reset(std::move(project));
     } catch (const std::exception& e) {
         return std::string("Can't load project: ") + e.what();
@@ -1084,6 +1098,9 @@ void RsansApp::browseFor(const std::string& key) {
     }
     openFileDialog(title, types, false, current, [this, key](const std::string& path) {
         d_form.setFieldText(key, path);
+        if (key == "cmudict") {
+            settingsChanged(Setting::Dict);
+        }
         return std::string();
     });
 }
@@ -1231,6 +1248,7 @@ Component RsansApp::makeProjectTab() {
     };
     Components inputs;
     std::vector<Row> rows;
+    Row dictRow{nullptr, nullptr, nullptr};  // Shown under Advanced settings
     for (FormField& field : d_form.fields()) {
         // Each font is one row: a button opening the picker, which fills in
         // both the font's name and its file
@@ -1255,9 +1273,18 @@ Component RsansApp::makeProjectTab() {
         }
 
         InputOption option = singleLineInput();
-        option.on_change = [this] { d_form.apply(); };
+        option.on_change = [this, key = field.key] {
+            d_form.apply();
+            if (key == "cmudict") {
+                settingsChanged(Setting::Dict);
+            }
+        };
         option.placeholder = field.kind == FieldKind::Path ? "path to file" : "";
         Component input = TextInput(&field.text, option);
+        if (field.key == "cmudict") {
+            dictRow = {&field, input, browseButton(field.key)};
+            continue;
+        }
         if (field.kind == FieldKind::Path) {
             // Typed, or picked with the file dialog
             Component browse = browseButton(field.key);
@@ -1269,8 +1296,30 @@ Component RsansApp::makeProjectTab() {
         }
     }
 
+    // Advanced settings, collapsed at first. All three are saved for next time;
+    // FFmpeg and whisper.cpp belong to this computer only, while the
+    // pronouncing dictionary is also saved in the project (the CLI reads it there)
+    InputOption ffmpegOption = singleLineInput();
+    ffmpegOption.on_change = [this] { settingsChanged(Setting::Ffmpeg); };
+    Component ffmpegInput = TextInput(&ffmpegPath, "ffmpeg", ffmpegOption);
+    Component ffmpegBrowse = browseButton("ffmpeg");
+    InputOption whisperOption = singleLineInput();
+    whisperOption.on_change = [this] {
+        settingsChanged(Setting::Whisper);
+        refreshWhisperModels();
+    };
+    Component whisperInput = TextInput(&whisperDir, "path to a whisper.cpp checkout", whisperOption);
+    Component advancedToggle =
+        Button(&d_advancedLabel, [this] { d_advancedOpen = !d_advancedOpen; }, ButtonOption::Ascii());
+    Components advancedInputs{Container::Horizontal({ffmpegInput, ffmpegBrowse}), whisperInput};
+    if (dictRow.field != nullptr) {
+        advancedInputs.push_back(Container::Horizontal({dictRow.input, dictRow.browse}));
+    }
+    inputs.push_back(advancedToggle);
+    inputs.push_back(Maybe(Container::Vertical(advancedInputs), &d_advancedOpen));
+
     Component container = Container::Vertical(inputs);
-    return Renderer(container, [this, rows] {
+    return Renderer(container, [this, rows, dictRow, ffmpegInput, ffmpegBrowse, whisperInput, advancedToggle] {
         Elements lines;
         std::string section;
         for (const Row& entry : rows) {
@@ -1362,6 +1411,45 @@ Component RsansApp::makeProjectTab() {
             if (field->key == "audio.path" && d_form.project().audio.length > 0.0) {
                 const int ms = static_cast<int>(d_form.project().audio.length * 1000.0);
                 lines.push_back(text(std::string(labelWidth + 2, ' ') + "Length " + formatTime(ms)) | dim);
+            }
+        }
+        // Advanced settings: a "!" on the collapsed heading when one of them needs fixing
+        const std::vector<std::string> dictErrors =
+            dictRow.field != nullptr ? d_form.errorsFor(dictRow.field->key) : std::vector<std::string>{};
+        const bool advancedProblem = !dictErrors.empty() || ffmpegPath.empty() || !d_settingsError.empty();
+        d_advancedLabel = std::string(d_advancedOpen ? "▾" : "▸") + " Advanced settings";
+        lines.push_back(text(""));
+        lines.push_back(hbox({
+            advancedToggle->Render() | bold,
+            text(!d_advancedOpen && advancedProblem ? " !" : "") | color(ftxui::Color::Red),
+        }));
+        if (d_advancedOpen) {
+            const auto settingRow = [](const std::string& label, bool problem, const Component& input,
+                                       const Component& browse) {
+                return hbox({
+                    text("  " + label) | size(WIDTH, EQUAL, labelWidth),
+                    text(problem ? "! " : "  ") | color(ftxui::Color::Red),
+                    input->Render() | flex,
+                    browse ? hbox({text(" "), browse->Render()}) : text(""),
+                });
+            };
+            lines.push_back(settingRow("FFmpeg", ffmpegPath.empty(), ffmpegInput, ffmpegBrowse));
+            lines.push_back(settingRow("whisper.cpp", false, whisperInput, nullptr));
+            if (dictRow.field != nullptr) {
+                lines.push_back(settingRow(dictRow.field->label, !dictErrors.empty(), dictRow.input, dictRow.browse));
+                for (const std::string& error : dictErrors) {
+                    if (error != requiredMessage) {
+                        lines.push_back(text(std::string(labelWidth + 2, ' ') + error) | color(ftxui::Color::Red));
+                    }
+                }
+            }
+            if (!d_settingsError.empty()) {
+                lines.push_back(text(std::string(labelWidth + 2, ' ') + d_settingsError) | color(ftxui::Color::Red));
+            }
+            if (!d_settingsPath.empty()) {
+                lines.push_back(text(std::string(labelWidth + 2, ' ') +
+                                     "All three are saved for next time; the dictionary is also saved in the project") |
+                                dim);
             }
         }
         return vbox({
@@ -1510,18 +1598,6 @@ bool RsansApp::startVideoStep(Step step, const std::string& outputPath) {
 }
 
 Component RsansApp::makeRunTab() {
-    // Settings for this computer, saved for next time
-    InputOption ffmpegOption = singleLineInput();
-    ffmpegOption.on_change = [this] { settingsChanged(Setting::Ffmpeg); };
-    Component ffmpegInput = TextInput(&ffmpegPath, "ffmpeg", ffmpegOption);
-    Component ffmpegBrowse = browseButton("ffmpeg");
-    InputOption whisperOption = singleLineInput();
-    whisperOption.on_change = [this] {
-        settingsChanged(Setting::Whisper);
-        refreshWhisperModels();
-    };
-    Component whisperInput = TextInput(&whisperDir, "path to a whisper.cpp checkout", whisperOption);
-
     struct StepButton {
         Step step;
         std::string label;
@@ -1543,13 +1619,9 @@ Component RsansApp::makeRunTab() {
     }
     buttons.push_back(cancelButton);
 
-    Component container = Container::Vertical({
-        Container::Horizontal({ffmpegInput, ffmpegBrowse}),
-        whisperInput,
-        Container::Horizontal(buttons),
-    });
+    Component container = Container::Vertical({Container::Horizontal(buttons)});
 
-    return Renderer(container, [this, ffmpegInput, ffmpegBrowse, whisperInput, steps, cancelButton] {
+    return Renderer(container, [this, steps, cancelButton] {
         // Buttons for steps that can't run are dimmed (pressing them does nothing)
         Elements buttonRow;
         Elements checks;
@@ -1586,8 +1658,9 @@ Component RsansApp::makeRunTab() {
             logLines.push_back(text("Nothing run yet") | dim);
         }
 
+        // Nothing below the checks until a step has run
         Element status = d_runner.state() == StepRunner::State::Idle
-            ? text("Choose a step to run") | dim
+            ? emptyElement()
             : vbox({
                   hbox({text(d_runner.name() + ": ") | bold, text(stateText(d_runner)),
                         text(d_runner.stage().empty() ? "" : " - " + d_runner.stage()) | dim,
@@ -1596,14 +1669,9 @@ Component RsansApp::makeRunTab() {
                   d_runner.error().empty() ? text("") : paragraph(d_runner.error()) | color(ftxui::Color::Red),
               });
 
+        const bool idle = d_runner.state() == StepRunner::State::Idle;
         return vbox({
-            hbox({text("Settings") | bold,
-                  text(d_settingsPath.empty() ? "" : "  saved for next time") | dim}),
-            hbox({text("  FFmpeg") | size(WIDTH, EQUAL, labelWidth), ffmpegInput->Render() | flex,
-                  text(" "), ffmpegBrowse->Render()}),
-            hbox({text("  whisper.cpp") | size(WIDTH, EQUAL, labelWidth), whisperInput->Render() | flex}),
-            d_settingsError.empty() ? text("") : text("  " + d_settingsError) | color(ftxui::Color::Red),
-            text("Export and Full run ask where to save the video.") | dim,
+            text("Choose a step to run") | dim,
             text(""),
             hbox(std::move(buttonRow)),
             text(""),
@@ -1611,7 +1679,7 @@ Component RsansApp::makeRunTab() {
             vbox(std::move(checks)),
             text(""),
             status,
-            text(""),
+            idle ? emptyElement() : text(""),
             window(text("Log"), vbox(std::move(logLines)) | focusPositionRelative(0, 1) | yframe) | flex,
         });
     });

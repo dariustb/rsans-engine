@@ -41,6 +41,9 @@ AppSettings loadSettings(const std::string& path) {
         if (j.contains("whisperDir") && j["whisperDir"].is_string()) {
             settings.whisperDir = j["whisperDir"].get<std::string>();
         }
+        if (j.contains("cmudictPath") && j["cmudictPath"].is_string()) {
+            settings.cmudictPath = j["cmudictPath"].get<std::string>();
+        }
     } catch (const std::exception&) {
         return AppSettings{};  // Damaged: start from the defaults
     }
@@ -54,6 +57,9 @@ std::string saveSettings(const std::string& path, const AppSettings& settings) {
     }
     if (!settings.whisperDir.empty()) {
         j["whisperDir"] = settings.whisperDir;
+    }
+    if (!settings.cmudictPath.empty()) {
+        j["cmudictPath"] = settings.cmudictPath;
     }
 
     std::error_code ec;
