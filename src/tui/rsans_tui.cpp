@@ -1619,9 +1619,12 @@ Component RsansApp::makeRunTab() {
     }
     buttons.push_back(cancelButton);
 
-    Component container = Container::Vertical({Container::Horizontal(buttons)});
+    // The log, collapsed at first
+    Component logToggle = Button(&d_logLabel, [this] { d_logOpen = !d_logOpen; }, ButtonOption::Ascii());
 
-    return Renderer(container, [this, steps, cancelButton] {
+    Component container = Container::Vertical({Container::Horizontal(buttons), logToggle});
+
+    return Renderer(container, [this, steps, cancelButton, logToggle] {
         // Buttons for steps that can't run are dimmed (pressing them does nothing)
         Elements buttonRow;
         Elements checks;
@@ -1650,13 +1653,25 @@ Component RsansApp::makeRunTab() {
         buttonRow.push_back(d_runner.isRunning() ? cancelButton->Render()
                                                  : cancelButton->Render() | dim);
 
+        // Log lines are in the dimmed (disabled) text color
         Elements logLines;
         for (const std::string& line : d_runner.log()) {
-            logLines.push_back(text(line));
+            logLines.push_back(text(line) | dim);
         }
         if (logLines.empty()) {
             logLines.push_back(text("Nothing run yet") | dim);
         }
+        const std::size_t logCount = d_runner.log().size();
+        d_logLabel = std::string(d_logOpen ? "\u25BE" : "\u25B8") + " Log";
+        Element logHeading = hbox({
+            logToggle->Render() | bold,
+            text(d_logOpen || logCount == 0
+                     ? ""
+                     : "  " + std::to_string(logCount) + (logCount == 1 ? " line" : " lines")) | dim,
+        });
+        Element log = d_logOpen
+            ? vbox({logHeading, vbox(std::move(logLines)) | focusPositionRelative(0, 1) | yframe | border | flex}) | flex
+            : logHeading;
 
         // Nothing below the checks until a step has run
         Element status = d_runner.state() == StepRunner::State::Idle
@@ -1680,7 +1695,7 @@ Component RsansApp::makeRunTab() {
             text(""),
             status,
             idle ? emptyElement() : text(""),
-            window(text("Log"), vbox(std::move(logLines)) | focusPositionRelative(0, 1) | yframe) | flex,
+            log,
         });
     });
 }

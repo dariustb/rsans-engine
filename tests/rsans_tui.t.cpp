@@ -364,6 +364,41 @@ TEST(RsansAppTest, RunStepDoesNothingGivenStepNotReady) {
     EXPECT_EQ(app.runner().state(), StepRunner::State::Idle);
 }
 
+TEST(RsansAppTest, RunTabLogIsCollapsedUntilOpened) {
+    // Given: a step that has run and logged
+    ManualPost ui;
+    RsansApp app("ffmpeg", ui.post(), [] {});
+    app.newProject();
+    const std::filesystem::path dict =
+        std::filesystem::temp_directory_path() / ("rsans_tui_log_" + std::to_string(::getpid()) + ".dict");
+    std::ofstream(dict) << "cat K AE1 T\nhat HH AE1 T\n";
+    app.form().setFieldText("cmudict", dict.string());
+    app.form().setTokens({Token(0, "cat", 0, 400, 0, std::nullopt), Token(1, "hat", 400, 800, 0, std::nullopt)});
+    ASSERT_TRUE(app.runStep(RsansApp::Step::Rhyme));
+    ASSERT_TRUE(ui.waitUntilFinished(app.runner()));
+    ASSERT_FALSE(app.runner().log().empty());
+    const std::string lastLine = app.runner().log().back();
+    const std::size_t count = app.runner().log().size();
+
+    // Then: collapsed on the Run tab, with how many lines it has
+    app.component()->OnEvent(ftxui::Event::ArrowRight);
+    std::string screen = renderToString(app.component());
+    EXPECT_TRUE(contains(screen, "\u25B8 Log")) << screen;
+    EXPECT_TRUE(contains(screen, std::to_string(count) + (count == 1 ? " line" : " lines"))) << screen;
+    EXPECT_FALSE(contains(screen, lastLine)) << screen;
+
+    // When: opened (the step buttons, then Log)
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::ArrowDown);
+    app.component()->OnEvent(ftxui::Event::Return);
+
+    // Then: the lines are shown
+    screen = renderToString(app.component());
+    EXPECT_TRUE(contains(screen, "\u25BE Log")) << screen;
+    EXPECT_TRUE(contains(screen, lastLine)) << screen;
+    std::filesystem::remove(dict);
+}
+
 TEST(RsansAppTest, RunStepDetectsRhymesAndShowsThemInLyricsTab) {
     // Given: a small dictionary and transcribed words
     ManualPost ui;

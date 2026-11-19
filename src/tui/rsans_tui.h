@@ -219,6 +219,8 @@ class RsansApp {
     std::string d_modelButtonLabel;
     bool d_advancedOpen = false;  // The Project tab's Advanced settings are shown
     std::string d_advancedLabel;
+    bool d_logOpen = false;  // The Run tab's log is shown
+    std::string d_logLabel;
 
     // The file dialog
     std::optional<FileBrowser> d_browser;
