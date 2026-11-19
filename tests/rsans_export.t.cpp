@@ -70,7 +70,7 @@ class ExportTest : public ::testing::Test {
         // Long and large enough that ffmpeg reports progress (every 0.5 s) before finishing
         project.audio.path = writeTestWav("rsans_export_test.wav", 1, 16000, 300000);
         project.audio.length = 300.0;
-        project.video = {1280, 720, "black"};
+        project.video = {1280, 720, "white"};
         project.layout = {"DejaVu Sans", testFont, 20, 26};
         project.tokens = {Token(0, "hello", 0, 1000, 0, 0), Token(1, "world", 1000, 2000, 0, std::nullopt)};
         project.colorSwatch = {Color("#FF8800")};

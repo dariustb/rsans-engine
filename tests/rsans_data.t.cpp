@@ -828,7 +828,7 @@ class ProjectValidationTest : public ::testing::Test {
         project.audio.length = 42.0;
         project.video.width = 1080;
         project.video.height = 1920;
-        project.video.background = "black";
+        project.video.background = "white";
         project.layout.fontName = "Arial";
         project.layout.fontPath = project.header.fontPath;
         project.layout.fontSize = 48;

@@ -99,7 +99,7 @@ TEST(ProjectFormTest, FieldsShowDefaultProjectValues) {
     ProjectForm form(defaultProject());
 
     EXPECT_EQ(fieldFor(form, "video.width").text, "1080");
-    EXPECT_EQ(fieldFor(form, "video.background").text, "black");
+    EXPECT_EQ(fieldFor(form, "video.background").text, "white");
     EXPECT_EQ(fieldFor(form, "header.title").text, "");
     EXPECT_EQ(fieldFor(form, "colorSwatch").text.rfind("#FF8800, ", 0), 0u);
 }

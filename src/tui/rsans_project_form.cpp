@@ -115,7 +115,7 @@ ProjectData defaultProject() {
     project.header.artistSize = 36;
     project.video.width = 1080;
     project.video.height = 1920;
-    project.video.background = "black";
+    project.video.background = "white";
     project.layout.fontSize = 48;
     project.layout.lineHeight = 60;
     project.colorSwatch = {Color("#FF8800"), Color("#00AAFF"), Color("#AA55FF"),
